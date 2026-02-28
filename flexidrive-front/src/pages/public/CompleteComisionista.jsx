@@ -142,7 +142,7 @@ export default function CompleteComisionista() {
             required
           />
 
-          <div>
+          {/* <div>
             <label className="block text-sm mb-1">DNI Frente</label>
             <input
               type="file"
@@ -151,9 +151,9 @@ export default function CompleteComisionista() {
               onChange={handleChange}
               required
             />
-          </div>
+          </div> */}
 
-          <div>
+          {/* <div>
             <label className="block text-sm mb-1">DNI Dorso</label>
             <input
               type="file"
@@ -162,7 +162,7 @@ export default function CompleteComisionista() {
               onChange={handleChange}
               required
             />
-          </div>
+          </div> */}
 
           <button
             type="submit"

@@ -57,7 +57,7 @@ function RoleCard({ title, subtitle, checked, onSelect }) {
     <button
       type="button"
       onClick={onSelect}
-      className={`flex w-full items-center justify-between rounded-2xl border p-6 text-left hover:bg-slate-80 ${
+      className={`flex w-full items-center justify-between rounded-2xl border p-6 text-left hover:bg-slate-50 ${
         checked ? "border-blue-700" : "border-slate-200"
       }`}
     >

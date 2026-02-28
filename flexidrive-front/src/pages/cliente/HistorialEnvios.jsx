@@ -84,7 +84,7 @@ export default function HistorialEnvios() {
       ) : (
         <div className="overflow-hidden rounded-xl border bg-white">
           <table className="w-full text-left">
-            <thead className="bg-slate-80 text-slate-700">
+            <thead className="bg-slate-50 text-slate-700">
               <tr className="text-sm font-semibold">
                 <th className="px-6 py-4">Nro. de envío</th>
                 <th className="px-6 py-4">Cliente</th>
@@ -113,7 +113,7 @@ export default function HistorialEnvios() {
                   <td className="px-6 py-4">
                     <Link
                       to={`/cliente/envios/${s.id}`}
-                      className="rounded-md border px-3 py-2 font-semibold text-slate-700 hover:bg-slate-80"
+                      className="rounded-md border px-3 py-2 font-semibold text-slate-700 hover:bg-slate-50"
                     >
                       Ver
                     </Link>

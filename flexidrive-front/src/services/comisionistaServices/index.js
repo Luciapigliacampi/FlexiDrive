@@ -3,7 +3,7 @@ import {
   getDashboardResumenMock, getAgendaHoyMock, getRutaSugeridaMock, listRutasMock, createRutaMock, updateRutaMock, deleteRutaMock
 } from "./mock";
 import {
-  getDashboardResumenApi, getAgendaHoyApi, getRutaSugeridaApi, listRutasApi, createRutaApi, updateRutaApi, deleteRutaApi
+  getDashboardResumenApi, getAgendaHoyApi, getRutaSugeridaApi, listRutasApi, createRutaApi, updateRutaApi, deleteRutaApi, toggleRutaActivaApi
 } from "./real";
 
 const USE_MOCK = (import.meta.env.VITE_USE_MOCK || "true") === "true";
@@ -21,3 +21,6 @@ export const listRutas = (params) => (USE_MOCK ? listRutasMock(params) : listRut
 export const createRuta = (data) => (USE_MOCK ? createRutaMock(data) : createRutaApi(data));
 export const updateRuta = (id, data) => (USE_MOCK ? updateRutaMock(id, data) : updateRutaApi(id, data));
 export const deleteRuta = (id) => (USE_MOCK ? deleteRutaMock(id) : deleteRutaApi(id));
+
+export const toggleRutaActiva = (id, activa) =>
+  USE_MOCK ? updateRutaMock(id, { activa }) : toggleRutaActivaApi(id, activa);

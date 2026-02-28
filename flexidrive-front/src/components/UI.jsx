@@ -23,7 +23,7 @@ export function Button({ variant = "primary", className = "", ...props }) {
     variant === "primary"
       ? "bg-blue-700 text-white hover:bg-blue-800"
       : variant === "outline"
-      ? "border text-slate-700 hover:bg-slate-80"
+      ? "border text-slate-700 hover:bg-slate-50"
       : "bg-slate-100 text-slate-800 hover:bg-slate-200";
 
   return <button {...props} className={`${base} ${styles} ${className}`} />;

@@ -3,15 +3,21 @@ import api from "./api";
 
 const AUTH_BASE = import.meta.env.VITE_AUTH_API_URL || "http://localhost:3000";
 
+const USE_MOCK = String(import.meta.env.VITE_USE_MOCK || "false") === "true";
+
+// ✅ Mock vehicles para modo mock
+const VEHICULOS_MOCK = [
+  { _id: "veh_1", marca: "Fiat", modelo: "Fiorino", patente: "AAA111" },
+  { _id: "veh_2", marca: "Renault", modelo: "Kangoo", patente: "BBB222" },
+];
+
 function formatApiError(err, fallback = "Ocurrió un error.") {
   const d = err?.response?.data;
 
-  // Zod: { error: "Error de validación", detalles: [{campo, mensaje}, ...] }
   if (d?.error === "Error de validación" && Array.isArray(d?.detalles)) {
     return d.detalles.map((x) => `• ${x.campo}: ${x.mensaje}`).join("\n");
   }
 
-  // Otros formatos comunes
   return d?.message || d?.error || err?.message || fallback;
 }
 
@@ -58,7 +64,12 @@ export const loginWithGoogle = async (data) => {
 // UPDATE PROFILE
 export const updateProfile = async (data) => {
   try {
-    const res = await api.put(`${AUTH_BASE}/api/auth/update-profile`, data);
+    const tempToken = localStorage.getItem("tempToken") || "";
+    const res = await api.put(`${AUTH_BASE}/api/auth/update-profile`, data, {
+      headers: {
+        Authorization: `Bearer ${tempToken}`,
+      },
+    });
     return res.data;
   } catch (err) {
     throw new Error(formatApiError(err, "Error al actualizar perfil."));
@@ -87,8 +98,12 @@ export const registerVehiculo = async (data) => {
   }
 };
 
+// ✅ VEHICULOS
 export const getMyVehicles = async () => {
   try {
+    // ✅ en mock: no pegamos al back (evita 401 + redirect del interceptor)
+    if (USE_MOCK) return VEHICULOS_MOCK;
+
     const res = await api.get(`${AUTH_BASE}/api/auth/my-vehicles`);
     return res.data;
   } catch (err) {

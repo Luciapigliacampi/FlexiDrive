@@ -105,7 +105,7 @@ setEnvios(list);
   return (
     <main className="bg-slate-100">
       <section className="bg-slate-100">
-        <div className="relative bg-slate-80 overflow-x-hidden max-h-[500px]">
+        <div className="relative bg-slate-50 overflow-x-hidden max-h-[500px]">
           {/* CONTENIDO */}
           <div className="relative z-10 mx-auto max-w-7xl px-6 sm:px-10 lg:px-4 pt-4">
             {/* TITULO */}
@@ -261,7 +261,7 @@ function QuickLink({ to, label, icon, className = "", big = false }) {
       className={`
         flex items-center gap-4 rounded-xl border border-slate-200 bg-white
         ${big ? "px-4 py-4" : "p-3"}
-        shadow-sm hover:bg-slate-80 transition
+        shadow-sm hover:bg-slate-50 transition
         ${className}
       `}
     >

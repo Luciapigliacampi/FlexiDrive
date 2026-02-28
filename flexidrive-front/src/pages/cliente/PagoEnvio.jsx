@@ -64,7 +64,7 @@ function Option({ checked, onSelect, title, desc }) {
     <button
       type="button"
       onClick={onSelect}
-      className={`flex w-full items-center justify-between rounded-2xl border p-5 text-left hover:bg-slate-80 ${checked ? "border-blue-700" : "border-slate-200"}`}
+      className={`flex w-full items-center justify-between rounded-2xl border p-5 text-left hover:bg-slate-50 ${checked ? "border-blue-700" : "border-slate-200"}`}
     >
       <div>
         <div className="text-lg font-bold text-slate-700">{title}</div>

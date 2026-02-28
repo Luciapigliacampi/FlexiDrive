@@ -72,7 +72,7 @@ export default function TrackingEnvio() {
 
             {!isCancelado ? (
               <div className="mt-5 flex gap-3">
-                <button className="w-full rounded-full border px-6 py-3 font-semibold text-slate-700 hover:bg-slate-80">
+                <button className="w-full rounded-full border px-6 py-3 font-semibold text-slate-700 hover:bg-slate-50">
                   Enviar Mensaje
                 </button>
                 <button className="w-full rounded-full bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800">

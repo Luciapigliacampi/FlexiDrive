@@ -511,7 +511,7 @@ export const updateFullProfile = async (req, res, next) => {
     // 4. LÓGICA DE COMISIONISTA
     const relacion = await UsuarioRol.findOne({ usuarioId: userId });
 
-    if (relacion && relacion.rolId === 'admin') { // O 'comisionista', según tu ID
+    if (relacion && relacion.rolId === 'comisionista') { // O 'comisionista', según tu ID
       // Si mandó datos bancarios, los actualizamos
       if (datosBancarios) {
         await Comisionista.findOneAndUpdate(

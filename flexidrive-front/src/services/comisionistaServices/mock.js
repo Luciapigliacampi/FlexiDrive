@@ -79,29 +79,30 @@ export async function getRutaSugeridaMock() {
 let ROUTES = [
   {
     id: "r1",
+    vehiculoId: "veh_1",
     origen: {
       provinciaId: "14",
       provinciaNombre: "Córdoba",
-      localidadId: "14049080",
+      localidadId: "14098030",   // Villa María (ID real georef)
       localidadNombre: "Villa María",
     },
     destino: {
       provinciaId: "14",
       provinciaNombre: "Córdoba",
-      localidadId: "14014020",
+      localidadId: "14014010",   // Córdoba capital (ID real georef)
       localidadNombre: "Córdoba",
     },
     intermedias: [
       {
         provinciaId: "14",
         provinciaNombre: "Córdoba",
-        localidadId: "14049020",
+        localidadId: "14091060",  // Tío Pujio (ID real georef)
         localidadNombre: "Tío Pujio",
       },
       {
         provinciaId: "14",
         provinciaNombre: "Córdoba",
-        localidadId: "14028040",
+        localidadId: "14056010",  // Oliva (ID real georef)
         localidadNombre: "Oliva",
       },
     ],
@@ -115,16 +116,17 @@ let ROUTES = [
   },
   {
     id: "r2",
+    vehiculoId: "veh_2",
     origen: {
       provinciaId: "14",
       provinciaNombre: "Córdoba",
-      localidadId: "14049080",
+      localidadId: "14098030",
       localidadNombre: "Villa María",
     },
     destino: {
       provinciaId: "14",
       provinciaNombre: "Córdoba",
-      localidadId: "14014020",
+      localidadId: "14014010",
       localidadNombre: "Córdoba",
     },
     intermedias: [],

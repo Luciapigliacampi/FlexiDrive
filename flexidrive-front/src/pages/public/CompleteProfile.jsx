@@ -83,7 +83,7 @@ export default function CompleteProfile() {
   if (!tempToken) return null;
 
   return (
-    <main className="bg-slate-80">
+    <main className="bg-slate-50">
       <section className="bg-slate-100">
         <div className="mx-auto max-w-7xl px-6 sm:px-10 lg:px-4 py-20">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 xl:gap-12 items-center">

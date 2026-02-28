@@ -1,4 +1,4 @@
-// UI -> API (TripPlan)
+//flexidrive-front\src\services\tripPlanMappers.js
 export function rutaToTripPlanPayload(rutaUI) {
   return {
     origenCiudad: rutaUI.origen?.localidadNombre,

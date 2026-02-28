@@ -225,7 +225,7 @@ export default function SeleccionComisionista() {
           </div>
         )}
 
-        <div className="mt-6 rounded-xl border bg-slate-80 p-4">
+        <div className="mt-6 rounded-xl border bg-slate-50 p-4">
           <div className="font-semibold text-slate-700">Resumen del envío</div>
           <div className="mt-2 text-sm text-slate-600">
             <div><b>Origen ciudad:</b> {resumen.origenCiudad || "—"}</div>
@@ -249,7 +249,7 @@ export default function SeleccionComisionista() {
                 return (
                   <label
                     key={`${c.id}-${c.tripPlanId}`}
-                    className={`flex cursor-pointer items-center justify-between rounded-xl border p-5 hover:bg-slate-80 ${
+                    className={`flex cursor-pointer items-center justify-between rounded-xl border p-5 hover:bg-slate-50 ${
                       selected === c.id ? "border-blue-700" : ""
                     }`}
                   >
@@ -305,7 +305,7 @@ export default function SeleccionComisionista() {
           <button
             type="button"
             onClick={() => navigate("/cliente/solicitar-envio")}
-            className="rounded-full border px-8 py-3 font-semibold text-slate-700 hover:bg-slate-80"
+            className="rounded-full border px-8 py-3 font-semibold text-slate-700 hover:bg-slate-50"
           >
             Volver
           </button>
