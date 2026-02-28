@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Capa_1" data-name="Capa 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <defs>
+    <style>
+      .cls-1 {
+        stroke-width: .75px;
+      }
+
+      .cls-1, .cls-2, .cls-3 {
+        fill: none;
+        stroke: #000;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .cls-2 {
+        stroke-width: 1.4px;
+      }
+
+      .cls-3 {
+        stroke-width: 1.7px;
+      }
+    </style>
+  </defs>
+  <path class="cls-3" d="M8.78,15.84c.65.25,1.94.26,2.59.02l8.72-2.57c.65-.25,1.05-.7,1.05-1.2v-5.53c0-.49-.4-.95-1.05-1.2l-5.7-2.15c-.65-.25-1.75-.19-2.39.06L3.35,5.35c-.65.25-1.05.7-1.05,1.2v5.53c0,.49.4.95,1.05,1.2l5.43,2.55Z"/>
+  <path class="cls-2" d="M9.87,16.11v-7.02"/>
+  <polyline class="cls-2" points="2.51 5.7 10 9.21 21.04 6.15"/>
+  <path class="cls-2" d="M7.97,4.24l7.38,3.22"/>
+  <g>
+    <line class="cls-1" x1="9.87" y1="21.14" x2="23.12" y2="16.51"/>
+    <g>
+      <line class="cls-1" x1="9.87" y1="21.14" x2="13.27" y2="22.12"/>
+      <line class="cls-1" x1="9.87" y1="21.14" x2="11.92" y2="18.26"/>
+    </g>
+    <g>
+      <line class="cls-1" x1="23.12" y1="16.51" x2="19.73" y2="15.53"/>
+      <line class="cls-1" x1="23.12" y1="16.51" x2="21.07" y2="19.39"/>
+    </g>
+  </g>
+</svg>

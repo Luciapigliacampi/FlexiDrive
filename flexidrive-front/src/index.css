@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+/* ✅ Fuente Organetto desde /public/fonts */
+@font-face {
+  font-family: "OrganettoExp";
+  src: url("/fonts/organetto-expultrabold.woff2") format("woff2");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Base fonts */
+:root {
+  font-family: Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+}
+
+/* ✅ Fallback: si Tailwind no genera la utility por config, igual funciona */
+@layer utilities {
+  .font-organetto {
+    font-family: "OrganettoExp", sans-serif;
+  }
+}

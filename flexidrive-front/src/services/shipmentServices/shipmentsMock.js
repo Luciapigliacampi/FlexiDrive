@@ -1,0 +1,68 @@
+// src/services/shipmentServices/shipmentsMock.js
+export const SHIPMENTS_MOCK = [
+  {
+    id: 2542,
+    cliente: "Lucía Pigliacampi",
+    destino: "Córdoba",
+    comisionista: "Juan Pérez",
+    fechaRetiro: "09/01/2026",
+    fechaEntrega: "10/01/2026",
+    origenDireccion: "Villa María, Darío Ramonda 1860",
+    destinoDireccion: "Córdoba, Caseros 669",
+    horarioRetiroAprox: "14:00 - 18:00",
+    notas: "Tocar timbre. Paquete frágil.",
+    ratingComisionista: 4.8,
+    estado: "en_camino",
+    progreso: "en_camino",
+    metodoPago: "mercadopago",
+    precio: 4200,
+    paquetes: [{ tipo: "Caja", alto: 30, ancho: 20, profundidad: 15, peso: 1200 }],
+  },
+  {
+    id: 1026,
+    cliente: "Pedro Gómez",
+    destino: "Las Varillas",
+    comisionista: "Juan Pérez",
+    fechaRetiro: "09/01/2026",
+    fechaEntrega: "10/01/2026",
+    origenDireccion: "Villa María, Darío Ramonda 1860",
+    destinoDireccion: "Las Varillas, Sarmiento 123",
+    horarioRetiroAprox: "14:00 - 18:00",
+    notas: "Llamar antes de pasar.",
+    ratingComisionista: 4.8,
+    estado: "pendiente",
+    progreso: "solicitado",
+    metodoPago: "efectivo",
+    precio: 3900,
+    paquetes: [{ tipo: "Caja", alto: 30, ancho: 20, profundidad: 15, peso: 1200 }],
+  },
+  {
+    id: 1018,
+    cliente: "John Lilki",
+    destino: "Tío Pujio",
+    comisionista: "Juan Pérez",
+    fechaRetiro: "02/01/2026",
+    fechaEntrega: "02/01/2026",
+    origenDireccion: "Villa María, Catamarca 90",
+    destinoDireccion: "Tío Pujio, Belgrano 100",
+    horarioRetiroAprox: "09:00 - 11:00",
+    notas: "Dejar en portería.",
+    ratingComisionista: 4.8,
+    estado: "entregado",
+    progreso: "entregado",
+    metodoPago: "transferencia",
+    precio: 3100,
+    paquetes: [{ tipo: "Caja", alto: 40, ancho: 35, profundidad: 30, peso: 3500 }],
+  },
+];
+
+export const COMISIONISTAS_MOCK = [
+  { id: "c1", nombre: "Juan Pérez", rating: 4.8, precioEstimado: 4200 },
+  { id: "c2", nombre: "Carlos Sánchez", rating: 4.6, precioEstimado: 3800 },
+  { id: "c3", nombre: "Laura Díaz", rating: 4.9, precioEstimado: 4500 },
+];
+
+export const DIRECCIONES_FRECUENTES_MOCK = [
+  { id: "d1", alias: "Casa", direccion: "Darío Ramonda 1860", ciudad: "Villa María", provincia: "Córdoba", cp: "5900" },
+  { id: "d2", alias: "Trabajo", direccion: "Av. España 123", ciudad: "Villa María", provincia: "Córdoba", cp: "5900" },
+];
