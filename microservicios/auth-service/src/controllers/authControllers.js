@@ -216,16 +216,22 @@ export const updateProfile = async (req, res, next) => {
     const auth = req.headers.authorization || "";
     const tempToken = auth.startsWith("Bearer ") ? auth.slice(7) : "";
 
+    console.log("📥 Body recibido:", req.body);
+    console.log("🔑 TempToken recibido:", tempToken ? "SÍ" : "NO");
+
     if (!tempToken) throw new Error("Falta Authorization Bearer tempToken");
 
     // 2) Zod valida dni, fecha_nacimiento, rol ("cliente"|"comisionista")
     const parsed = updateProfileSchema.parse(req.body);
+
+     console.log("✅ Zod parsed:", parsed);
 
     // 3) Delegamos lógica al service
     const result = await updateProfileService(tempToken, parsed);
 
     return res.status(200).json(result);
   } catch (err) {
+    console.log("❌ Error en updateProfile:", err.message, err.issues || "");
     return next(err);
   }
 };
@@ -845,5 +851,53 @@ export const deleteMiDestinatario = async (req, res) => {
     return res.status(200).json({ ok: true });
   } catch (e) {
     return res.status(500).json({ error: "Error al eliminar destinatario." });
+  }
+};
+
+export const updateVehiculo = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId; // del authMiddleware
+
+    // Solo campos editables — nunca tocamos comisionistaId ni verificado
+    const { nombre, tipo, marca, modelo, patente, adicionales, capacidad } = req.body;
+
+    const actualizado = await Vehiculo.findOneAndUpdate(
+      { _id: id, comisionistaId: userId }, // seguridad: solo su propio vehículo
+      { $set: { nombre, tipo, marca, modelo, patente: patente?.toUpperCase(), adicionales, capacidad } },
+      { new: true, runValidators: true }
+    );
+
+    if (!actualizado) {
+      return res.status(404).json({ message: "Vehículo no encontrado o no autorizado." });
+    }
+
+    return res.status(200).json({
+      message: "Vehículo actualizado con éxito.",
+      vehiculo: actualizado,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /api/auth/vehicles/:id
+export const deleteVehiculo = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    const eliminado = await Vehiculo.findOneAndDelete({
+      _id: id,
+      comisionistaId: userId, // seguridad: solo su propio vehículo
+    });
+
+    if (!eliminado) {
+      return res.status(404).json({ message: "Vehículo no encontrado o no autorizado." });
+    }
+
+    return res.status(200).json({ ok: true, message: "Vehículo eliminado." });
+  } catch (error) {
+    next(error);
   }
 };

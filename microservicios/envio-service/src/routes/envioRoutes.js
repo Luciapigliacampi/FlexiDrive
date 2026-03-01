@@ -2,6 +2,10 @@
 import express from 'express';
 import { createEnvio, getEnviosDisponibles, aceptarEnvio, actualizarEstadoEnvio, getHistorial, updateEnvio, cancelarEnvio, getEnviosPorFecha, getEnvioById, patchEnvioTecnico, confirmarComisionista} from '../controllers/envioControllers.js';
 import { authMiddleware, isCliente, isComisionista} from '../middlewares/authMiddlewares.js'; // El que vas a copiar
+import {
+  getDashboardResumen,
+  getAgendaHoy,
+} from '../controllers/dashboardControllers.js';
 
 const router = express.Router();
 
@@ -27,6 +31,9 @@ router.delete('/:id', authMiddleware, isCliente, cancelarEnvio);
 
 // Nuevo endpoint para que la IA consulte la agenda de un comisionista
 router.get('/agenda/:comisionistaId', authMiddleware, isComisionista, getEnviosPorFecha);
+
+router.get('/comisionista/dashboard/resumen', authMiddleware, isComisionista, getDashboardResumen);
+router.get('/comisionista/dashboard/agenda',  authMiddleware, isComisionista, getAgendaHoy);
 
 // Agregar esta línea: envio especifico 
 router.get('/:id', authMiddleware, getEnvioById); 

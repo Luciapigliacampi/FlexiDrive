@@ -8,6 +8,9 @@ export const AUTH_BASE =
 export const ENVIO_BASE =
   import.meta.env.VITE_ENVIO_API || "http://localhost:3001/api/envios";
 
+// FIX: leer USE_MOCK una sola vez de forma consistente
+const USE_MOCK = String(import.meta.env.VITE_USE_MOCK || "false") === "true";
+
 // Factory para crear instancias con el mismo comportamiento
 function createApi(baseURL) {
   const instance = axios.create({
@@ -36,15 +39,16 @@ function createApi(baseURL) {
       if (error.response) {
         const status = error.response.status;
 
-        // Si expira el token o es inválido
-        if (status === 401) {
+        // FIX: solo redirigir si NO estamos en modo mock, y SIEMPRE
+        // rechazar la promise para que los catch de los servicios funcionen.
+        if (status === 401 && !USE_MOCK) {
           localStorage.removeItem("token");
           localStorage.removeItem("rol");
           localStorage.removeItem("username");
           localStorage.removeItem("user");
 
-          
-          window.location.href = "/auth/login";
+          // Usamos replace para no agregar entrada al historial
+          window.location.replace("/auth/login");
         }
 
         console.error("Error del servidor:", error.response.data);
@@ -52,6 +56,7 @@ function createApi(baseURL) {
         console.error("Error de conexión:", error.message);
       }
 
+      // FIX: siempre rechazar — nunca cortar la cadena de promises
       return Promise.reject(error);
     }
   );
@@ -63,7 +68,5 @@ function createApi(baseURL) {
 export const authApi = createApi(AUTH_BASE);
 export const envioApi = createApi(ENVIO_BASE);
 
-// (Opcional) default export para mantener compatibilidad
-// Si tenés servicios viejos que importan `api` sin baseURL,
-// devolvemos el de auth (o el que más uses).
+// Default export para compatibilidad con servicios viejos
 export default authApi;

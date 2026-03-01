@@ -1,4 +1,3 @@
-//microservicios\viajes-service\src\routes\tripPlans.routes.js
 import express from "express";
 import { z } from "zod";
 import TripPlan from "../models/TripPlan.js";
@@ -7,17 +6,31 @@ import { authorizeRole } from "../middleware/authorizeRole.js";
 
 const router = express.Router();
 
+const PlaceSchema = z.object({
+  provinciaId: z.string().min(1),
+  provinciaNombre: z.string().optional().default(""),
+  localidadId: z.string().min(1),
+  localidadNombre: z.string().optional().default(""),
+});
+
+const PrecioPorLocalidadSchema = z.object({
+  localidadId: z.string().min(1),
+  localidadNombre: z.string().optional().default(""),
+  precio: z.coerce.number().min(0),
+});
+
 const TripPlanSchema = z.object({
-  origenCiudad: z.string().min(1),
-  destinoCiudad: z.string().min(1),
-  paradas: z.array(z.string()).optional().default([]),
+  vehiculoId: z.string().min(1),
+
+  origen: PlaceSchema,
+  destino: PlaceSchema,
+  intermedias: z.array(PlaceSchema).optional().default([]),
+
   diasSemana: z.array(z.number().int().min(0).max(6)).min(1),
   activo: z.boolean().optional().default(true),
 
-  // ✅ FIX
-  vehiculoId: z.string().min(1),
+  preciosPorLocalidad: z.array(PrecioPorLocalidadSchema).optional().default([]),
 
-  // ✅ si agregás descuentos:
   descuentoPorBultos: z
     .object({
       minBultos: z.coerce.number().int().min(0).default(0),
@@ -28,14 +41,14 @@ const TripPlanSchema = z.object({
     .default({ minBultos: 0, tipo: "porcentaje", valor: 0 }),
 });
 
-// Crear viaje (comisionista)
+// Crear
 router.post("/", auth, authorizeRole("comisionista"), async (req, res, next) => {
   try {
     const data = TripPlanSchema.parse(req.body);
 
     const doc = await TripPlan.create({
       comisionistaId: req.user.id,
-      ...data
+      ...data,
     });
 
     return res.status(201).json({ message: "Viaje creado", tripPlan: doc });
@@ -54,7 +67,7 @@ router.get("/mine", auth, authorizeRole("comisionista"), async (req, res, next) 
   }
 });
 
-// Editar viaje
+// Editar
 router.put("/:id", auth, authorizeRole("comisionista"), async (req, res, next) => {
   try {
     const data = TripPlanSchema.partial().parse(req.body);

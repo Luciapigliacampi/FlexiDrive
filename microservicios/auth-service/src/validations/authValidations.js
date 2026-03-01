@@ -54,6 +54,12 @@ export const updateProfileSchema = z.object({
   rol: z.enum(['cliente', 'comisionista'], {
     errorMap: () => ({ message: "El rol debe ser 'cliente' o 'comisionista'" }),
   }),
+
+  telefono: z
+    .union([z.string(), z.number()])
+    .transform((val) => String(val).replace(/\D/g, ""))
+    .refine((val) => val.length >= 7, { message: "Teléfono demasiado corto" })
+    .optional(),
 });
 
 export const completeComisionistaSchema = z.object({

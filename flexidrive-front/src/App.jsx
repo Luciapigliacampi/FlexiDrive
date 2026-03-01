@@ -42,6 +42,7 @@ import EditarPerfilCliente from "./pages/cliente/EditarPerfilCliente";
 import DashboardComisionista from "./pages/comisionista/DashboardComisionista";
 import EnviosDisponibles from "./pages/comisionista/EnviosDisponibles";
 import GestionRutas from "./pages/comisionista/GestionRutas";
+import Vehiculos from "./pages/comisionista/Vehiculos";
 
 // Estados (opcional)
 import NotFound from "./pages/system/NotFound";
@@ -129,6 +130,7 @@ export default function App() {
           />
           <Route path="/comisionista/envios" element={<EnviosDisponibles />} />
           <Route path="/comisionista/rutas" element={<GestionRutas />} />
+         <Route path="/comisionista/vehiculos" element={<Vehiculos />} />
         </Route>
       </Route>
 

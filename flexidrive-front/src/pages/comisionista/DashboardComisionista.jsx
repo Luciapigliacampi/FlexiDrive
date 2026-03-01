@@ -1,51 +1,44 @@
+//flexidrive-front\src\pages\comisionista\DashboardComisionista.jsx
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  Package,
-  ClipboardList,
-  Route,
-  Check,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Package, ClipboardList, Route, Check, Trash2, X } from "lucide-react";
 
 import { Card } from "../../components/UI";
 import StatusBadge from "../../components/StatusBadge";
+import MapaRutaSugerida from "../../components/MapaRutaSugerida";
 import {
   getDashboardResumen,
   getAgendaHoy,
-  getRutaSugerida,
+  generarRutaHoy,
 } from "../../services/comisionistaServices";
 
 export default function DashboardComisionista() {
   const username = localStorage.getItem("username") || "Usuario";
+  const userRaw  = localStorage.getItem("user");
+  const userId   = userRaw ? JSON.parse(userRaw)?.id : null;
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [loading,     setLoading]     = useState(true);
+  const [loadingRuta, setLoadingRuta] = useState(true);
+  const [error,       setError]       = useState("");
 
   const [resumen, setResumen] = useState(null);
-  const [agenda, setAgenda] = useState([]);
-  const [ruta, setRuta] = useState(null);
+  const [agenda,  setAgenda]  = useState([]);
+  const [ruta,    setRuta]    = useState(null);
 
+  // ─── Resumen + agenda ─────────────────────────────────────────────────────
   useEffect(() => {
     let alive = true;
-
     (async () => {
       setLoading(true);
       setError("");
-
       try {
-        const [r1, r2, r3] = await Promise.all([
+        const [r1, r2] = await Promise.all([
           getDashboardResumen(),
           getAgendaHoy(),
-          getRutaSugerida(),
         ]);
-
         if (!alive) return;
-
         setResumen(r1);
         setAgenda(Array.isArray(r2) ? r2 : []);
-        setRuta(r3);
       } catch (e) {
         if (!alive) return;
         setError(e?.message || "No se pudo cargar el dashboard.");
@@ -53,25 +46,43 @@ export default function DashboardComisionista() {
         if (alive) setLoading(false);
       }
     })();
-
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, []);
+
+  // ─── Generar ruta optimizada al montar ────────────────────────────────────
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    (async () => {
+      setLoadingRuta(true);
+      try {
+        const fecha = new Date().toISOString().split("T")[0];
+        const data  = await generarRutaHoy({ comisionistaId: userId, fecha });
+        if (!alive) return;
+        setRuta(data);
+      } catch (e) {
+        if (!alive) return;
+        console.warn("Sin ruta para hoy:", e?.message);
+        setRuta(null);
+      } finally {
+        if (alive) setLoadingRuta(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [userId]);
 
   const metrics = useMemo(() => {
     const r = resumen || {};
     return [
-      { value: loading ? "—" : String(r.enviosHoy ?? 0), label: "Envíos hoy" },
-      { value: loading ? "—" : String(r.enRuta ?? 0), label: "En ruta" },
-      { value: loading ? "—" : String(r.pendientesRetiro ?? 0), label: "Pendientes de retiro" },
-      { value: loading ? "—" : String(r.calificacion ?? "—"), label: "Calificación" },
+      { value: loading ? "—" : String(r.enviosHoy        ?? 0),  label: "Envíos hoy" },
+      { value: loading ? "—" : String(r.enRuta           ?? 0),  label: "En ruta" },
+      { value: loading ? "—" : String(r.pendientesRetiro ?? 0),  label: "Pendientes de retiro" },
+      { value: loading ? "—" : String(r.calificacion     ?? "—"), label: "Calificación" },
     ];
   }, [resumen, loading]);
 
   return (
     <div className="space-y-6">
-      {/* Título */}
       <div>
         <h1 className="text-5xl font-extrabold tracking-tight text-slate-700">
           Hola, {username}
@@ -81,29 +92,17 @@ export default function DashboardComisionista() {
         </p>
       </div>
 
-      {error ? (
+      {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
-      ) : null}
+      )}
 
       {/* Acciones rápidas */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <QuickAction
-          to="/comisionista/crear-envio"
-          icon={<Package className="h-6 w-6" />}
-          title="Crear envío"
-        />
-        <QuickAction
-          to="/comisionista/envios"
-          icon={<ClipboardList className="h-6 w-6" />}
-          title="Ver envíos"
-        />
-        <QuickAction
-          to="/comisionista/rutas"
-          icon={<Route className="h-6 w-6" />}
-          title="Gestionar rutas"
-        />
+        <QuickAction to="/comisionista/crear-envio" icon={<Package       className="h-6 w-6" />} title="Crear envío" />
+        <QuickAction to="/comisionista/envios"       icon={<ClipboardList className="h-6 w-6" />} title="Ver envíos" />
+        <QuickAction to="/comisionista/rutas"        icon={<Route         className="h-6 w-6" />} title="Gestionar rutas" />
       </div>
 
       {/* Métricas */}
@@ -117,12 +116,12 @@ export default function DashboardComisionista() {
 
       {/* Tabla + Ruta sugerida */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Tabla */}
+
+        {/* Tabla agenda */}
         <div className="lg:col-span-2">
           <h2 className="text-2xl font-bold text-blue-800 mb-3">
             Entregas y retiros programados para hoy
           </h2>
-
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <table className="w-full text-left">
               <thead className="bg-slate-50 text-slate-600">
@@ -136,7 +135,6 @@ export default function DashboardComisionista() {
                   <th className="px-4 py-3 w-[120px]">Acción</th>
                 </tr>
               </thead>
-
               <tbody>
                 {loading ? (
                   <tr>
@@ -169,16 +167,10 @@ export default function DashboardComisionista() {
                         <StatusBadge estado={row.estado} />
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2 text-slate-600">
-                          <IconBtn title="Marcar ok" onClick={() => console.log("ok", row.id)}>
-                            <Check className="h-4 w-4 text-blue-700" />
-                          </IconBtn>
-                          <IconBtn title="Eliminar" onClick={() => console.log("del", row.id)}>
-                            <Trash2 className="h-4 w-4 text-blue-700" />
-                          </IconBtn>
-                          <IconBtn title="Cancelar" onClick={() => console.log("cancel", row.id)}>
-                            <X className="h-4 w-4 text-blue-700" />
-                          </IconBtn>
+                        <div className="flex items-center gap-2">
+                          <IconBtn title="Marcar ok"  onClick={() => console.log("ok",     row.id)}><Check  className="h-4 w-4 text-blue-700" /></IconBtn>
+                          <IconBtn title="Eliminar"   onClick={() => console.log("del",    row.id)}><Trash2 className="h-4 w-4 text-blue-700" /></IconBtn>
+                          <IconBtn title="Cancelar"   onClick={() => console.log("cancel", row.id)}><X      className="h-4 w-4 text-blue-700" /></IconBtn>
                         </div>
                       </td>
                     </tr>
@@ -192,22 +184,60 @@ export default function DashboardComisionista() {
         {/* Ruta sugerida */}
         <div>
           <Card title="Ruta sugerida">
-            <div className="text-sm font-semibold text-slate-600 -mt-2">
-              {ruta?.titulo || "Villa María - Córdoba"}
-            </div>
-
-            <div className="mt-4 overflow-hidden rounded-xl border bg-slate-100">
-              {/* Placeholder mapa (después lo reemplazás por Google Maps/Leaflet) */}
-              <div className="h-[260px] w-full grid place-items-center text-slate-400">
-                Mapa
+            {loadingRuta ? (
+              <div className="h-[260px] grid place-items-center text-slate-400 bg-slate-100 rounded-xl text-sm">
+                Calculando ruta optimizada...
               </div>
-            </div>
+            ) : !ruta ? (
+              <div className="h-[260px] grid place-items-center text-slate-400 bg-slate-100 rounded-xl text-sm">
+                Sin envíos para hoy
+              </div>
+            ) : (
+              <>
+                <div className="text-sm font-semibold text-slate-600 -mt-2">
+                  {ruta.distancia_total_km
+                    ? `${ruta.distancia_total_km.toFixed(1)} km — ${Math.round(ruta.tiempo_estimado_min)} min`
+                    : "Ruta del día"}
+                </div>
 
-            <div className="mt-4 space-y-2 text-sm">
-              <LegendItem color="bg-blue-700" label={`Retiro ${ruta?.retiros ?? 0}`} />
-              <LegendItem color="bg-blue-700" label={`Retiro ${ruta?.retiros2 ?? 0}`} />
-              <LegendItem color="bg-emerald-600" label={`Entrega ${ruta?.entregas ?? 0}`} />
-            </div>
+                <div className="mt-4">
+                  <MapaRutaSugerida ruta={ruta} />
+                </div>
+
+                <div className="mt-4 space-y-2 text-sm">
+                  <LegendItem color="bg-blue-700"    label="Retiro" />
+                  <LegendItem color="bg-emerald-600" label="Entrega" />
+                  <LegendItem color="bg-red-600"     label="Retorno" />
+                </div>
+
+                {ruta.orden_entregas?.length > 0 && (
+                  <div className="mt-4 space-y-1 max-h-40 overflow-y-auto">
+                    {ruta.orden_entregas.map((p) => (
+                      <div
+                        key={String(p.envioId) + p.orden}
+                        className="flex items-start gap-2 text-xs text-slate-600"
+                      >
+                        <span
+                          className={`mt-0.5 h-4 w-4 shrink-0 rounded-full text-white flex items-center justify-center font-bold text-[10px] ${
+                            p.tipo === "RETIRO"  ? "bg-blue-700"    :
+                            p.tipo === "RETORNO" ? "bg-red-600"     :
+                                                   "bg-emerald-600"
+                          }`}
+                        >
+                          {p.orden}
+                        </span>
+                        <span>
+                          <span className="font-semibold capitalize">
+                            {p.tipo?.toLowerCase()}
+                          </span>{" "}
+                          #{p.nro_envio}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </Card>
         </div>
       </div>
@@ -215,7 +245,7 @@ export default function DashboardComisionista() {
   );
 }
 
-/* ---------- UI helpers ---------- */
+/* ─── UI helpers ─────────────────────────────────────────────────────────────── */
 
 function QuickAction({ to, icon, title }) {
   return (
@@ -234,9 +264,7 @@ function QuickAction({ to, icon, title }) {
 function Metric({ value, label }) {
   return (
     <div className="flex items-center gap-3 px-2">
-      <div className="text-3xl font-extrabold text-blue-800 leading-none">
-        {value}
-      </div>
+      <div className="text-3xl font-extrabold text-blue-800 leading-none">{value}</div>
       <div className="text-sm font-semibold text-slate-700">{label}</div>
     </div>
   );

@@ -1,7 +1,6 @@
-//flexidrive-front\src\pages\comisionista\GestionRutas.jsx
+// flexidrive-front/src/pages/comisionista/GestionRutas.jsx
 import { useEffect, useMemo, useState } from "react";
 import {
-  MoreVertical,
   Pencil,
   Trash2,
   Plus,
@@ -21,12 +20,24 @@ import {
 import { rutaToTripPlanPayload } from "../../services/tripPlanMappers";
 import { useSearchParams } from "react-router-dom";
 
+// FIX #2: helper para obtener el id de una ruta de forma consistente,
+// ya que el backend puede devolver ._id o .id según el contexto.
+function getRutaId(ruta) {
+  return ruta?._id ?? ruta?.id ?? "";
+}
+
 export default function GestionRutas() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const [searchParams] = useSearchParams();
-const [q, setQ] = useState(searchParams.get("q") || "");
+
+  // FIX #4: sincronizar q con searchParams cuando cambian
+  const [q, setQ] = useState(searchParams.get("q") || "");
+  useEffect(() => {
+    setQ(searchParams.get("q") || "");
+  }, [searchParams]);
+
   const [rutas, setRutas] = useState([]);
 
   const [openModal, setOpenModal] = useState(false);
@@ -47,9 +58,9 @@ const [q, setQ] = useState(searchParams.get("q") || "");
   }
 
   useEffect(() => {
-  load();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function onSearch(e) {
     e.preventDefault();
@@ -67,19 +78,21 @@ const [q, setQ] = useState(searchParams.get("q") || "");
   }
 
   async function onSave(payloadRutaUI) {
-  try {
-    const payload = rutaToTripPlanPayload(payloadRutaUI); // ← faltaba esto
-    if (editRuta?.id) {
-      await updateRuta(editRuta.id, payload);
-    } else {
-      await createRuta(payload);
+    try {
+      const payload = rutaToTripPlanPayload(payloadRutaUI);
+      // FIX #2: usar getRutaId en lugar de editRuta?.id para ser consistente
+      const id = getRutaId(editRuta);
+      if (id) {
+        await updateRuta(id, payload);
+      } else {
+        await createRuta(payload);
+      }
+      setOpenModal(false);
+      await load();
+    } catch (e) {
+      alert(e?.message || "No se pudo guardar la ruta.");
     }
-    setOpenModal(false);
-    await load();
-  } catch (e) {
-    alert(e?.message || "No se pudo guardar la ruta.");
   }
-}
 
   async function onDelete(id) {
     const ok = confirm("¿Eliminar esta ruta?");
@@ -94,13 +107,14 @@ const [q, setQ] = useState(searchParams.get("q") || "");
   }
 
   async function toggleActiva(r) {
-  try {
-    await toggleRutaActiva(r.id, !r.activa);  // ← antes usaba updateRuta
-    await load();
-  } catch (e) {
-    alert(e?.message || "No se pudo actualizar el estado de la ruta.");
+    try {
+      // FIX #2: usar getRutaId para consistencia
+      await toggleRutaActiva(getRutaId(r), !r.activa);
+      await load();
+    } catch (e) {
+      alert(e?.message || "No se pudo actualizar el estado de la ruta.");
+    }
   }
-}
 
   const count = useMemo(() => rutas.length, [rutas]);
 
@@ -109,9 +123,7 @@ const [q, setQ] = useState(searchParams.get("q") || "");
       {/* Header */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-800">
-            Gestión de rutas
-          </h1>
+          <h1 className="text-3xl font-extrabold text-slate-800">Gestión de rutas</h1>
           <p className="text-slate-600 font-semibold">
             Administrá las rutas que realizás ({count})
           </p>
@@ -151,23 +163,25 @@ const [q, setQ] = useState(searchParams.get("q") || "");
       {/* List */}
       <div className="grid grid-cols-1 gap-4">
         {loading ? (
-          <div className="rounded-xl border bg-white p-6 text-slate-500">
-            Cargando rutas...
-          </div>
+          <div className="rounded-xl border bg-white p-6 text-slate-500">Cargando rutas...</div>
         ) : rutas.length === 0 ? (
           <div className="rounded-xl border bg-white p-6 text-slate-500">
-            No tenés rutas cargadas. Creá una con “Nueva ruta”.
+            No tenés rutas cargadas. Creá una con "Nueva ruta".
           </div>
         ) : (
-          rutas.map((r) => (
-            <RutaCard
-              key={r.id}
-              ruta={r}
-              onEdit={() => openEdit(r)}
-              onDelete={() => onDelete(r.id)}
-              onToggle={() => toggleActiva(r)}
-            />
-          ))
+          rutas.map((r) => {
+            // FIX #2: key y callbacks usan getRutaId
+            const id = getRutaId(r);
+            return (
+              <RutaCard
+                key={id}
+                ruta={r}
+                onEdit={() => openEdit(r)}
+                onDelete={() => onDelete(id)}
+                onToggle={() => toggleActiva(r)}
+              />
+            );
+          })
         )}
       </div>
 
@@ -195,12 +209,11 @@ function RutaCard({ ruta, onEdit, onDelete, onToggle }) {
   const precios = Array.isArray(ruta?.preciosPorLocalidad) ? ruta.preciosPorLocalidad : [];
   const preciosCount = precios.length;
   const descuento = ruta?.descuentoPorBultos;
-  const tieneDescuento = descuento && Number(descuento.valor) > 0 && Number(descuento.minBultos) > 0;
+  const tieneDescuento =
+    descuento && Number(descuento.valor) > 0 && Number(descuento.minBultos) > 0;
 
   return (
-    <div
-      className="rounded-xl border border-slate-200 bg-white shadow-sm transition-all"
-    >
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm transition-all">
       {/* Cabecera clickeable */}
       <div
         className="p-4 cursor-pointer select-none"
@@ -240,7 +253,10 @@ function RutaCard({ ruta, onEdit, onDelete, onToggle }) {
             {/* Días */}
             <div className="flex flex-wrap gap-2">
               {dias.map((d) => (
-                <span key={d} className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">
+                <span
+                  key={d}
+                  className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold"
+                >
                   {d}
                 </span>
               ))}
@@ -250,13 +266,18 @@ function RutaCard({ ruta, onEdit, onDelete, onToggle }) {
             {intermedias.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {intermedias.map((x, idx) => (
-                  <span key={`${x.localidadNombre}-${idx}`} className="px-3 py-1 rounded-full bg-blue-50 text-blue-800 text-xs font-bold">
+                  <span
+                    key={`${x.localidadNombre}-${idx}`}
+                    className="px-3 py-1 rounded-full bg-blue-50 text-blue-800 text-xs font-bold"
+                  >
                     {x.localidadNombre}
                   </span>
                 ))}
               </div>
             ) : (
-              <div className="text-xs text-slate-500 font-semibold">Sin localidades intermedias</div>
+              <div className="text-xs text-slate-500 font-semibold">
+                Sin localidades intermedias
+              </div>
             )}
           </div>
 
@@ -287,7 +308,6 @@ function RutaCard({ ruta, onEdit, onDelete, onToggle }) {
       {/* Panel expandido */}
       {expanded && (
         <div className="border-t border-slate-100 px-4 pb-4 pt-3 space-y-4">
-
           {/* Tabla de precios */}
           <div>
             <div className="text-sm font-bold text-slate-700 mb-2">Precios por localidad</div>
@@ -296,9 +316,16 @@ function RutaCard({ ruta, onEdit, onDelete, onToggle }) {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {precios.map((p) => (
-                  <div key={p.localidadNombre} className="flex items-center justify-between rounded-lg border bg-slate-50 px-3 py-2">
-                    <span className="text-sm font-semibold text-slate-700">{p.localidadNombre}</span>
-                    <span className="text-sm font-extrabold text-blue-700">${p.precioPorBulto}/bulto</span>
+                  <div
+                    key={p.localidadNombre}
+                    className="flex items-center justify-between rounded-lg border bg-slate-50 px-3 py-2"
+                  >
+                    <span className="text-sm font-semibold text-slate-700">
+                      {p.localidadNombre}
+                    </span>
+                    <span className="text-sm font-extrabold text-blue-700">
+                      ${p.precioPorBulto}/bulto
+                    </span>
                   </div>
                 ))}
               </div>

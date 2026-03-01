@@ -11,6 +11,7 @@ function onlyDigits(s) {
 export default function CompleteProfile() {
   const navigate = useNavigate();
 
+  const [telefono, setTelefono] = useState("");
   const [dni, setDni] = useState("");
   const [fecha, setFecha] = useState(""); // yyyy-mm-dd
   const [rol, setRol] = useState("cliente");
@@ -33,33 +34,45 @@ export default function CompleteProfile() {
 
     try {
       const payload = {
+        telefono: onlyDigits(telefono),
         dni: Number(onlyDigits(dni)),
         fecha_nacimiento: fecha,
-        rol, // "cliente" | "comisionista"
+        rol,
       };
+
+      console.log("📤 Payload enviado:", payload);
 
       const data = await updateProfile(payload);
 
-      // ✅ IMPORTANTÍSIMO: si el backend renueva tempToken, guardalo
+      console.log("📦 Respuesta de updateProfile:", JSON.stringify(data, null, 2));
+
       if (data?.tempToken) {
         localStorage.setItem("tempToken", data.tempToken);
       }
 
-      // ✅ FLUJO A basado en backend (prioridad)
-      if (data?.next === "complete-comisionista") {
-        navigate("/auth/complete-comisionista");
-        return;
-      }
+      
+      console.log("📦 Respuesta de updateProfile:", JSON.stringify(data, null, 2));
 
-      // Si el backend indica totp/setup, volvemos a Login para usar tu modal
-      if (data?.next === "totp" || data?.requiresTotp) {
-        navigate("/auth/login");
-        return;
-      }
+      // Si necesita configurar 2FA → PRIMERO verificar setup
+if (data?.next === "setup-2fa" || (data?.requiresSetup && !data?.requiresTotp)) {
+  navigate("/auth/login", {
+    state: {
+      openSetup2FA: true,
+      tempToken: data?.tempToken,
+      usuarioId: data?.usuarioId || data?.usuario?.id || "",
+    },
+  });
+  return;
+}
 
-      if (data?.next === "setup-2fa" || data?.requiresSetup) {
-        // si todavía no tenés pantalla de setup 2FA, mandalo a login
-        navigate("/auth/login");
+
+if (data?.next === "totp" || data?.requiresTotp) {
+        navigate("/auth/login", {
+          state: {
+            openTotp: true,
+            tempToken: data?.tempToken,
+          },
+        });
         return;
       }
 
@@ -67,13 +80,35 @@ export default function CompleteProfile() {
       if (data?.token && !data?.requiresTotp && !data?.requiresSetup) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("rol", data.rol || rol);
-        navigate((data.rol || rol) === "cliente" ? "/cliente/dashboard" : "/comisionista/dashboard");
+        navigate(
+          (data.rol || rol) === "cliente"
+            ? "/cliente/dashboard"
+            : "/comisionista/dashboard"
+        );
         return;
       }
 
       setError("Respuesta inesperada al completar perfil.");
     } catch (err) {
-      setError(err?.message || "No se pudo completar el perfil.");
+      const msg = err?.message || "";
+
+      // Token vencido → limpiar storage y redirigir al login con aviso
+      if (
+        msg.includes("Token inválido") ||
+        msg.includes("Token invalido") ||
+        msg.includes("expirado") ||
+        msg.includes("expired")
+      ) {
+        localStorage.removeItem("tempToken");
+        navigate("/auth/login", {
+          state: {
+            aviso: "Tu sesión expiró. Por favor iniciá sesión nuevamente.",
+          },
+        });
+        return;
+      }
+
+      setError(msg || "No se pudo completar el perfil.");
     } finally {
       setLoading(false);
     }
@@ -115,6 +150,19 @@ export default function CompleteProfile() {
                 )}
 
                 <form onSubmit={handleSubmit}>
+
+                  <label className="block text-base text-slate-700 mb-2">Celular</label>
+                  <input
+                    value={telefono}
+                    onChange={(e) => setTelefono(e.target.value)}
+                    inputMode="numeric"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
+                    placeholder="Ej: 3534186520"
+                    required
+                  />
+                  <p className="text-xs pt-2 text-slate-500
+">(cod. área sin 0 + núm. celular sin 15)</p>
+
                   <label className="block text-base text-slate-700 mb-2">DNI</label>
                   <input
                     value={dni}

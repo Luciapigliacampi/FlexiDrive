@@ -1,3 +1,4 @@
+//microservicios\ia-route-service\src\middlewares\authMiddlewares.js
 import jwt from 'jsonwebtoken';
 
 export const authMiddleware = (req, res, next) => {
