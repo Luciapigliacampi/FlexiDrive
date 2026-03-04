@@ -26,7 +26,8 @@ export async function getDirecciones() {
 }
 
 export async function addDireccion(payload) {
-  const data = await _addDireccion(payload);
+  const res = await _addDireccion(payload);
+  const data = res?.data ?? res;
   return data?.direccion ?? data?.data ?? data;
 }
 
@@ -41,7 +42,8 @@ export async function getDestinatarios() {
 }
 
 export async function addDestinatario(payload) {
-  const data = await _addDestinatario(payload);
+  const res = await _addDestinatario(payload);
+  const data = res?.data ?? res;
   return data?.destinatario ?? data?.data ?? data;
 }
 

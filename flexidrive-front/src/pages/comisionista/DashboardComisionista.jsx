@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Package, ClipboardList, Route, Check, Trash2, X } from "lucide-react";
+import { toEstadoKey, estadoLabel } from "../../utils/estadoUtils";
 
 import { Card } from "../../components/UI";
 import StatusBadge from "../../components/StatusBadge";
@@ -164,7 +165,7 @@ export default function DashboardComisionista() {
                       <td className="px-4 py-3 text-slate-700">{row.destino}</td>
                       <td className="px-4 py-3 text-slate-700">{row.localidad}</td>
                       <td className="px-4 py-3">
-                        <StatusBadge estado={row.estado} />
+                        <StatusBadge estado={toEstadoKey(row.estado)} label={estadoLabel(row.estado)} />
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">

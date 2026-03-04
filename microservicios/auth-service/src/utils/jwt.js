@@ -10,7 +10,7 @@ export const generarTokenTemporal = (payload) => {
 
 export const generarTokenSesion = (payload) => {
   // Token de 24 horas para cuando ya entró a la App
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '72h' });
 };
 
 export const verificarToken = (token) => {

@@ -1,6 +1,6 @@
 //microservicios\envio-service\src\routes\envioRoutes.js
 import express from 'express';
-import { createEnvio, getEnviosDisponibles, aceptarEnvio, actualizarEstadoEnvio, getHistorial, updateEnvio, cancelarEnvio, getEnviosPorFecha, getEnvioById, patchEnvioTecnico, confirmarComisionista} from '../controllers/envioControllers.js';
+import { createEnvio, getEnviosDisponibles, aceptarEnvio, actualizarEstadoEnvio, getHistorial, updateEnvio, cancelarEnvio, getEnviosPorFecha, getEnvioById, patchEnvioTecnico, confirmarComisionista, archivarEnvio, eliminarEnvioLogico} from '../controllers/envioControllers.js';
 import { authMiddleware, isCliente, isComisionista} from '../middlewares/authMiddlewares.js'; // El que vas a copiar
 import {
   getDashboardResumen,
@@ -21,6 +21,9 @@ router.patch('/actualizar-estado', authMiddleware, isComisionista, actualizarEst
 
 // Historial de viajes para Clientes y Comisionistas
 router.get('/historial', authMiddleware, getHistorial);
+
+router.patch('/:id/archivar', authMiddleware, isCliente, archivarEnvio);
+router.patch('/:id/eliminar', authMiddleware, isCliente, eliminarEnvioLogico);
 
 
 // MODIFICAR ENVÍO (Ana quiere cambiar la dirección o nota antes de que Marta lo acepte)

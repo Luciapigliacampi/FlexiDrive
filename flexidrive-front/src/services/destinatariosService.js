@@ -1,4 +1,4 @@
-// src/services/destinatariosService.js
+//flexidrive-front\src\services\destinatariosService.js
 import { authApi } from "./api";
 
 export async function getDestinatarios() {

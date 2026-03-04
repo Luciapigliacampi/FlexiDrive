@@ -1,7 +1,10 @@
+//microservicios\envio-service\src\controllers\dashboardControllers.js
 import Envio from '../models/envioModels.js';
 
 // ─── GET /api/comisionista/dashboard/resumen ──────────────────────────────────
 export const getDashboardResumen = async (req, res, next) => {
+  console.log("[dashboard] userId:", req.userId, "rol:", req.userRol);
+console.log("[dashboard] auth header:", req.headers.authorization?.slice(0, 25) + "...");
   try {
     const comisionistaId = req.userId;
     const hoy       = new Date();
@@ -37,6 +40,8 @@ export const getDashboardResumen = async (req, res, next) => {
 
 // ─── GET /api/comisionista/dashboard/agenda ───────────────────────────────────
 export const getAgendaHoy = async (req, res, next) => {
+  console.log("[dashboard] userId:", req.userId, "rol:", req.userRol);
+console.log("[dashboard] auth header:", req.headers.authorization?.slice(0, 25) + "...");
   try {
     const comisionistaId = req.userId;
     const dateStr   = req.query.date;
@@ -55,8 +60,8 @@ export const getAgendaHoy = async (req, res, next) => {
       orden:     index + 1,
       numero:    e.nro_envio,
       cliente:   String(e.usuarioId),
-      destino:   e.direccion_destino?.texto || e.destinoCiudad,
-      localidad: e.destinoCiudad,
+      destino: e.direccion_destino?.texto || e.destinoCiudad?.localidadNombre || "—",
+localidad: e.destinoCiudad?.localidadNombre || "—",
       estado:    e.estadoId,
     }));
 

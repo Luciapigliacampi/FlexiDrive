@@ -22,6 +22,12 @@ export const editarEnvio = (id, data) => api.put(`${ENVIO_BASE}/api/envios/${id}
 
 export const cancelarEnvio = (id) => api.delete(`${ENVIO_BASE}/api/envios/${id}`);
 
+export const archivarEnvio = (id) =>
+  api.patch(`${ENVIO_BASE}/api/envios/${id}/archivar`);
+
+export const eliminarEnvioLogico = (id) =>
+  api.patch(`${ENVIO_BASE}/api/envios/${id}/eliminar`);
+
 /* =========================
    COMISIONISTA (envio-service)
 ========================= */
@@ -38,30 +44,16 @@ export const actualizarEstadoEnvio = (data) =>
    GET /api/auth/comisionistas/habilitados (público)
 ========================= */
 
-export async function searchComisionistas({ fechaEntrega, origenCiudad, destinoCiudad, bultos }) {
+export async function searchComisionistas(params) {
+  const clean = Object.fromEntries(
+    Object.entries(params || {}).filter(([, v]) => v !== undefined && v !== null && v !== "")
+  );
+
   const res = await api.get(`${VIAJES_BASE}/api/search/comisionistas`, {
-    params: { fechaEntrega, origenCiudad, destinoCiudad, bultos },
+    params: clean,
   });
 
-
-  // // El back devuelve: [{ id, nombre, apellido, email, verificado }]
-  // const list = Array.isArray(res.data) ? res.data : [];
-
-  // // Adaptación para tu UI actual (precio/rating/eta todavía no vienen del back)
-  // const mapped = list.map((c, idx) => ({
-  //   id: c.id,
-  //   nombre: `${c.nombre} ${c.apellido || ""}`.trim(),
-  //   rating: 4.7, // placeholder hasta integrar reputación real
-  //   precioEstimado: 1200 + idx * 250, // placeholder hasta lógica de precios por ruta
-  //   // eta: "—",
-  //   verificado: !!c.verificado,
-  // }));
-
-  // return { data: mapped };
-
-
-  // devuelve { total, comisionistas }
-  return res.data
+  return res.data;
 }
 
 /* =========================

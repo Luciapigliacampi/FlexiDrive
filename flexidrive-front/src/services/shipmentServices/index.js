@@ -47,6 +47,13 @@ export async function cancelarEnvio(id) {
   return unwrap(svc.cancelarEnvio(id));
 }
 
+export async function archivarEnvio(id) {
+  return unwrap(svc.archivarEnvio(id));
+}
+
+export async function eliminarEnvioLogico(id) {
+  return unwrap(svc.eliminarEnvioLogico(id));
+}
 /* ===== Comisionista (envio-service) ===== */
 
 export async function getEnviosDisponibles() {

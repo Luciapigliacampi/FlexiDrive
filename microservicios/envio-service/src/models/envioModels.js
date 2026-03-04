@@ -2,22 +2,30 @@
 import mongoose from 'mongoose';
 
 const envioSchema = new mongoose.Schema({
-  usuarioId:      { type: mongoose.Schema.Types.ObjectId, required: true },
+  usuarioId: { type: mongoose.Schema.Types.ObjectId, required: true },
   comisionistaId: { type: mongoose.Schema.Types.ObjectId, default: null },
+  destinatarioId: { type: mongoose.Schema.Types.ObjectId, default: null },
 
   direccion_origen: {
     texto: { type: String, required: true },
-    lat:   { type: Number, required: true },
-    lng:   { type: Number, required: true },
+    lat: { type: Number, required: true },
+    lng: { type: Number, required: true },
   },
   direccion_destino: {
     texto: { type: String, required: true },
-    lat:   { type: Number, required: true },
-    lng:   { type: Number, required: true },
+    lat: { type: Number, required: true },
+    lng: { type: Number, required: true },
   },
 
-  origenCiudad:  { type: String, required: true },
-  destinoCiudad: { type: String, required: true },
+  origenCiudad: {
+    localidadId: { type: String, required: true },
+    localidadNombre: { type: String, required: true },
+  },
+
+  destinoCiudad: {
+    localidadId: { type: String, required: true },
+    localidadNombre: { type: String, required: true },
+  },
 
   nro_envio: { type: String, unique: true },
 
@@ -45,15 +53,19 @@ const envioSchema = new mongoose.Schema({
 
   estadoId: {
     type: String,
-    enum: ['PENDIENTE','ASIGNADO','EN_RETIRO','EN_CAMINO',
-           'ENTREGADO','DEMORADO','CANCELADO','CANCELADO_RETORNO','DEVUELTO'],
+    enum: ['PENDIENTE', 'ASIGNADO', 'EN_RETIRO', 'EN_CAMINO',
+      'ENTREGADO', 'DEMORADO', 'CANCELADO', 'CANCELADO_RETORNO', 'DEVUELTO'],
     default: 'PENDIENTE',
   },
 
   tripPlanId: { type: mongoose.Schema.Types.ObjectId, default: null },
 
-  notas_adicionales:   String,
+  notas_adicionales: String,
   polyline_especifica: { type: String, default: "" },
+
+  // ✅ Borrado lógico y archivo
+  archivado: { type: Boolean, default: false },
+  eliminado: { type: Boolean, default: false },
 }, { timestamps: true });
 
 export default mongoose.model('Envio', envioSchema, 'envios');

@@ -28,3 +28,4 @@ export function Button({ variant = "primary", className = "", ...props }) {
 
   return <button {...props} className={`${base} ${styles} ${className}`} />;
 }
+

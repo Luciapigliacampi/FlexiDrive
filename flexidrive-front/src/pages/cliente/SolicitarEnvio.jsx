@@ -1,5 +1,5 @@
 //flexidrive-front\src\pages\cliente\SolicitarEnvio.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import heroImg from "../../assets/boxes.png";
 import {
@@ -63,17 +63,19 @@ export default function SolicitarEnvio() {
     { id: "nuevo", label: "Nuevo destinatario..." },
   ]);
 
-  const [form, setForm] = useState({
-    // Origen
+ // ✅ Reemplazar el bloque savedDraft actual por esto:
+const savedDraft = useMemo(() => {
+  try { return JSON.parse(localStorage.getItem("draftEnvio") || "null"); }
+  catch { return null; }
+}, []);
+
+  const [form, setForm] = useState(savedDraft || {
     origen: "",
     origenDireccion: "",
     origenLocalidad: "",
     origenProvincia: "",
     origenCP: "",
-    // ✅ Franja horaria de disponibilidad para retiro (elige el cliente)
     franjaHorariaRetiro: "",
-
-    // Destino
     destinatarioId: "",
     apellido: "",
     nombre: "",
@@ -83,11 +85,8 @@ export default function SolicitarEnvio() {
     ciudad: "",
     provincia: "",
     cp: "",
-    // ✅ Fecha de entrega: solo fecha sin hora (la elige el cliente)
     fechaEntrega: getTodayISO(),
-
-    // Paquetes
-    paquetes: [{ tipoPaquete: "", alto: "", ancho: "", profundidad: "", peso: "" }],
+    paquetes: [{ cantidad: "", tipoPaquete: "", alto: "", ancho: "", profundidad: "", peso: "" }],
     notas: "",
   });
 
@@ -112,21 +111,35 @@ export default function SolicitarEnvio() {
   const localidadNombreById = (list, id) => list.find((l) => l.id === id)?.nombre || "";
 
   const [origenModalError, setOrigenModalError] = useState("");
-const [destinoModalError, setDestinoModalError] = useState("");
+  const [destinoModalError, setDestinoModalError] = useState("");
 
   function mapDireccionesToOptions(dirs) {
-    const mapped = (Array.isArray(dirs) ? dirs : []).map((d) => ({
-      value: d._id || d.id,
-      label: `${d.alias} - ${d.direccion}, ${d.ciudad}`,
-      direccion: d.direccion,
-      localidad: d.ciudad,
-      provincia: d.provincia,
-      cp: d.cp,
-      alias: d.alias,
-      lat: d.lat ?? null,
-      lng: d.lng ?? null,
-      placeId: d.placeId ?? "",
-    }));
+    const mapped = (Array.isArray(dirs) ? dirs : []).map((d) => {
+      const localidadNombre = d?.localidad?.localidadNombre ?? d?.ciudad ?? "";
+      const provinciaNombre = d?.provincia?.provinciaNombre ?? d?.provincia ?? "";
+      const localidadId = d?.localidad?.localidadId ?? "";
+      const provinciaId = d?.provincia?.provinciaId ?? "";
+
+      return {
+        value: d._id || d.id,
+        label: `${d.alias} - ${d.direccion}, ${localidadNombre}`,
+
+        direccion: d.direccion,
+
+        // ✅ lo nuevo (para armado de payload)
+        localidadId,
+        localidadNombre,
+        provinciaId,
+        provinciaNombre,
+
+        cp: d.cp,
+        alias: d.alias,
+        lat: d.lat ?? null,
+        lng: d.lng ?? null,
+        placeId: d.placeId ?? "",
+      };
+    });
+
     return [...mapped, { value: "otra", label: "Otra dirección..." }];
   }
 
@@ -134,14 +147,36 @@ const [destinoModalError, setDestinoModalError] = useState("");
     const mapped = (Array.isArray(dests) ? dests : []).map((c) => {
       const id = c._id || c.id;
       const fullName = `${c.apellido} ${c.nombre}`.trim();
+
+      const localidadNombre = c?.localidad?.localidadNombre ?? c?.ciudad ?? "";
+      const provinciaNombre = c?.provincia?.provinciaNombre ?? c?.provincia ?? "";
+      const localidadId = c?.localidad?.localidadId ?? "";
+      const provinciaId = c?.provincia?.provinciaId ?? "";
+
       return {
         id,
-        label: `${fullName} (DNI ${c.dni}) - ${c.direccion}, ${c.ciudad}`,
-        apellido: c.apellido, nombre: c.nombre, dni: c.dni, telefono: c.telefono,
-        direccion: c.direccion, ciudad: c.ciudad, provincia: c.provincia, cp: c.cp,
-        lat: c.lat ?? null, lng: c.lng ?? null, placeId: c.placeId ?? "",
+        label: `${fullName} (DNI ${c.dni}) - ${c.direccion}, ${localidadNombre}`,
+
+        apellido: c.apellido,
+        nombre: c.nombre,
+        dni: c.dni,
+        telefono: c.telefono,
+
+        direccion: c.direccion,
+
+        // ✅ lo nuevo
+        localidadId,
+        localidadNombre,
+        provinciaId,
+        provinciaNombre,
+
+        cp: c.cp,
+        lat: c.lat ?? null,
+        lng: c.lng ?? null,
+        placeId: c.placeId ?? "",
       };
     });
+
     return [...mapped, { id: "nuevo", label: "Nuevo destinatario..." }];
   }
 
@@ -213,6 +248,47 @@ const [destinoModalError, setDestinoModalError] = useState("");
     })();
   }, []);
 
+useEffect(() => {
+  if (!savedDraft) return;
+  if (savedDraft.origenDireccion) setOrigenQuery(savedDraft.origenDireccion);
+  if (savedDraft.direccion) setDestinoQuery(savedDraft.direccion);
+}, []); // eslint-disable-line  
+
+  useEffect(() => {
+    if (!savedDraft) return;
+    // Restaurar localidades de origen si venía "otra"
+    if (savedDraft.origen === "otra" && savedDraft.origenProvincia) {
+      loadLocalidades(setLocalidadesOrigen, savedDraft.origenProvincia);
+    }
+    // Restaurar localidades de destino
+    if (savedDraft.provincia) {
+      loadLocalidades(setLocalidadesDestino, savedDraft.provincia);
+    }
+  }, []); // eslint-disable-line
+
+  useEffect(() => {
+    try {
+      const payload = JSON.parse(localStorage.getItem("draftEnvioPayloadBase") || "null");
+      if (!payload) return;
+      if (payload.direccion_origen?.lat) {
+        setOrigenGeo({
+          lat: payload.direccion_origen.lat,
+          lng: payload.direccion_origen.lng,
+          texto: payload.direccion_origen.texto,
+          placeId: "",
+        });
+      }
+      if (payload.direccion_destino?.lat) {
+        setDestinoGeo({
+          lat: payload.direccion_destino.lat,
+          lng: payload.direccion_destino.lng,
+          texto: payload.direccion_destino.texto,
+          placeId: "",
+        });
+      }
+    } catch { }
+  }, []);
+
   useEffect(() => { loadLists(); }, []); // eslint-disable-line
 
   async function loadLocalidades(setter, provId) {
@@ -256,6 +332,7 @@ const [destinoModalError, setDestinoModalError] = useState("");
 
     if (name === "destinatarioId") {
       const sel = clientesGuardados.find((c) => c.id === value);
+
       if (!sel || sel.id === "nuevo") {
         setForm((p) => ({
           ...p, destinatarioId: value,
@@ -268,16 +345,30 @@ const [destinoModalError, setDestinoModalError] = useState("");
         setDestinoGeo({ placeId: "", lat: null, lng: null, texto: "" });
         return;
       }
+
       setForm((p) => ({
-        ...p, destinatarioId: value,
-        apellido: sel.apellido || "", nombre: sel.nombre || "",
-        dni: sel.dni || "", telefono: sel.telefono || "",
-        direccion: sel.direccion || "", ciudad: sel.ciudad || "",
-        provincia: sel.provincia || "", cp: sel.cp || "",
+        ...p,
+        destinatarioId: value,
+        apellido: sel.apellido || "",
+        nombre: sel.nombre || "",
+        dni: sel.dni || "",
+        telefono: sel.telefono || "",
+        direccion: sel.direccion || "",
+        // ✅ ids (para selects)
+        provincia: sel.provinciaId || "",
+        ciudad: sel.localidadId || "",
+        cp: sel.cp || "",
       }));
+
+      // ✅ cargar localidades de esa provincia para que el select muestre bien
+      if (sel.provinciaId) {
+        loadLocalidades(setLocalidadesDestino, sel.provinciaId);
+      }
+
       setDestinoGeo(sel.lat != null
         ? { placeId: sel.placeId || "", lat: sel.lat, lng: sel.lng, texto: sel.direccion || "" }
         : { placeId: "", lat: null, lng: null, texto: "" });
+
       return;
     }
 
@@ -313,8 +404,8 @@ const [destinoModalError, setDestinoModalError] = useState("");
     const opt = direccionesRetiro.find((d) => d.value === form.origen);
     return {
       direccion: opt?.direccion || "",
-      localidad: opt?.localidad || "",
-      provincia: opt?.provincia || "",
+      localidad: opt?.localidadNombre || "",   // ✅ era opt?.localidad
+      provincia: opt?.provinciaNombre || "",   // ✅ era opt?.provincia
       cp: opt?.cp || "",
     };
   }
@@ -327,7 +418,12 @@ const [destinoModalError, setDestinoModalError] = useState("");
   function getDestinoTexto() {
     if (form.destinatarioId && form.destinatarioId !== "nuevo") {
       const sel = clientesGuardados.find((c) => c.id === form.destinatarioId);
-      if (sel) return [sel.direccion, sel.ciudad, sel.provincia].filter(Boolean).join(", ");
+      if (sel)
+        return [
+          sel.direccion,
+          sel.localidadNombre,
+          sel.provinciaNombre,
+        ].filter(Boolean).join(", ");
       return "";
     }
     const dir = form.direccion.trim();
@@ -391,20 +487,34 @@ const [destinoModalError, setDestinoModalError] = useState("");
       if (!p.tipoPaquete) return `Seleccioná el tipo de paquete (Paquete #${i + 1}).`;
       if (!p.alto || !p.ancho || !p.profundidad) return `Completá dimensiones (Paquete #${i + 1}).`;
       if (!p.peso) return `Completá el peso (Paquete #${i + 1}).`;
+      if (!p.cantidad || parseInt(p.cantidad) < 1) return `La cantidad debe ser al menos 1 (Paquete #${i + 1}).`;
     }
     return "";
   }
 
+
   // ─── Payload ───
   function buildCrearEnvioPayloadBase() {
-        const origenCiudad =
+    // ORIGEN
+    const origenLocalidadId =
+      form.origen === "otra"
+        ? form.origenLocalidad
+        : (direccionesRetiro.find((d) => d.value === form.origen)?.localidadId || "");  // ✅ era ?.localidad?.localidadId
+
+    const origenLocalidadNombre =
       form.origen === "otra"
         ? localidadNombreById(localidadesOrigen, form.origenLocalidad)
-        : direccionesRetiro.find((d) => d.value === form.origen)?.localidad || "";
+        : (direccionesRetiro.find((d) => d.value === form.origen)?.localidadNombre || "");  // ✅ era ?.localidad?.localidadNombre
 
-    const destinoCiudad =
+    // DESTINO
+    const destinoLocalidadId =
       form.destinatarioId && form.destinatarioId !== "nuevo"
-        ? clientesGuardados.find((c) => c.id === form.destinatarioId)?.ciudad || ""
+        ? (clientesGuardados.find((c) => c.id === form.destinatarioId)?.localidadId || "")  // ✅
+        : form.ciudad;
+
+    const destinoLocalidadNombre =
+      form.destinatarioId && form.destinatarioId !== "nuevo"
+        ? (clientesGuardados.find((c) => c.id === form.destinatarioId)?.localidadNombre || "")  // ✅
         : localidadNombreById(localidadesDestino, form.ciudad);
 
     return {
@@ -418,23 +528,37 @@ const [destinoModalError, setDestinoModalError] = useState("");
         lat: destinoGeo.lat ?? 0,
         lng: destinoGeo.lng ?? 0,
       },
-      origenCiudad,
-      destinoCiudad,
-      // ✅ fecha_entrega: solo fecha, sin hora
-      fecha_entrega: form.fechaEntrega,
-      // ✅ franja_horaria_retiro: ventana elegida por el cliente
+
+      // ✅ el envio-service ya valida esto como objeto con id+nombre
+      origenCiudad: {
+        localidadId: origenLocalidadId,
+        localidadNombre: origenLocalidadNombre,
+      },
+      destinoCiudad: {
+        localidadId: destinoLocalidadId,
+        localidadNombre: destinoLocalidadNombre,
+      },
+
+      fecha_entrega: form.fechaEntrega + "T12:00:00",
       franja_horaria_retiro: form.franjaHorariaRetiro,
-      // fecha_retiro NO se incluye: la decide el comisionista
+
       notas_adicionales: form.notas.trim(),
-      paquetes: form.paquetes.map((p) => ({
-        alto: num(p.alto),
-        ancho: num(p.ancho),
-        profundidad: num(p.profundidad),
-        peso: gramsToKg(p.peso),
-        contenido: "Paquete",
-        fragil: p.tipoPaquete === "fragil",
-      })),
+      paquetes: form.paquetes.flatMap((p) => {
+        const cantidad = Math.max(1, parseInt(p.cantidad) || 1);
+        return Array.from({ length: cantidad }, () => ({
+          alto: num(p.alto),
+          ancho: num(p.ancho),
+          profundidad: num(p.profundidad),
+          peso: gramsToKg(p.peso),
+          contenido: "Paquete",
+          fragil: p.tipoPaquete === "fragil",
+        }));
+      }),
       costo_estimado: 0,
+
+      destinatarioId: (form.destinatarioId && form.destinatarioId !== "nuevo")
+      ? form.destinatarioId
+      : null,
     };
   }
 
@@ -448,7 +572,8 @@ const [destinoModalError, setDestinoModalError] = useState("");
 
     try {
       const payloadBase = buildCrearEnvioPayloadBase();
-      const bultos = form.paquetes.length;
+      // ✅ bultos = suma de cantidades
+      const bultos = form.paquetes.reduce((acc, p) => acc + Math.max(1, parseInt(p.cantidad) || 1), 0);
 
       // ✅ La búsqueda usa fechaEntrega = día de viaje del comisionista
       const paramsBusqueda = {
@@ -472,36 +597,36 @@ const [destinoModalError, setDestinoModalError] = useState("");
 
   // ─── Modal Origen ───
   function openModalGuardarOrigen() {
-  if (!form.origenDireccion.trim()) return setError("Completá la dirección de retiro antes de guardar.");
-  if (!form.origenProvincia) return setError("Seleccioná la provincia de retiro antes de guardar.");
-  if (!form.origenLocalidad) return setError("Seleccioná la localidad de retiro antes de guardar.");
-  if (!form.origenCP.trim()) return setError("Completá el código postal de retiro antes de guardar.");
-  if (origenGeo.lat == null || origenGeo.lng == null) {
-    return setError("Elegí una sugerencia de dirección (Google) para guardar las coordenadas.");
+    if (!form.origenDireccion.trim()) return setError("Completá la dirección de retiro antes de guardar.");
+    if (!form.origenProvincia) return setError("Seleccioná la provincia de retiro antes de guardar.");
+    if (!form.origenLocalidad) return setError("Seleccioná la localidad de retiro antes de guardar.");
+    if (!form.origenCP.trim()) return setError("Completá el código postal de retiro antes de guardar.");
+    if (origenGeo.lat == null || origenGeo.lng == null) {
+      return setError("Elegí una sugerencia de dirección (Google) para guardar las coordenadas.");
+    }
+
+    setError("");
+    setOrigenModalError("");    // ← limpiar error del modal
+    setOrigenModalStep("form");
+    setLastSavedAlias("");
+
+    setOrigenModalForm({
+      alias: "",
+      direccion: form.origenDireccion,
+      ciudad: form.origenLocalidad,
+      provincia: form.origenProvincia,
+      cp: form.origenCP,
+    });
+
+    // ✅ FIX B (origen): reusar localidades ya cargadas
+    if (localidadesOrigen.length > 0) {
+      setLocalidadesOrigenModal(localidadesOrigen);
+    } else {
+      loadLocalidades(setLocalidadesOrigenModal, form.origenProvincia);
+    }
+
+    setOpenOrigenModal(true);
   }
-
-  setError("");
-  setOrigenModalError("");    // ← limpiar error del modal
-  setOrigenModalStep("form");
-  setLastSavedAlias("");
-
-  setOrigenModalForm({
-    alias:    "",
-    direccion: form.origenDireccion,
-    ciudad:   form.origenLocalidad,
-    provincia: form.origenProvincia,
-    cp:       form.origenCP,
-  });
-
-  // ✅ FIX B (origen): reusar localidades ya cargadas
-  if (localidadesOrigen.length > 0) {
-    setLocalidadesOrigenModal(localidadesOrigen);
-  } else {
-    loadLocalidades(setLocalidadesOrigenModal, form.origenProvincia);
-  }
-
-  setOpenOrigenModal(true);
-}
 
   function onChangeOrigenModal(e) {
     const { name, value } = e.target;
@@ -514,93 +639,106 @@ const [destinoModalError, setDestinoModalError] = useState("");
   }
 
   async function guardarNuevaDireccionOrigen() {
-  const provName = provinciaNombreById(origenModalForm.provincia);
-  const locName  = localidadNombreById(localidadesOrigenModal, origenModalForm.ciudad);
+    const provName = provinciaNombreById(origenModalForm.provincia);
+    const locName = localidadNombreById(localidadesOrigenModal, origenModalForm.ciudad);
 
-  const f = {
-    alias:     origenModalForm.alias.trim(),
-    direccion: origenModalForm.direccion.trim(),
-    ciudad:    locName,
-    provincia: provName,
-    cp:        origenModalForm.cp.trim(),
-    placeId:   origenGeo.placeId || "",
-    lat:       origenGeo.lat ?? 0,
-    lng:       origenGeo.lng ?? 0,
-  };
+    const f = {
+      alias: origenModalForm.alias.trim(),
+      direccion: origenModalForm.direccion.trim(),
 
-  if (!f.alias || !f.direccion || !f.ciudad || !f.provincia || !f.cp) {
-    setOrigenModalError("Completá alias, dirección, localidad, provincia y CP para guardar.");
-    return;
-  }
-  if (!f.ciudad) {
-    setOrigenModalError("La localidad no se pudo resolver. Cerrá el modal y volvé a abrirlo.");
-    return;
-  }
+      // ✅ ids + nombres
+      provincia: {
+        provinciaId: origenModalForm.provincia,
+        provinciaNombre: provName,
+      },
+      localidad: {
+        localidadId: origenModalForm.ciudad,
+        localidadNombre: locName,
+      },
 
-  setLoading(true);
-  setOrigenModalError("");
+      cp: origenModalForm.cp.trim(),
+      placeId: origenGeo.placeId || "",
+      lat: origenGeo.lat ?? 0,
+      lng: origenGeo.lng ?? 0,
+    };
 
-  try {
-    const created = await addDireccion(f);
-    await refreshDirecciones();
-
-    const newId = created?._id || created?.id;
-    if (newId) {
-      setForm((p) => ({
-        ...p,
-        origen: newId,
-        origenDireccion: "", origenLocalidad: "", origenProvincia: "", origenCP: "",
-      }));
-      setLocalidadesOrigen([]);
-      setOrigenGeo({ placeId: "", lat: null, lng: null, texto: "" });
+    if (!f.alias || !f.direccion || !f.cp) {
+      setOrigenModalError("Completá alias, dirección y CP para guardar.");
+      return;
+    }
+    if (!f.provincia.provinciaId || !f.localidad.localidadId) {
+      setOrigenModalError("Seleccioná provincia y localidad.");
+      return;
+    }
+    if (!f.localidad.localidadNombre || !f.provincia.provinciaNombre) {
+      setOrigenModalError("No se pudo resolver el nombre de provincia/localidad.");
+      return;
     }
 
-    setLastSavedAlias(f.alias);
-    setOrigenModalStep("success");
-  } catch (e) {
-    setOrigenModalError(getApiErrorMessage(e, "No se pudo guardar la dirección."));
-  } finally {
-    setLoading(false);
+    setLoading(true);
+    setOrigenModalError("");
+
+    try {
+      const created = await addDireccion(f);
+      await refreshDirecciones();
+
+      const newId = created?._id || created?.id;
+      if (newId) {
+        setForm((p) => ({
+          ...p,
+          origen: newId,
+          origenDireccion: "", origenLocalidad: "", origenProvincia: "", origenCP: "",
+        }));
+        setLocalidadesOrigen([]);
+        setOrigenGeo({ placeId: "", lat: null, lng: null, texto: "" });
+      }
+
+      setLastSavedAlias(f.alias);
+      setOrigenModalStep("success");
+    } catch (e) {
+      setOrigenModalError(getApiErrorMessage(e, "No se pudo guardar la dirección."));
+    } finally {
+      setLoading(false);
+    }
   }
-}
 
   // ─── Modal Destino ───
   function openModalGuardarDestino() {
-  if (form.destinatarioId !== "nuevo") {
-    setError("Elegí Nuevo destinatario… para poder guardarlo.");
-    return;
+    if (form.destinatarioId !== "nuevo") {
+      setError("Elegí Nuevo destinatario… para poder guardarlo.");
+      return;
+    }
+    if (destinoGeo.lat == null || destinoGeo.lng == null) {
+      setError("Elegí una sugerencia de dirección (Google) para confirmar la ubicación del DESTINO.");
+      return;
+    }
+
+    setError("");
+    setDestinoModalError("");   // ← limpiar error del modal
+    setDestinoModalStep("form");
+    setLastSavedClienteNombre("");
+
+    setDestinoModalForm({
+      apellido: form.apellido,
+      nombre: form.nombre,
+      dni: form.dni,
+      telefono: form.telefono,
+      direccion: form.direccion,
+      ciudad: form.ciudad,
+      provincia: form.provincia,
+      cp: form.cp,
+    });
+
+    // ✅ FIX B: si la provincia ya está cargada en el form principal,
+    // reusar esas localidades directamente en vez de esperar la carga async.
+    if (localidadesDestino.length > 0) {
+      setLocalidadesDestinoModal(localidadesDestino);
+    } else if (form.provincia) {
+      loadLocalidades(setLocalidadesDestinoModal, form.provincia);
+    }
+
+    setOpenDestinoModal(true);
   }
-  if (destinoGeo.lat == null || destinoGeo.lng == null) {
-    setError("Elegí una sugerencia de dirección (Google) para confirmar la ubicación del DESTINO.");
-    return;
-  }
-
-  setError("");
-  setDestinoModalError("");   // ← limpiar error del modal
-  setDestinoModalStep("form");
-  setLastSavedClienteNombre("");
-
-  setDestinoModalForm({
-    apellido:  form.apellido,
-    nombre:    form.nombre,
-    dni:       form.dni,
-    telefono:  form.telefono,
-    direccion: form.direccion,
-    ciudad:    form.ciudad,
-    provincia: form.provincia,
-    cp:        form.cp,
-  });
-
-  // ✅ FIX B: si la provincia ya está cargada en el form principal,
-  // reusar esas localidades directamente en vez de esperar la carga async.
-  if (localidadesDestino.length > 0) {
-    setLocalidadesDestinoModal(localidadesDestino);
-  } else if (form.provincia) {
-    loadLocalidades(setLocalidadesDestinoModal, form.provincia);
-  }
-
-  setOpenDestinoModal(true);
-}
 
   function onChangeDestinoModal(e) {
     const { name, value } = e.target;
@@ -613,66 +751,76 @@ const [destinoModalError, setDestinoModalError] = useState("");
   }
 
   async function guardarNuevoClienteDestino() {
-  const provName = provinciaNombreById(destinoModalForm.provincia);
-  const locName  = localidadNombreById(localidadesDestinoModal, destinoModalForm.ciudad);
+    const provName = provinciaNombreById(destinoModalForm.provincia);
+    const locName = localidadNombreById(localidadesDestinoModal, destinoModalForm.ciudad);
 
-  const f = {
-    apellido:  destinoModalForm.apellido.trim(),
-    nombre:    destinoModalForm.nombre.trim(),
-    dni:       destinoModalForm.dni.trim(),
-    telefono:  destinoModalForm.telefono.trim(),
-    direccion: destinoModalForm.direccion.trim(),
-    ciudad:    locName,
-    provincia: provName,
-    cp:        destinoModalForm.cp.trim(),
-    placeId:   destinoGeo.placeId || "",
-    lat:       destinoGeo.lat ?? 0,
-    lng:       destinoGeo.lng ?? 0,
-  };
+    const f = {
+      apellido: destinoModalForm.apellido.trim(),
+      nombre: destinoModalForm.nombre.trim(),
+      dni: destinoModalForm.dni.trim(),
+      telefono: destinoModalForm.telefono.trim(),
+      direccion: destinoModalForm.direccion.trim(),
 
-  // ✅ FIX A: todas las validaciones usan setDestinoModalError, no setError
-  if (!f.apellido || !f.nombre)  return setDestinoModalError("Completá apellido y nombre.");
-  if (!f.dni || !/^\d{7,8}$/.test(f.dni)) return setDestinoModalError("DNI inválido (7 u 8 dígitos).");
-  if (!f.telefono)               return setDestinoModalError("Completá el teléfono.");
-  if (!f.direccion)              return setDestinoModalError("Completá la dirección.");
-  if (!destinoModalForm.provincia) return setDestinoModalError("Seleccioná la provincia.");
-  if (!destinoModalForm.ciudad)  return setDestinoModalError("Seleccioná la localidad.");
-  if (!f.cp)                     return setDestinoModalError("Completá el código postal.");
-  if (!f.ciudad)                 return setDestinoModalError("La localidad no se pudo resolver. Cerrá el modal, elegí la provincia y localidad de nuevo.");
-  if (!f.placeId)                return setDestinoModalError("Elegí una dirección de la lista de sugerencias de Google antes de guardar.");
+      // ✅ ids + nombres
+      provincia: {
+        provinciaId: destinoModalForm.provincia,
+        provinciaNombre: provName,
+      },
+      localidad: {
+        localidadId: destinoModalForm.ciudad,
+        localidadNombre: locName,
+      },
 
-  setLoading(true);
-  setDestinoModalError("");
+      cp: destinoModalForm.cp.trim(),
+      placeId: destinoGeo.placeId || "",
+      lat: destinoGeo.lat ?? 0,
+      lng: destinoGeo.lng ?? 0,
+    };
 
-  try {
-    const created = await addDestinatario(f);
-    await refreshDestinatarios();
+    if (!f.apellido || !f.nombre) return setDestinoModalError("Completá apellido y nombre.");
+    if (!f.dni || !/^\d{7,8}$/.test(f.dni)) return setDestinoModalError("DNI inválido (7 u 8 dígitos).");
+    if (!f.telefono) return setDestinoModalError("Completá el teléfono.");
+    if (!f.direccion) return setDestinoModalError("Completá la dirección.");
+    if (!f.provincia.provinciaId) return setDestinoModalError("Seleccioná la provincia.");
+    if (!f.localidad.localidadId) return setDestinoModalError("Seleccioná la localidad.");
+    if (!f.cp) return setDestinoModalError("Completá el código postal.");
+    if (!f.placeId) return setDestinoModalError("Elegí una dirección de Google antes de guardar.");
 
-    const newId = created?._id || created?.id;
-    if (newId) {
-      setForm((p) => ({
-        ...p,
-        destinatarioId: newId,
-        apellido:  created.apellido  ?? f.apellido,
-        nombre:    created.nombre    ?? f.nombre,
-        dni:       created.dni       ?? f.dni,
-        telefono:  created.telefono  ?? f.telefono,
-        direccion: created.direccion ?? f.direccion,
-        ciudad:    created.ciudad    ?? f.ciudad,
-        provincia: created.provincia ?? f.provincia,
-        cp:        created.cp        ?? f.cp,
-      }));
+    setLoading(true);
+    setDestinoModalError("");
+
+    try {
+      const created = await addDestinatario(f);
+      await refreshDestinatarios();
+
+      const newId = created?._id || created?.id;
+      if (newId) {
+        setForm((p) => ({
+          ...p,
+          destinatarioId: newId,
+          apellido: created.apellido ?? f.apellido,
+          nombre: created.nombre ?? f.nombre,
+          dni: created.dni ?? f.dni,
+          telefono: created.telefono ?? f.telefono,
+          direccion: created.direccion ?? f.direccion,
+          // ✅ ids en el form
+          provincia: created?.provincia?.provinciaId ?? f.provincia.provinciaId,
+          ciudad: created?.localidad?.localidadId ?? f.localidad.localidadId,
+          cp: created.cp ?? f.cp,
+        }));
+
+        // cargar localidades para el select
+        loadLocalidades(setLocalidadesDestino, f.provincia.provinciaId);
+      }
+
+      setLastSavedClienteNombre(`${f.apellido} ${f.nombre}`.trim());
+      setDestinoModalStep("success");
+    } catch (e) {
+      setDestinoModalError(getApiErrorMessage(e, "No se pudo guardar el destinatario."));
+    } finally {
+      setLoading(false);
     }
-
-    setLastSavedClienteNombre(`${f.apellido} ${f.nombre}`.trim());
-    setDestinoModalStep("success");   // ← cierra el form, muestra el éxito
-  } catch (e) {
-    // ✅ FIX A: error dentro del modal, visible para el usuario
-    setDestinoModalError(getApiErrorMessage(e, "No se pudo guardar el destinatario."));
-  } finally {
-    setLoading(false);
   }
-}
 
   // ─── Render ───
   return (
@@ -824,22 +972,34 @@ const [destinoModalError, setDestinoModalError] = useState("");
               <Section title="Detalles de paquetes" icon={Package}>
                 <div className="space-y-2">
                   {form.paquetes.map((paq, index) => (
-                    <div key={index} className="grid grid-cols-1 gap-2 md:grid-cols-12">
-                      <Select className="col-span-3" name="tipoPaquete" value={paq.tipoPaquete}
-                        onChange={(e) => onChangePaquete(index, e)} options={tiposPaquete} placeholder="Tipo" />
-                      <div className="col-span-9 grid grid-cols-12 gap-2 items-center">
-                        {["alto", "ancho", "profundidad"].map((f) => (
-                          <input key={f} className="col-span-3 w-full rounded-md border px-4 py-2 outline-none text-slate-700"
-                            name={f} value={paq[f]} onChange={(e) => onChangePaquete(index, e)}
-                            placeholder={f.charAt(0).toUpperCase() + f.slice(1)} />
-                        ))}
-                        <input className="col-span-2 w-full rounded-md border px-4 py-2 outline-none text-slate-700"
-                          name="peso" value={paq.peso} onChange={(e) => onChangePaquete(index, e)} placeholder="Peso (gr)" />
+                    <div key={index} className="grid grid-cols-1 md:grid-cols-12">
+                      
+                        <div className="grid grid-cols-1 md:grid-cols-12 col-span-11 gap-2">
+                          {/* ✅ Cantidad */}
+                          <input className="col-span-1 w-full rounded-md border px-4 py-2 outline-none text-slate-700"
+                            name="cantidad" value={paq.cantidad} onChange={(e) => onChangePaquete(index, e)}
+                            placeholder="Cant." type="number" min="1" />
+
+
+                          <Select className="col-span-3" name="tipoPaquete" value={paq.tipoPaquete}
+                            onChange={(e) => onChangePaquete(index, e)} options={tiposPaquete} placeholder="Tipo" />
+
+                          {["alto", "ancho", "profundidad"].map((f) => (
+                            <input key={f} className="col-span-2 w-full rounded-md border px-4 py-2 outline-none text-slate-700"
+                              name={f} value={paq[f]} onChange={(e) => onChangePaquete(index, e)}
+                              placeholder={f.charAt(0).toUpperCase() + f.slice(1)} />
+                          ))}
+                          <input className="col-span-2 w-full rounded-md border px-4 py-2 outline-none text-slate-700"
+                            name="peso" value={paq.peso} onChange={(e) => onChangePaquete(index, e)} placeholder="Peso (gr)" />
+
+                        </div>
+
                         <button type="button" onClick={() => removePaquete(index)}
-                          className="col-span-1 flex items-center justify-center rounded-md border px-2 py-2 hover:bg-slate-50">
+                          className="col-span-1 flex items-center justify-end rounded-md px-2 py-2 hover:bg-slate-50">
                           <Trash2 className="w-4 h-4" />
                         </button>
-                      </div>
+
+
                     </div>
                   ))}
                 </div>
@@ -868,125 +1028,125 @@ const [destinoModalError, setDestinoModalError] = useState("");
 
       {/* ───── MODAL ORIGEN ───── */}
       {openOrigenModal && (
-  <div className="fixed inset-0 z-[999] flex items-center justify-center">
-    <button type="button" onClick={() => setOpenOrigenModal(false)}
-      className="absolute inset-0 bg-black/40" aria-label="Cerrar" />
-    <div className="relative z-[1000] w-[92vw] max-w-2xl">
-      <Card title={origenModalStep === "success" ? "Dirección guardada" : "Agregar nueva dirección"}>
-        <button type="button" onClick={() => setOpenOrigenModal(false)}
-          className="absolute right-4 top-4 rounded-md p-2 hover:bg-slate-100">
-          <X className="w-5 h-5 text-slate-600" />
-        </button>
+        <div className="fixed inset-0 z-[999] flex items-center justify-center">
+          <button type="button" onClick={() => setOpenOrigenModal(false)}
+            className="absolute inset-0 bg-black/40" aria-label="Cerrar" />
+          <div className="relative z-[1000] w-[92vw] max-w-2xl">
+            <Card title={origenModalStep === "success" ? "Dirección guardada" : "Agregar nueva dirección"}>
+              <button type="button" onClick={() => setOpenOrigenModal(false)}
+                className="absolute right-4 top-4 rounded-md p-2 hover:bg-slate-100">
+                <X className="w-5 h-5 text-slate-600" />
+              </button>
 
-        {origenModalStep === "form" ? (
-          <>
-            {/* ✅ FIX A: error visible DENTRO del modal */}
-            {origenModalError && (
-              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
-                {origenModalError}
-              </div>
-            )}
+              {origenModalStep === "form" ? (
+                <>
+                  {/* ✅ FIX A: error visible DENTRO del modal */}
+                  {origenModalError && (
+                    <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                      {origenModalError}
+                    </div>
+                  )}
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Input name="alias"    value={origenModalForm.alias}    onChange={onChangeOrigenModal} placeholder="Alias (Casa, Trabajo...)" />
-              <Input name="direccion" value={origenModalForm.direccion} onChange={onChangeOrigenModal} placeholder="Dirección" />
-              <Select name="provincia" value={origenModalForm.provincia} onChange={onChangeOrigenModal}
-                options={provincias.map((p) => ({ value: p.id, label: p.nombre }))} placeholder="Provincia" />
-              <Select name="ciudad" value={origenModalForm.ciudad} onChange={onChangeOrigenModal}
-                options={localidadesOrigenModal.map((l) => ({ value: l.id, label: l.nombre }))}
-                placeholder={origenModalForm.provincia ? "Localidad" : "Elegí provincia primero"} />
-              <Input name="cp" value={origenModalForm.cp} onChange={onChangeOrigenModal} placeholder="Código postal" />
-            </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Input name="alias" value={origenModalForm.alias} onChange={onChangeOrigenModal} placeholder="Alias (Casa, Trabajo...)" />
+                    <Input name="direccion" value={origenModalForm.direccion} onChange={onChangeOrigenModal} placeholder="Dirección" />
+                    <Select name="provincia" value={origenModalForm.provincia} onChange={onChangeOrigenModal}
+                      options={provincias.map((p) => ({ value: p.id, label: p.nombre }))} placeholder="Provincia" />
+                    <Select name="ciudad" value={origenModalForm.ciudad} onChange={onChangeOrigenModal}
+                      options={localidadesOrigenModal.map((l) => ({ value: l.id, label: l.nombre }))}
+                      placeholder={origenModalForm.provincia ? "Localidad" : "Elegí provincia primero"} />
+                    <Input name="cp" value={origenModalForm.cp} onChange={onChangeOrigenModal} placeholder="Código postal" />
+                  </div>
 
-            <div className="mt-6 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setOpenOrigenModal(false)}>Cancelar</Button>
-              <Button onClick={guardarNuevaDireccionOrigen} disabled={loading}>
-                {loading ? "Guardando..." : "Guardar"}
-              </Button>
-            </div>
-          </>
-        ) : (
-          <div className="py-6 flex items-center gap-3">
-            <CheckCircle2 className="h-7 w-7 text-green-600 shrink-0" />
-            <div>
-              <div className="text-lg font-bold text-slate-800">Dirección guardada con éxito</div>
-              <div className="text-slate-600">
-                Se agregó <span className="font-semibold">{lastSavedAlias}</span> a tus direcciones.
-              </div>
-            </div>
-            <div className="ml-auto">
-              <Button onClick={() => setOpenOrigenModal(false)}>Listo</Button>
-            </div>
+                  <div className="mt-6 flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setOpenOrigenModal(false)}>Cancelar</Button>
+                    <Button onClick={guardarNuevaDireccionOrigen} disabled={loading}>
+                      {loading ? "Guardando..." : "Guardar"}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className="py-6 flex items-center gap-3">
+                  <CheckCircle2 className="h-7 w-7 text-green-600 shrink-0" />
+                  <div>
+                    <div className="text-lg font-bold text-slate-800">Dirección guardada con éxito</div>
+                    <div className="text-slate-600">
+                      Se agregó <span className="font-semibold">{lastSavedAlias}</span> a tus direcciones.
+                    </div>
+                  </div>
+                  <div className="ml-auto">
+                    <Button onClick={() => setOpenOrigenModal(false)}>Listo</Button>
+                  </div>
+                </div>
+              )}
+            </Card>
           </div>
-        )}
-      </Card>
-    </div>
-  </div>
-)}
+        </div>
+      )}
 
       {/* ───── MODAL DESTINO ───── */}
       {openDestinoModal && (
-  <div className="fixed inset-0 z-[999] flex items-center justify-center">
-    <button type="button" onClick={() => setOpenDestinoModal(false)}
-      className="absolute inset-0 bg-black/40" aria-label="Cerrar" />
-    <div className="relative z-[1000] w-[92vw] max-w-2xl">
-      <Card title={destinoModalStep === "success" ? "Cliente guardado" : "Guardar nuevo cliente"}>
-        <button type="button" onClick={() => setOpenDestinoModal(false)}
-          className="absolute right-4 top-4 rounded-md p-2 hover:bg-slate-100">
-          <X className="w-5 h-5 text-slate-600" />
-        </button>
+        <div className="fixed inset-0 z-[999] flex items-center justify-center">
+          <button type="button" onClick={() => setOpenDestinoModal(false)}
+            className="absolute inset-0 bg-black/40" aria-label="Cerrar" />
+          <div className="relative z-[1000] w-[92vw] max-w-2xl">
+            <Card title={destinoModalStep === "success" ? "Cliente guardado" : "Guardar nuevo cliente"}>
+              <button type="button" onClick={() => setOpenDestinoModal(false)}
+                className="absolute right-4 top-4 rounded-md p-2 hover:bg-slate-100">
+                <X className="w-5 h-5 text-slate-600" />
+              </button>
 
-        {destinoModalStep === "form" ? (
-          <>
-            {/* ✅ FIX A: error visible DENTRO del modal */}
-            {destinoModalError && (
-              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
-                {destinoModalError}
-              </div>
-            )}
+              {destinoModalStep === "form" ? (
+                <>
+                  {/* ✅ FIX A: error visible DENTRO del modal */}
+                  {destinoModalError && (
+                    <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                      {destinoModalError}
+                    </div>
+                  )}
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Input name="apellido" value={destinoModalForm.apellido} onChange={onChangeDestinoModal} placeholder="Apellido" />
-              <Input name="nombre"   value={destinoModalForm.nombre}   onChange={onChangeDestinoModal} placeholder="Nombre" />
-              <Input name="dni"      value={destinoModalForm.dni}      onChange={onChangeDestinoModal} placeholder="DNI" />
-              <Input name="telefono" value={destinoModalForm.telefono} onChange={onChangeDestinoModal} placeholder="Teléfono" />
-              <Input name="direccion" value={destinoModalForm.direccion} onChange={onChangeDestinoModal} placeholder="Dirección" />
-              <Select name="provincia" value={destinoModalForm.provincia} onChange={onChangeDestinoModal}
-                options={provincias.map((p) => ({ value: p.id, label: p.nombre }))} placeholder="Provincia" />
-              <Select name="ciudad" value={destinoModalForm.ciudad} onChange={onChangeDestinoModal}
-                options={localidadesDestinoModal.map((l) => ({ value: l.id, label: l.nombre }))}
-                placeholder={destinoModalForm.provincia ? "Localidad" : "Elegí provincia primero"} />
-              <Input name="cp" value={destinoModalForm.cp} onChange={onChangeDestinoModal} placeholder="Código postal" />
-            </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Input name="apellido" value={destinoModalForm.apellido} onChange={onChangeDestinoModal} placeholder="Apellido" />
+                    <Input name="nombre" value={destinoModalForm.nombre} onChange={onChangeDestinoModal} placeholder="Nombre" />
+                    <Input name="dni" value={destinoModalForm.dni} onChange={onChangeDestinoModal} placeholder="DNI" />
+                    <Input name="telefono" value={destinoModalForm.telefono} onChange={onChangeDestinoModal} placeholder="Teléfono" />
+                    <Input name="direccion" value={destinoModalForm.direccion} onChange={onChangeDestinoModal} placeholder="Dirección" />
+                    <Select name="provincia" value={destinoModalForm.provincia} onChange={onChangeDestinoModal}
+                      options={provincias.map((p) => ({ value: p.id, label: p.nombre }))} placeholder="Provincia" />
+                    <Select name="ciudad" value={destinoModalForm.ciudad} onChange={onChangeDestinoModal}
+                      options={localidadesDestinoModal.map((l) => ({ value: l.id, label: l.nombre }))}
+                      placeholder={destinoModalForm.provincia ? "Localidad" : "Elegí provincia primero"} />
+                    <Input name="cp" value={destinoModalForm.cp} onChange={onChangeDestinoModal} placeholder="Código postal" />
+                  </div>
 
-            <div className="mt-6 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setOpenDestinoModal(false)}>Cancelar</Button>
-              <Button onClick={guardarNuevoClienteDestino} disabled={loading}>
-                {loading ? "Guardando..." : "Guardar"}
-              </Button>
-            </div>
-          </>
-        ) : (
-          <div className="py-6 flex items-center gap-3">
-            <CheckCircle2 className="h-7 w-7 text-green-600 shrink-0" />
-            <div>
-              <div className="text-lg font-bold text-slate-800">Cliente guardado con éxito</div>
-              <div className="text-slate-600">
-                Se agregó <span className="font-semibold">{lastSavedClienteNombre}</span> a tus destinatarios.
-              </div>
-            </div>
-            <div className="ml-auto">
-              <Button onClick={() => setOpenDestinoModal(false)}>Listo</Button>
-            </div>
+                  <div className="mt-6 flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setOpenDestinoModal(false)}>Cancelar</Button>
+                    <Button onClick={guardarNuevoClienteDestino} disabled={loading}>
+                      {loading ? "Guardando..." : "Guardar"}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className="py-6 flex items-center gap-3">
+                  <CheckCircle2 className="h-7 w-7 text-green-600 shrink-0" />
+                  <div>
+                    <div className="text-lg font-bold text-slate-800">Cliente guardado con éxito</div>
+                    <div className="text-slate-600">
+                      Se agregó <span className="font-semibold">{lastSavedClienteNombre}</span> a tus destinatarios.
+                    </div>
+                  </div>
+                  <div className="ml-auto">
+                    <Button onClick={() => setOpenDestinoModal(false)}>Listo</Button>
+                  </div>
+                </div>
+              )}
+            </Card>
           </div>
-        )}
-      </Card>
-    </div>
-  </div>
-)}
+        </div>
+      )}
     </main>
   );
-}
+};
 
 /* ─── UI helpers ─── */
 function Section({ title, icon: Icon, children }) {

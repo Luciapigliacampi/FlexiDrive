@@ -9,16 +9,18 @@ const IA_BASE     = import.meta.env.VITE_IA_API_URL     || "http://localhost:300
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export async function getDashboardResumenApi({ date } = {}) {
-  const res = await api.get(`${ENVIO_BASE}/api/comisionista/dashboard/resumen`, {
-    params: { date },
-  });
+  const res = await api.get(
+    `${ENVIO_BASE}/api/envios/comisionista/dashboard/resumen`,
+    { params: { date } }
+  );
   return res.data;
 }
 
 export async function getAgendaHoyApi({ date } = {}) {
-  const res = await api.get(`${ENVIO_BASE}/api/comisionista/dashboard/agenda`, {
-    params: { date },
-  });
+  const res = await api.get(
+    `${ENVIO_BASE}/api/envios/comisionista/dashboard/agenda`,
+    { params: { date } }
+  );
   return res.data?.items || res.data;
 }
 

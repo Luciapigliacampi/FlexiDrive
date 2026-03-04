@@ -34,32 +34,31 @@ function createApi(baseURL) {
 
   // Interceptor para manejar errores globales
   instance.interceptors.response.use(
-    (response) => response,
-    (error) => {
-      if (error.response) {
-        const status = error.response.status;
+  (response) => response,
+  (error) => {
+    if (error.response) {
+      const status = error.response.status;
 
-        // FIX: solo redirigir si NO estamos en modo mock, y SIEMPRE
-        // rechazar la promise para que los catch de los servicios funcionen.
-        if (status === 401 && !USE_MOCK) {
+      if (status === 401 && !USE_MOCK) {
+        // ✅ Guarda para no redirigir si ya estás en /auth/
+        const yaEnLogin = window.location.pathname.startsWith("/auth/");
+        if (!yaEnLogin) {
           localStorage.removeItem("token");
           localStorage.removeItem("rol");
           localStorage.removeItem("username");
           localStorage.removeItem("user");
-
-          // Usamos replace para no agregar entrada al historial
           window.location.replace("/auth/login");
         }
-
-        console.error("Error del servidor:", error.response.data);
-      } else {
-        console.error("Error de conexión:", error.message);
       }
 
-      // FIX: siempre rechazar — nunca cortar la cadena de promises
-      return Promise.reject(error);
+      console.error("Error del servidor:", error.response.data);
+    } else {
+      console.error("Error de conexión:", error.message);
     }
-  );
+
+    return Promise.reject(error);
+  }
+);
 
   return instance;
 }

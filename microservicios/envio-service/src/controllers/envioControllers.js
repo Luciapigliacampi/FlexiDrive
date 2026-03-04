@@ -16,6 +16,7 @@ export const createEnvio = async (req, res, next) => {
       notas_adicionales,
       comisionistaId,
       tripPlanId,
+      destinatarioId,
     } = req.body;
 
     if (!paquetes || !Array.isArray(paquetes) || paquetes.length === 0) {
@@ -31,11 +32,22 @@ export const createEnvio = async (req, res, next) => {
     if (!validDir(direccion_destino)) {
       return res.status(400).json({ message: "direccion_destino debe ser { texto, lat, lng } válido." });
     }
-    if (!origenCiudad?.trim()) {
-      return res.status(400).json({ message: "origenCiudad es obligatoria." });
+    if (
+      !origenCiudad ||
+      typeof origenCiudad !== "object" ||
+      !origenCiudad.localidadId ||
+      !origenCiudad.localidadNombre
+    ) {
+      return res.status(400).json({ message: "origenCiudad inválido." });
     }
-    if (!destinoCiudad?.trim()) {
-      return res.status(400).json({ message: "destinoCiudad es obligatoria." });
+
+    if (
+      !destinoCiudad ||
+      typeof destinoCiudad !== "object" ||
+      !destinoCiudad.localidadId ||
+      !destinoCiudad.localidadNombre
+    ) {
+      return res.status(400).json({ message: "destinoCiudad inválido." });
     }
     if (!fecha_entrega) {
       return res.status(400).json({ message: "fecha_entrega es obligatoria." });
@@ -59,11 +71,19 @@ export const createEnvio = async (req, res, next) => {
 
     const nuevoEnvio = new Envio({
       usuarioId: req.userId,
+      destinatarioId: destinatarioId || null,
       nro_envio: nroEnvioUnico,
       direccion_origen,
       direccion_destino,
-      origenCiudad:  String(origenCiudad).trim(),
-      destinoCiudad: String(destinoCiudad).trim(),
+      origenCiudad: {
+        localidadId: String(origenCiudad.localidadId).trim(),
+        localidadNombre: String(origenCiudad.localidadNombre).trim(),
+      },
+
+      destinoCiudad: {
+        localidadId: String(destinoCiudad.localidadId).trim(),
+        localidadNombre: String(destinoCiudad.localidadNombre).trim(),
+      },
       paquetes: paquetesProcesados,
       costo_estimado: costoCalculado,
       fecha_entrega: new Date(fecha_entrega),
@@ -88,7 +108,7 @@ export const createEnvio = async (req, res, next) => {
 export const getEnviosDisponibles = async (req, res, next) => {
   try {
     const comisionistaId = req.userId;
-    
+
     const envios = await Envio.find({
       estadoId: 'PENDIENTE',
       comisionistaId: comisionistaId,
@@ -104,6 +124,7 @@ export const aceptarEnvio = async (req, res, next) => {
   try {
     const { envioId, vehiculoId } = req.body;
     const comisionistaId = req.userId; // Viene del token
+    const tripPlanId = req.body
 
     // 1. Buscamos el envío para ver si sigue disponible
     const envio = await Envio.findById(envioId);
@@ -116,7 +137,8 @@ export const aceptarEnvio = async (req, res, next) => {
       comisionistaId,
       envioId,
       vehiculoId,
-      estado_id: 'ASIGNADO'
+      estado_id: 'ASIGNADO',
+      tripPlanId: envio.tripPlanId || null,
     });
     await nuevaAsignacion.save();
 
@@ -199,26 +221,89 @@ export const getHistorial = async (req, res, next) => {
     const userRol = req.userRol;
     let query = {};
 
-    // Si es cliente, buscamos por usuarioId
-    if (userRol === 'cliente') {
-      query = { usuarioId: userId };
-    }
-    // Si es comisionista, buscamos por comisionistaId
-    else if (userRol === 'comisionista') {
-      query = { comisionistaId: userId };
-    }
+    if (userRol === 'cliente') query = { usuarioId: userId };
+    else if (userRol === 'comisionista') query = { comisionistaId: userId };
 
-    // Traemos los envíos ordenados por fecha (del más nuevo al más viejo)
-    const historial = await Envio.find(query).sort({ createdAt: -1 });
+    const mostrarArchivados = req.query.archivado === "true";
 
-    // Calculamos un resumen rápido (opcional, pero queda re pro)
-    const totalEnvios = historial.length;
-    const totalCosto = historial.reduce((acc, envio) => acc + envio.costo_estimado, 0);
+    const historial = await Envio.find({
+      ...query,
+      eliminado: { $ne: true },
+      archivado: mostrarArchivados ? true : { $ne: true },
+    }).sort({ createdAt: -1 });
+
+    const AUTH_BASE = process.env.AUTH_SERVICE_URL || "http://localhost:3000";
+    const token = req.headers.authorization;
+
+    // ✅ IDs únicos de comisionistas Y destinatarios
+    const comisionistaIds = [...new Set(
+      historial.filter(e => e.comisionistaId).map(e => String(e.comisionistaId))
+    )];
+
+    const destinatarioIds = [...new Set(
+      historial.filter(e => e.destinatarioId).map(e => String(e.destinatarioId))
+    )];
+
+const clienteIds = [...new Set(
+      historial.filter(e => e.usuarioId).map(e => String(e.usuarioId))
+    )];
+
+    // ✅ Fetch en paralelo
+    const [nombresComisionistas, nombresDestinatarios, nombresClientes] = await Promise.all([
+      // Comisionistas → GET /api/auth/:id
+      Promise.all(comisionistaIds.map(async (cId) => {
+        try {
+          const { data } = await axios.get(`${AUTH_BASE}/api/auth/${cId}`, {
+            headers: { Authorization: token },
+          });
+          return [cId, `${data.nombre} ${data.apellido}`.trim()];
+        } catch {
+          return [cId, null];
+        }
+      })),
+
+      // Destinatarios → GET /api/auth/destinatarios/:id (endpoint nuevo, ver abajo)
+      Promise.all(destinatarioIds.map(async (dId) => {
+        try {
+          const { data } = await axios.get(`${AUTH_BASE}/api/auth/destinatarios/${dId}`, {
+            headers: { Authorization: token },
+          });
+          return [dId, `${data.apellido} ${data.nombre}`.trim()];
+        } catch {
+          return [dId, null];
+        }
+      })),
+
+Promise.all(clienteIds.map(async (uId) => {
+        try {
+          const { data } = await axios.get(`${AUTH_BASE}/api/auth/${uId}`, {
+            headers: { Authorization: token },
+          });
+          return [uId, `${data.nombre} ${data.apellido}`.trim()];
+        } catch {
+          return [uId, null];
+        }
+      })),
+
+    ]);
+
+    const comisionistaMap = Object.fromEntries(nombresComisionistas);
+    const destinatarioMap = Object.fromEntries(nombresDestinatarios);
+    const clienteMap      = Object.fromEntries(nombresClientes);
+
+    const historialEnriquecido = historial.map(e => ({
+      ...e.toObject(),
+      nombreComisionista: e.comisionistaId ? (comisionistaMap[String(e.comisionistaId)] || null) : null,
+      nombreDestinatario: e.destinatarioId ? (destinatarioMap[String(e.destinatarioId)] || null) : null,
+      nombreCliente:      e.usuarioId      ? (clienteMap[String(e.usuarioId)] || null)      : null,
+    }));
 
     res.status(200).json({
-      totalEnvios,
-      totalFacturado: userRol === 'comisionista' ? totalCosto : undefined, // Solo el comisionista ve el total ganado
-      historial
+      totalEnvios: historial.length,
+      totalFacturado: userRol === 'comisionista'
+        ? historial.reduce((acc, e) => acc + e.costo_estimado, 0)
+        : undefined,
+      historial: historialEnriquecido,
     });
   } catch (error) {
     next(error);
@@ -348,7 +433,7 @@ export const getEnviosPorFecha = async (req, res, next) => {
     }
 
     const inicioDia = new Date(`${fecha}T00:00:00.000Z`);
-    const finDia    = new Date(`${fecha}T23:59:59.999Z`);
+    const finDia = new Date(`${fecha}T23:59:59.999Z`);
 
     // ✅ Busca por fecha_entrega (ya no existe fecha_hora_retiro)
     const envios = await Envio.find({
@@ -418,8 +503,13 @@ export const confirmarComisionista = async (req, res, next) => {
     if (bultos <= 0) return res.status(400).json({ message: "El envío no tiene paquetes." });
 
     const VIAJES_BASE = process.env.VIAJES_BASE_URL || "http://localhost:3004";
-    const r = await axios.get(`${VIAJES_BASE}/api/busqueda/precio`, {
-      params: { tripPlanId, destinoCiudad: envio.destinoCiudad, bultos },
+    const r = await axios.get(`${VIAJES_BASE}/api/search/precio`, {
+      params: {
+        tripPlanId,
+        destinoLocalidadId: envio.destinoCiudad.localidadId,
+        destinoLocalidadNombre: envio.destinoCiudad.localidadNombre,
+        bultos,
+      },
     });
 
     const { precioPorBulto, total, comisionistaId: comiDelTrip } = r.data;
@@ -441,4 +531,34 @@ export const confirmarComisionista = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+};
+
+// Archivar (ocultar de la lista sin eliminar)
+export const archivarEnvio = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const envio = await Envio.findById(id);
+    if (!envio) return res.status(404).json({ message: "Envío no encontrado." });
+    if (envio.usuarioId.toString() !== req.userId) {
+      return res.status(403).json({ message: "No tienes permiso." });
+    }
+    envio.archivado = true;
+    await envio.save();
+    res.status(200).json({ message: "Envío archivado." });
+  } catch (error) { next(error); }
+};
+
+// Eliminar lógico (se marca como eliminado, no se borra de la BD)
+export const eliminarEnvioLogico = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const envio = await Envio.findById(id);
+    if (!envio) return res.status(404).json({ message: "Envío no encontrado." });
+    if (envio.usuarioId.toString() !== req.userId) {
+      return res.status(403).json({ message: "No tienes permiso." });
+    }
+    envio.eliminado = true;
+    await envio.save();
+    res.status(200).json({ message: "Envío eliminado." });
+  } catch (error) { next(error); }
 };

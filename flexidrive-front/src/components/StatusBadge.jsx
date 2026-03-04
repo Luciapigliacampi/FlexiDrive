@@ -1,19 +1,15 @@
-//flexidrive-front\src\components\StatusBadge.jsx
+import { ESTADOS_ENVIO, ESTADO_FALLBACK } from "../config/estadosEnvio";
 
-export default function StatusBadge({ estado }) {
-  const map = {
-    pendiente: { label: "Pendiente", cls: "bg-amber-100 text-amber-700" },
-    en_retiro: { label: "En retiro", cls: "bg-indigo-100 text-indigo-700" },
-    en_camino: { label: "En camino", cls: "bg-blue-600 text-white" },
-    entregado: { label: "Entregado", cls: "bg-emerald-600 text-white" },
-    cancelado: { label: "Cancelado", cls: "bg-red-600 text-white" },
-    demorado: { label: "Demorado", cls: "bg-orange-500 text-white" },
-  };
-  const s = map[estado] || { label: estado, cls: "bg-slate-200 text-slate-700" };
+export default function StatusBadge({ estado, label, showIcon = false }) {
+  const s = ESTADOS_ENVIO[estado] || ESTADO_FALLBACK;
+  const Icon = s.Icon;
 
   return (
-    <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold ${s.cls}`}>
-      {s.label}
+    <span
+      className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold ${s.cls}`}
+    >
+      {showIcon && Icon ? <Icon className="h-4 w-4" /> : null}
+      {label || s.label || estado}
     </span>
   );
 }

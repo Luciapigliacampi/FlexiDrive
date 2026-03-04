@@ -4,11 +4,14 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import conectarDB from './config/db.js'; // Importamos la conexión
 import envioRoutes from './routes/envioRoutes.js';
+import { iniciarJobCancelacionVencidos } from './jobs/cancelarEnviosVencidos.js';
 
 dotenv.config();
 
 // Conectamos a la base de datos
 conectarDB();
+
+iniciarJobCancelacionVencidos();
 
 const app = express();
 app.use(cors());

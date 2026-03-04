@@ -15,7 +15,7 @@ export const authMiddleware = (req, res, next) => {
     
     // Extraemos el ID y lo pasamos al req para que el controlador lo use
     req.userId = decoded.userId; 
-    req.userRol = decoded.rol; // <--- ESTA ES LA LÍNEA QUE TE FALTA
+    req.userRol = decoded.rol || decoded.role || null;
     
     next(); 
   } catch (error) {

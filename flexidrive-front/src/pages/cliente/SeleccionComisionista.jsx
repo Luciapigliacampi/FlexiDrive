@@ -4,9 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Loader from "../../components/Loader";
 import EmptyState from "../../components/EmptyState";
 import {
-  searchComisionistas,
-  crearEnvio,
-  confirmarComisionistaEnEnvio,
+  searchComisionistas
 } from "../../services/shipmentServices";
 import heroImg from "../../assets/cart.png";
 
@@ -30,7 +28,6 @@ export default function SeleccionComisionista() {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
-  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState("");
 
   const [list, setList] = useState([]); // ✅ siempre array
@@ -65,7 +62,9 @@ export default function SeleccionComisionista() {
 
   // valores a mostrar + enviar en search
   const resumen = useMemo(() => {
-    const bultos = Array.isArray(draft?.paquetes) ? draft.paquetes.length : 1;
+    const bultos = Array.isArray(draft?.paquetes)
+      ? draft.paquetes.reduce((acc, p) => acc + Math.max(1, parseInt(p.cantidad) || 1), 0)
+      : 1;
 
     // Preferimos draftBusqueda (porque ya lo preparaste en SolicitarEnvio)
     const origenCiudad = draftBusqueda?.origenCiudad || payloadBase?.origenCiudad || "";
@@ -90,8 +89,10 @@ export default function SeleccionComisionista() {
 
         const res = await searchComisionistas({
           fechaEntrega: resumen.fechaEntrega,
-          origenCiudad: resumen.origenCiudad,
-          destinoCiudad: resumen.destinoCiudad,
+          origenLocalidadId: resumen.origenCiudad?.localidadId,
+          origenLocalidadNombre: resumen.origenCiudad?.localidadNombre,
+          destinoLocalidadId: resumen.destinoCiudad?.localidadId,
+          destinoLocalidadNombre: resumen.destinoCiudad?.localidadNombre,
           bultos: resumen.bultos,
         });
 
@@ -103,6 +104,8 @@ export default function SeleccionComisionista() {
                 Array.isArray(res?.items) ? res.items :
                   Array.isArray(res?.data?.comisionistas) ? res.data.comisionistas :
                     [];
+
+        console.log("Respuesta comisionistas:", arr);
 
         // ✅ Normalizamos para UI (ahora incluimos descuento)
         const normalized = arr.map((c) => {
@@ -152,66 +155,26 @@ export default function SeleccionComisionista() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function confirmar() {
-    // 1) Buscar comisionista seleccionado
-    const comi = list.find((c) => String(c.id) === String(selected));
-    if (!comi) return;
+  // ✅ confirmar() simplificado - no necesita try/catch complejo
+function confirmar() {
+  const comi = list.find((c) => String(c.id) === String(selected));
+  if (!comi) return;
 
-    setConfirming(true);
-    setError("");
+  localStorage.setItem("draftComisionista", JSON.stringify({
+    id: comi.id,
+    tripPlanId: comi.tripPlanId,
+    nombre: comi.nombre,
+    rating: comi.rating,
+    precioPorBulto: comi.precioPorBulto,
+    bultos: comi.bultos,
+    precioBase: comi.precioBase,
+    descuentoAplicado: comi.descuentoAplicado,
+    precioEstimado: comi.precioEstimado,
+    descuentoPorBultos: comi.descuentoPorBultos,
+  }));
 
-    try {
-      // 2) Guardar comisionista elegido (para UI / resumen)
-      localStorage.setItem(
-        "draftComisionista",
-        JSON.stringify({
-          id: comi.id,                 // comisionistaId
-          tripPlanId: comi.tripPlanId,
-          nombre: comi.nombre,
-          rating: comi.rating,
-
-          // ✅ guardar precios con descuento
-          precioPorBulto: comi.precioPorBulto,
-          bultos: comi.bultos,
-          precioBase: comi.precioBase,
-          descuentoAplicado: comi.descuentoAplicado,
-          precioEstimado: comi.precioEstimado,
-          descuentoPorBultos: comi.descuentoPorBultos,
-        })
-      );
-
-      // 3) Crear envío (SIN comisionistaId / tripPlanId)
-      if (!payloadBase?.direccion_origen || !payloadBase?.direccion_destino) {
-        throw new Error("No se encontró el payload del envío. Volvé a Solicitar envío.");
-      }
-
-      const created = await crearEnvio(payloadBase);
-      // created puede venir como axios res o como obj directo
-      const createdObj = created?.data ?? created;
-      const envioDoc = createdObj?.envio ?? createdObj;
-      const envioId = envioDoc?._id || envioDoc?.id;
-
-      if (!envioId) {
-        throw new Error("No se pudo crear el envío (envioId vacío).");
-      }
-
-      // guardo para pantallas posteriores (confirmación / comprobante)
-      localStorage.setItem("createdEnvio", JSON.stringify(createdObj));
-
-      // 4) Confirmar comisionista y fijar precio real (envio-service)
-      await confirmarComisionistaEnEnvio(envioId, {
-        tripPlanId: comi.tripPlanId,
-        comisionistaId: comi.id,
-      });
-
-      // 5) Ir a confirmación
-      navigate("/cliente/confirmacion-envio");
-    } catch (e) {
-      setError(getApiErrorMessage(e, "No se pudo confirmar el envío."));
-    } finally {
-      setConfirming(false);
-    }
-  }
+  navigate("/cliente/confirmacion-envio");
+}
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 m-8">
@@ -228,8 +191,15 @@ export default function SeleccionComisionista() {
         <div className="mt-6 rounded-xl border bg-slate-50 p-4">
           <div className="font-semibold text-slate-700">Resumen del envío</div>
           <div className="mt-2 text-sm text-slate-600">
-            <div><b>Origen ciudad:</b> {resumen.origenCiudad || "—"}</div>
-            <div><b>Destino ciudad:</b> {resumen.destinoCiudad || "—"}</div>
+            <div>
+              <b>Origen ciudad:</b>{" "}
+              {resumen.origenCiudad?.localidadNombre || "—"}
+            </div>
+
+            <div>
+              <b>Destino ciudad:</b>{" "}
+              {resumen.destinoCiudad?.localidadNombre || "—"}
+            </div>
             <div><b>Fecha entrega:</b> {resumen.fechaEntrega || "—"}</div>
             <div><b>Disponible para retiro:</b> {draft?.franjaHorariaRetiro || "—"}</div>
             <div><b>Bultos:</b> {resumen.bultos}</div>
@@ -249,9 +219,8 @@ export default function SeleccionComisionista() {
                 return (
                   <label
                     key={`${c.id}-${c.tripPlanId}`}
-                    className={`flex cursor-pointer items-center justify-between rounded-xl border p-5 hover:bg-slate-50 ${
-                      selected === c.id ? "border-blue-700" : ""
-                    }`}
+                    className={`flex cursor-pointer items-center justify-between rounded-xl border p-5 hover:bg-slate-50 ${selected === c.id ? "border-blue-700" : ""
+                      }`}
                   >
                     <div className="flex items-center gap-4">
                       <input
@@ -262,6 +231,9 @@ export default function SeleccionComisionista() {
                       />
                       <div>
                         <div className="text-lg font-bold text-slate-700">{c.nombre}</div>
+                        <div className="text-sm text-slate-500 mt-1">
+                          📍 {c.ruta?.origen?.localidadNombre || "—"} → {c.ruta?.destino?.localidadNombre || "—"}
+                        </div>
                         <div className="text-sm text-slate-500">⭐ {c.rating}</div>
                         <div className="text-xs text-slate-500">
                           {c.precioPorBulto != null ? `${moneyARS(c.precioPorBulto)} x bulto` : "—"}{" "}
@@ -312,11 +284,11 @@ export default function SeleccionComisionista() {
 
           <button
             type="button"
-            disabled={!selected || loading || confirming}
+            disabled={!selected || loading}
             onClick={confirmar}
             className="rounded-full bg-blue-700 px-10 py-3 font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
           >
-            {confirming ? "Confirmando..." : "Confirmar envío"}
+            {"Confirmar envío"}
           </button>
         </div>
       </div>

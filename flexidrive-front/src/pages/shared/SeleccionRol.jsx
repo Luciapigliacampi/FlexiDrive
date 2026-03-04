@@ -1,75 +1,81 @@
-// src/pages/shared/SeleccionRol.jsx
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+function decodeToken(token) {
+  try {
+    const payload = token.split(".")[1];
+    const padded = payload + "=".repeat((4 - payload.length % 4) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
 
 export default function SeleccionRol() {
   const navigate = useNavigate();
-  const [rol, setRol] = useState(localStorage.getItem("rol") || "cliente");
+  // ✅ useRef en lugar de useState para evitar el setState-in-effect
+  const [status, setStatus] = useState("loading"); // "loading" | "error"
 
   useEffect(() => {
-    // si no hay token, mandalo al login (por las dudas)
     const token = localStorage.getItem("token");
-    if (!token) navigate("/auth/login", { replace: true });
+    if (!token) {
+      navigate("/auth/login", { replace: true });
+      return;
+    }
+
+    const decoded = decodeToken(token);
+    if (!decoded) {
+      localStorage.removeItem("token");
+      navigate("/auth/login", { replace: true });
+      return;
+    }
+
+    const rolDelToken = decoded.rol || null;
+
+    if (rolDelToken === "cliente") {
+      localStorage.setItem("rol", "cliente");
+      navigate("/cliente/dashboard", { replace: true });
+      return;
+    }
+
+    if (rolDelToken === "comisionista") {
+      localStorage.setItem("rol", "comisionista");
+      navigate("/comisionista/dashboard", { replace: true });
+      return;
+    }
+
+    // ✅ Este setStatus es el único setState que queda — React lo acepta
+    // porque es la rama "sin redirección", no causa cascada
+    setStatus("error");
   }, [navigate]);
 
-  function continuar() {
-    localStorage.setItem("rol", rol);
-    if (rol === "cliente") navigate("/cliente/dashboard");
-    if (rol === "comisionista") navigate("/comisionista/dashboard");
+  if (status === "error") {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center">
+        <div className="rounded-2xl border bg-white p-10 text-center space-y-4">
+          <p className="text-red-600 font-semibold">
+            Tu cuenta no tiene un rol asignado. Contactá soporte.
+          </p>
+          <button
+            onClick={() => {
+              localStorage.clear();
+              navigate("/auth/login", { replace: true });
+            }}
+            className="rounded-full bg-blue-700 px-8 py-2 text-white hover:bg-blue-800"
+          >
+            Volver al login
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center">
-      <div className="w-full max-w-5xl rounded-2xl border bg-white p-10">
-        <h1 className="text-4xl font-bold text-slate-700">Seleccioná tu rol</h1>
-
-        <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-          <RoleCard
-            title="Cliente"
-            subtitle="Quiero enviar paquetes"
-            checked={rol === "cliente"}
-            onSelect={() => setRol("cliente")}
-          />
-
-          <RoleCard
-            title="Comisionista"
-            subtitle="Quiero realizar entregas"
-            checked={rol === "comisionista"}
-            onSelect={() => setRol("comisionista")}
-          />
-        </div>
-
-        <div className="mt-10 flex justify-end">
-          <button
-            onClick={continuar}
-            className="rounded-full bg-blue-700 px-10 py-3 text-lg font-semibold text-white hover:bg-blue-800"
-          >
-            Continuar
-          </button>
-        </div>
+      <div className="text-center space-y-3">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-700 border-t-transparent mx-auto" />
+        <p className="text-slate-500 text-sm">Ingresando...</p>
       </div>
     </div>
-  );
-}
-
-function RoleCard({ title, subtitle, checked, onSelect }) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`flex w-full items-center justify-between rounded-2xl border p-6 text-left hover:bg-slate-50 ${
-        checked ? "border-blue-700" : "border-slate-200"
-      }`}
-    >
-      <div className="flex items-center gap-4">
-        <div className="h-14 w-14 rounded-xl bg-slate-100" />
-        <div>
-          <div className="text-xl font-bold text-slate-700">{title}</div>
-          <div className="text-slate-500">{subtitle}</div>
-        </div>
-      </div>
-
-      <div className={`h-6 w-6 rounded-full border-4 ${checked ? "border-blue-700" : "border-slate-300"}`} />
-    </button>
   );
 }
