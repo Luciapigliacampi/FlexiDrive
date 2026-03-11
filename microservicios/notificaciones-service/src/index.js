@@ -1,3 +1,4 @@
+//microservicios\notificaciones-service\src\index.js
 import 'dotenv/config';
 import express from 'express';
 import http from 'http';

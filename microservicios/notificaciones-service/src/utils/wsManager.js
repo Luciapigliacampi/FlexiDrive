@@ -5,7 +5,11 @@ import jwt from 'jsonwebtoken';
 const clients = new Map();
 
 export function setupWebSocket(server) {
-  const wss = new WebSocketServer({ server, path: '/ws' });
+  const wss = new WebSocketServer({
+    server,
+    path: '/ws',
+    verifyClient: ({ origin }, cb) => cb(true), // permitir cualquier origen
+  });
 
   wss.on('connection', (ws, req) => {
     // El cliente envía el token como query param: /ws?token=...
@@ -29,6 +33,7 @@ export function setupWebSocket(server) {
     // Registrar conexión
     if (!clients.has(userId)) clients.set(userId, new Set());
     clients.get(userId).add(ws);
+    console.log(`[WS] cliente conectado → userId=${userId} total_conexiones=${clients.get(userId).size}`);
 
     ws.on('close', () => {
       clients.get(userId)?.delete(ws);
@@ -61,7 +66,9 @@ export function setupWebSocket(server) {
  * Envía una notificación en tiempo real a un usuario si está conectado.
  */
 export function pushNotificacion(userId, notificacion) {
-  const sockets = clients.get(String(userId));
+  const key = String(userId);
+  const sockets = clients.get(key);
+  console.log(`[WS] push → userId=${key} clientes_conectados=${sockets?.size ?? 0} tipo=${notificacion.tipo}`);
   if (!sockets?.size) return;
 
   const payload = JSON.stringify({ type: 'NOTIFICACION', data: notificacion });

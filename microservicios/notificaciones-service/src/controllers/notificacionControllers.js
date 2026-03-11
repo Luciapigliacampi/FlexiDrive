@@ -1,3 +1,4 @@
+//microservicios\notificaciones-service\src\controllers\notificacionControllers.js
 import Notificacion from '../models/notificacionModel.js';
 import { pushNotificacion } from '../utils/wsManager.js';
 

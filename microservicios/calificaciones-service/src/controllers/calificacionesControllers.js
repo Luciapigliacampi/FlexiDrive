@@ -1,3 +1,4 @@
+//microservicios\calificaciones-service\src\controllers\calificacionesControllers.js
 import Calificacion from '../models/calificacionModel.js';
 import axios from 'axios';
 
@@ -77,4 +78,12 @@ export const getReputacionComisionista = async (req, res, next) => {
     } catch (error) {
         next(error);
     }
+};
+
+export const getCalificacionPorEnvio = async (req, res, next) => {
+  try {
+    const cal = await Calificacion.findOne({ envioId: req.params.envioId });
+    if (!cal) return res.status(404).json({ message: "Sin calificación" });
+    res.json({ puntuacion: cal.puntuacion, comentario: cal.comentario, fecha: cal.fecha });
+  } catch (error) { next(error); }
 };

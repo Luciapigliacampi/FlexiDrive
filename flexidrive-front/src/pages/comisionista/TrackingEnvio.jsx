@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, MapPin, Package, Clock, CheckCircle2,
-  PackageCheck, AlertCircle, User, Phone,
+  PackageCheck, AlertCircle, User, Phone, Star 
 } from "lucide-react";
 import StatusBadge from "../../components/StatusBadge";
 import { toEstadoKey, estadoLabel } from "../../utils/estadoUtils";
 import { getEnvioById } from "../../services/shipmentServices";
 import { marcarRetirado, marcarEntregado } from "../../services/shipmentServices";
 import { formatFechaEntrega } from "../../utils/fechas";
+import api from "../../services/api";
 
 const PASOS = [
   { estado: "PENDIENTE",         label: "Pendiente" },
@@ -36,6 +37,7 @@ export default function TrackingEnvioComisionista() {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState("");
   const [acting,  setActing]  = useState(null);
+  const [calificacion, setCalificacion] = useState(null); 
 
   async function load() {
     setLoading(true);
@@ -52,6 +54,15 @@ export default function TrackingEnvioComisionista() {
   }
 
   useEffect(() => { load(); }, [id]);  // eslint-disable-line
+
+ useEffect(() => {
+  if (!envio || envio.estadoId !== "ENTREGADO") return;
+  const CAL_BASE = import.meta.env.VITE_CALIFICACIONES_API_URL || "http://localhost:3003";
+  api.get(`${CAL_BASE}/api/calificaciones/envio/${id}`)
+    .then((r) => setCalificacion(r.data ?? null))
+    .catch(() => {});
+}, [envio, id]);
+
 
   async function accion(fn, key) {
     setActing(key);
@@ -208,6 +219,32 @@ export default function TrackingEnvioComisionista() {
           )}
         </div>
       )}
+
+      {envio?.estadoId === "ENTREGADO" && (
+  <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5">
+    <h2 className="text-sm font-bold text-slate-600 uppercase tracking-wide mb-3">
+      Calificación del cliente
+    </h2>
+    {calificacion ? (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          {[1,2,3,4,5,6,7,8,9,10].map((n) => (
+            <span key={n} className={`text-xl ${n <= calificacion.puntuacion ? "text-yellow-500" : "text-slate-200"}`}>★</span>
+          ))}
+          <span className="ml-1 font-bold text-slate-700">{calificacion.puntuacion}/10</span>
+        </div>
+        {calificacion.comentario && (
+          <p className="text-sm text-slate-600 italic">"{calificacion.comentario}"</p>
+        )}
+        <p className="text-xs text-slate-400">
+          {new Date(calificacion.fecha).toLocaleDateString("es-AR")}
+        </p>
+      </div>
+    ) : (
+      <p className="text-sm text-slate-400 italic">El cliente aún no calificó este envío.</p>
+    )}
+  </div>
+)}
     </div>
   );
 }

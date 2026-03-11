@@ -1,3 +1,4 @@
+//microservicios\notificaciones-service\src\routes\notificacionRoutes.js
 import { Router } from 'express';
 import {
   crearNotificacion,

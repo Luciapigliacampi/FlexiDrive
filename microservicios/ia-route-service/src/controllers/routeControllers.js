@@ -522,6 +522,15 @@ export const getSeguimientoEnvio = async (req, res) => {
       } catch {}
     }
 
+    let calificado = false;
+    try {
+      const CAL_BASE = process.env.CALIFICACIONES_SERVICE_URL || 'http://localhost:3003';
+      await axios.get(`${CAL_BASE}/api/calificaciones/envio/${envioId}`);
+      calificado = true;
+    } catch (e) {
+      calificado = e?.response?.status !== 404;
+    }
+
     res.json({
       nro_envio: envio.nro_envio,
       estado: envio.estadoId,

@@ -9,7 +9,7 @@ import TrackingProgress from "../../components/TrackingProgress";
 import StatusBadge from "../../components/StatusBadge";
 import { Card, Button } from "../../components/UI";
 import { getSeguimientoEnvio } from "../../services/mapsService";
-import { Archive, Trash2, X as XIcon, AlertCircle, MoreVertical } from "lucide-react";
+import { Archive, Trash2, X as XIcon, AlertCircle, MoreVertical, CheckCircle2 } from "lucide-react";
 import { useEnvioAcciones, puedeCancel, puedeArchivar, puedeEliminar, mensajeBloqueo } from "../../hooks/useShipments";
 import { formatFechaEntrega } from "../../utils/fechas";
 
@@ -227,13 +227,22 @@ export default function TrackingEnvio() {
           </Card>
 
           {isEntregado && (
-            <Card title="¿Cómo fue la experiencia?">
-              <p className="text-slate-600 mb-4">Calificá al comisionista para ayudar a la comunidad.</p>
-              <Button onClick={() => navigate(`/cliente/envios/${id}/calificar`)} className="w-full">
-                Calificar comisionista
-              </Button>
-            </Card>
-          )}
+  <Card title="¿Cómo fue la experiencia?">
+    {data.calificado ? (
+      <div className="flex items-center gap-2 text-sm text-emerald-700 font-semibold">
+        <CheckCircle2 className="h-4 w-4" />
+        Ya calificaste este envío ✓
+      </div>
+    ) : (
+      <>
+        <p className="text-slate-600 mb-4">Calificá al comisionista para ayudar a la comunidad.</p>
+        <Button onClick={() => navigate(`/cliente/envios/${id}/calificar`)} className="w-full">
+          ★ Calificar comisionista
+        </Button>
+      </>
+    )}
+  </Card>
+)}
         </div>
 
         {/* Columna derecha — Mapa */}

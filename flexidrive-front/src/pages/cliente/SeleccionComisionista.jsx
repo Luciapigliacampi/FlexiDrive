@@ -7,6 +7,7 @@ import {
   searchComisionistas
 } from "../../services/shipmentServices";
 import heroImg from "../../assets/cart.png";
+import api from "../../services/api";
 
 function getApiErrorMessage(err, fallback = "Ocurrió un error.") {
   const data = err?.response?.data;
@@ -135,10 +136,21 @@ export default function SeleccionComisionista() {
           });
         }).filter((c) => c.id && c.tripPlanId);
 
-        if (!alive) return;
+        const CAL_BASE = import.meta.env.VITE_CALIFICACIONES_API_URL || "http://localhost:3003";
+const enriched = await Promise.all(
+  normalized.map(async (c) => {
+    try {
+      const r = await api.get(`${CAL_BASE}/api/calificaciones/${c.id}`);
+      return { ...c, rating: r.data?.promedio ?? c.rating };
+    } catch {
+      return c;
+    }
+  })
+);
 
-        setList(normalized);
-        setSelected(normalized?.[0]?.id ?? null);
+if (!alive) return;
+setList(enriched);
+setSelected(enriched?.[0]?.id ?? null);
       } catch (e) {
         if (!alive) return;
         setList([]);
@@ -234,7 +246,11 @@ function confirmar() {
                         <div className="text-sm text-slate-500 mt-1">
                           📍 {c.ruta?.origen?.localidadNombre || "—"} → {c.ruta?.destino?.localidadNombre || "—"}
                         </div>
-                        <div className="text-sm text-slate-500">⭐ {c.rating}</div>
+                       <div className="flex items-center gap-1 text-sm text-slate-500 mt-1">
+  <span className="text-yellow-500">★</span>
+  <span className="font-semibold text-slate-700">{Number(c.rating).toFixed(1)}</span>
+  <span className="text-slate-400">/ 10</span>
+</div>
                         <div className="text-xs text-slate-500">
                           {c.precioPorBulto != null ? `${moneyARS(c.precioPorBulto)} x bulto` : "—"}{" "}
                           ({c.bultos ?? "—"})

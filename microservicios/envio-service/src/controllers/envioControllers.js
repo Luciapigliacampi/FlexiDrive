@@ -724,8 +724,7 @@ export const cancelarPorComisionista = async (req, res, next) => {
     const CON_RETORNO = ['RETIRADO', 'EN_CAMINO', 'DEMORADO'];
 
     if (SIN_RETORNO.includes(envio.estadoId)) {
-      envio.estadoId = 'CANCELADO';
-      await envio.save();
+      await Envio.updateOne({ _id: id }, { $set: { estadoId: 'CANCELADO' } });
       await EnvioXComisionista.findOneAndUpdate(
         { envioId: id, comisionistaId }, { $set: { estado_id: 'CANCELADO' } }
       );
@@ -735,8 +734,7 @@ export const cancelarPorComisionista = async (req, res, next) => {
     }
 
     if (CON_RETORNO.includes(envio.estadoId)) {
-      envio.estadoId = 'CANCELADO_RETORNO';
-      await envio.save();
+      await Envio.updateOne({ _id: id }, { $set: { estadoId: 'CANCELADO_RETORNO' } });
       await EnvioXComisionista.findOneAndUpdate(
         { envioId: id, comisionistaId }, { $set: { estado_id: 'CANCELADO_RETORNO' } }
       );

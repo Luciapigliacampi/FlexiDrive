@@ -1,3 +1,4 @@
+//microservicios\notificaciones-service\src\config\db.js
 import mongoose from 'mongoose';
 
 const conectarDB = async () => {

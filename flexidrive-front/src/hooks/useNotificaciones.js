@@ -20,26 +20,48 @@ export default function useNotificaciones() {
     }
   }, []);
 
-  // Conectar WebSocket
+  // Conectar WebSocket con reconexión automática
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    const ws = new WebSocket(`${WS_BASE}/ws?token=${token}`);
-    wsRef.current = ws;
+    let ws;
+    let reconnectTimeout;
+    let destroyed = false;
 
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'NOTIFICACION') {
-          setNotificaciones((prev) => [msg.data, ...prev]);
+    function connect() {
+      if (destroyed) return;
+      ws = new WebSocket(`${WS_BASE}/ws?token=${token}`);
+      wsRef.current = ws;
+
+      ws.onopen = () => console.log('[WS] conectado');
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'NOTIFICACION') {
+            setNotificaciones((prev) => [msg.data, ...prev]);
+          }
+        } catch {}
+      };
+
+      ws.onerror = (e) => console.error('[WS] error:', e);
+
+      ws.onclose = () => {
+        if (!destroyed) {
+          console.log('[WS] desconectado, reconectando en 3s...');
+          reconnectTimeout = setTimeout(connect, 3000);
         }
-      } catch {}
+      };
+    }
+
+    connect();
+
+    return () => {
+      destroyed = true;
+      clearTimeout(reconnectTimeout);
+      ws?.close();
     };
-
-    ws.onerror = (e) => console.error('[WS] error:', e);
-
-    return () => ws.close();
   }, []);
 
   // Fetch inicial

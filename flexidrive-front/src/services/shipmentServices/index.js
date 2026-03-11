@@ -81,8 +81,8 @@ export async function mockPay(payload) {
 }
 
 // En real lo conectamos a calificaciones-service (abajo)
-export async function mockRate(payload) {
-  return unwrap((svc.mockRate ?? real.mockRate)(payload));
+export async function calificarEnvio(payload) {
+  return unwrap(real.calificarEnvio(payload));
 }
 
 export async function confirmarComisionistaEnEnvio(envioId, payload) {

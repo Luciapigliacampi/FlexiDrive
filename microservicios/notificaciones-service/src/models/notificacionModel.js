@@ -1,3 +1,4 @@
+//microservicios\notificaciones-service\src\models\notificacionModel.js
 import mongoose from 'mongoose';
 
 const notificacionSchema = new mongoose.Schema(
