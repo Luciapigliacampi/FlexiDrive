@@ -7,25 +7,20 @@ import { calcularTotalConDescuento } from "../utils/priceUtils.js";
 import axios from "axios";
 
 const AUTH_BASE = process.env.AUTH_SERVICE_URL || "http://localhost:3000";
-
 const router = express.Router();
-
 const norm = (s) => String(s || "").trim().toLowerCase();
-
-
 
 // GET /api/search/comisionistas
 // Busca tripPlans activos que:
-//   - salgan desde origenLocalidadId (o coincidan por nombre, case-insensitive)
-//   - lleguen a destinoLocalidadId (destino o intermedia)
+//   - pasen por origenLocalidad (origen O intermedia del TripPlan)
+//   - lleguen a destinoLocalidad (destino O intermedia del TripPlan)
+//   - el origen del envío aparezca ANTES del destino en la ruta
 //   - operen el día de fechaEntrega
 //   - tengan precio cargado para el destino
 router.get("/comisionistas", async (req, res, next) => {
   try {
     const querySchema = z.object({
-      fechaEntrega: z.string().min(10),          // YYYY-MM-DD
-      // FIX: el modelo guarda localidadId + localidadNombre, no origenCiudad
-      // Aceptamos búsqueda por id O por nombre (para compatibilidad)
+      fechaEntrega: z.string().min(10),
       origenLocalidadId: z.string().optional(),
       origenLocalidadNombre: z.string().optional(),
       destinoLocalidadId: z.string().optional(),
@@ -42,47 +37,49 @@ router.get("/comisionistas", async (req, res, next) => {
     const q = querySchema.parse(req.query);
     const dow = dayOfWeekFromISODate(q.fechaEntrega);
 
-    // ─── Filtro Mongo: origen + día + activo ───────────────────────────────
-    const mongoFilter = {
-      activo: true,
-      diasSemana: dow,
-    };
+    // ─── Solo filtramos por día y activo en Mongo.
+    //     El filtro de origen/destino lo hacemos en memoria para soportar intermedias.
+    const trips = await TripPlan.find({ activo: true, diasSemana: dow }).lean();
 
-    // Preferimos buscar por ID (exacto), con fallback a nombre (regex)
-    if (q.origenLocalidadId) {
-      mongoFilter["origen.localidadId"] = q.origenLocalidadId;
-    } else {
-      mongoFilter["origen.localidadNombre"] = new RegExp(
-        `^${q.origenLocalidadNombre.trim()}$`, "i"
-      );
-    }
-
-    const trips = await TripPlan.find(mongoFilter).lean();
-
-    // ─── Filtro en memoria: llega al destino ──────────────────────────────
-    const destinoId = q.destinoLocalidadId || null;
+    const origenId   = q.origenLocalidadId   || null;
+    const origenNorm = q.origenLocalidadNombre ? norm(q.origenLocalidadNombre) : null;
+    const destinoId   = q.destinoLocalidadId   || null;
     const destinoNorm = q.destinoLocalidadNombre ? norm(q.destinoLocalidadNombre) : null;
 
-    function llegaADestino(t) {
-      // destino final
-      if (destinoId && t.destino?.localidadId === destinoId) return true;
-      if (destinoNorm && norm(t.destino?.localidadNombre) === destinoNorm) return true;
-
-      // paradas intermedias
-      for (const it of t.intermedias || []) {
-        if (destinoId && it.localidadId === destinoId) return true;
-        if (destinoNorm && norm(it.localidadNombre) === destinoNorm) return true;
-      }
-      return false;
+    // Verifica si una localidad está en algún punto de la ruta (origen, intermedias o destino)
+    function estaEnRuta(t, localidadId, localidadNombre) {
+      const paradas = [t.origen, ...(t.intermedias || []), t.destino];
+      return paradas.some((p) => {
+        if (localidadId && p?.localidadId === localidadId) return true;
+        if (localidadNombre && norm(p?.localidadNombre) === localidadNombre) return true;
+        return false;
+      });
     }
 
-    // ─── Armar respuesta ──────────────────────────────────────────────────
-    const filtered = trips.filter(llegaADestino).map((t) => {
+    const filtered = trips.map((t) => {
+      // Debe pasar por ambas localidades (ruta circular: puede retirar en Oliva
+      // y entregar en Villa María aunque Villa María sea el origen del viaje)
+      if (!estaEnRuta(t, origenId, origenNorm))  return null;
+      if (!estaEnRuta(t, destinoId, destinoNorm)) return null;
+
+      // Buscar precio para el tramo del envío.
+      // Orden de prioridad:
+      //   1. Precio cargado para la localidad DESTINO del envío
+      //   2. Precio cargado para la localidad ORIGEN del envío (tramo equivalente inverso)
+      //      Cubre casos como: intermedia→origen, intermedia→intermedia, origen→intermedia
       const precios = Array.isArray(t.preciosPorLocalidad) ? t.preciosPorLocalidad : [];
-      const match = precios.find((p) =>
+
+      const matchDestino = precios.find((p) =>
         (destinoId && p.localidadId === destinoId) ||
         (destinoNorm && norm(p.localidadNombre) === destinoNorm)
       );
+
+      const matchOrigen = precios.find((p) =>
+        (origenId && p.localidadId === origenId) ||
+        (origenNorm && norm(p.localidadNombre) === origenNorm)
+      );
+
+      const match = matchDestino || matchOrigen;
       const precioPorBulto = match?.precio ?? null;
       if (!precioPorBulto || precioPorBulto <= 0) return null;
 
@@ -95,9 +92,8 @@ router.get("/comisionistas", async (req, res, next) => {
       return { t, precioPorBulto, base, final, descuentoAplicado };
     }).filter(Boolean);
 
-    // ✅ Traer nombres del auth-service en paralelo
+    // ─── Traer nombres del auth-service en paralelo ───────────────────────
     const comisionistaIds = [...new Set(filtered.map((f) => String(f.t.comisionistaId)))];
-
     const nombresMap = {};
     await Promise.all(
       comisionistaIds.map(async (id) => {
@@ -105,7 +101,6 @@ router.get("/comisionistas", async (req, res, next) => {
           const { data } = await axios.get(`${AUTH_BASE}/api/auth/${id}`, {
             headers: { Authorization: req.headers.authorization },
           });
-          // ✅ ajustá el campo según lo que devuelva getUserPublicInfo
           nombresMap[id] = data.nombre && data.apellido
             ? `${data.nombre} ${data.apellido}`
             : data.nombre || "Comisionista";
@@ -118,7 +113,7 @@ router.get("/comisionistas", async (req, res, next) => {
     const list = filtered.map(({ t, precioPorBulto, base, final, descuentoAplicado }) => ({
       comisionistaId: String(t.comisionistaId),
       tripPlanId: String(t._id),
-      nombre: nombresMap[String(t.comisionistaId)] || "Comisionista", // ✅
+      nombre: nombresMap[String(t.comisionistaId)] || "Comisionista",
       rating: 4.7,
       precioPorBulto,
       bultos: q.bultos,
@@ -143,9 +138,10 @@ router.get("/precio", async (req, res, next) => {
   try {
     const qs = z.object({
       tripPlanId: z.string().min(1),
-      // FIX: igual que arriba, por id o por nombre
-      destinoLocalidadId: z.string().optional(),
+      destinoLocalidadId:    z.string().optional(),
       destinoLocalidadNombre: z.string().optional(),
+      origenLocalidadId:     z.string().optional(),
+      origenLocalidadNombre:  z.string().optional(),
       bultos: z.coerce.number().int().min(1),
     }).refine(
       (d) => d.destinoLocalidadId || d.destinoLocalidadNombre,
@@ -153,24 +149,33 @@ router.get("/precio", async (req, res, next) => {
     );
 
     const q = qs.parse(req.query);
-
     const trip = await TripPlan.findById(q.tripPlanId).lean();
     if (!trip || !trip.activo) {
       return res.status(404).json({ error: "TripPlan no encontrado o inactivo" });
     }
 
-    const destinoId = q.destinoLocalidadId || null;
+    const destinoId   = q.destinoLocalidadId   || null;
     const destinoNorm = q.destinoLocalidadNombre ? norm(q.destinoLocalidadNombre) : null;
-
+    const origenId    = q.origenLocalidadId    || null;
+    const origenNorm  = q.origenLocalidadNombre  ? norm(q.origenLocalidadNombre)  : null;
     const precios = Array.isArray(trip.preciosPorLocalidad) ? trip.preciosPorLocalidad : [];
 
-    const match = precios.find((p) =>
+    // Mismo fallback que en /comisionistas:
+    //   1. Precio para el destino del envío
+    //   2. Precio para el origen del envío (tramo equivalente inverso)
+    const matchDestino = precios.find((p) =>
       (destinoId && p.localidadId === destinoId) ||
       (destinoNorm && norm(p.localidadNombre) === destinoNorm)
     );
+    const matchOrigen = (origenId || origenNorm)
+      ? precios.find((p) =>
+          (origenId && p.localidadId === origenId) ||
+          (origenNorm && norm(p.localidadNombre) === origenNorm)
+        )
+      : null;
+    const match = matchDestino || matchOrigen;
 
     const precioPorBulto = match?.precio ?? null;
-
     if (!precioPorBulto || precioPorBulto <= 0) {
       return res.status(400).json({ error: "No hay precio para esa localidad" });
     }

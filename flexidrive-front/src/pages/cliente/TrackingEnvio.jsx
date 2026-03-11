@@ -1,10 +1,8 @@
+// flexidrive-front/src/pages/cliente/TrackingEnvio.jsx
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
-  GoogleMap,
-  Marker,
-  Polyline,
-  useJsApiLoader,
+  GoogleMap, Marker, Polyline, useJsApiLoader,
 } from "@react-google-maps/api";
 import Loader from "../../components/Loader";
 import TrackingProgress from "../../components/TrackingProgress";
@@ -13,12 +11,11 @@ import { Card, Button } from "../../components/UI";
 import { getSeguimientoEnvio } from "../../services/mapsService";
 import { Archive, Trash2, X as XIcon, AlertCircle, MoreVertical } from "lucide-react";
 import { useEnvioAcciones, puedeCancel, puedeArchivar, puedeEliminar, mensajeBloqueo } from "../../hooks/useShipments";
-
+import { formatFechaEntrega } from "../../utils/fechas";
 
 const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY || "";
-const POLL_INTERVAL_MS = 15000; // polling cada 15 segundos
+const POLL_INTERVAL_MS = 15000;
 
-// Decodifica polyline encoded de Google
 function decodePolyline(encoded) {
   if (!encoded) return [];
   let index = 0, lat = 0, lng = 0;
@@ -38,20 +35,14 @@ function decodePolyline(encoded) {
 const MAP_CONTAINER = { width: "100%", height: "380px" };
 
 const ESTADO_A_STEP = {
-  PENDIENTE: "solicitado",
-  ASIGNADO: "solicitado",
-  EN_RETIRO: "en_retiro",
-  EN_CAMINO: "en_camino",
-  ENTREGADO: "entregado",
-  CANCELADO: "solicitado",
-  CANCELADO_RETORNO: "en_camino",
-  DEMORADO: "en_camino",
+  PENDIENTE: "solicitado", ASIGNADO: "solicitado",
+  EN_RETIRO: "en_retiro",  EN_CAMINO: "en_camino",
+  ENTREGADO: "entregado",  CANCELADO: "solicitado",
+  CANCELADO_RETORNO: "en_camino", DEMORADO: "en_camino",
 };
 
 const moneyARS = (n) =>
-  new Intl.NumberFormat("es-AR", {
-    style: "currency", currency: "ARS", maximumFractionDigits: 0,
-  }).format(Number(n || 0));
+  new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(Number(n || 0));
 
 export default function TrackingEnvio() {
   const { id } = useParams();
@@ -65,11 +56,8 @@ export default function TrackingEnvio() {
   const [openActions, setOpenActions] = useState(false);
   const actionsRef = useRef(null);
 
-  const { isLoaded: mapsLoaded } = useJsApiLoader({
-    googleMapsApiKey: GOOGLE_MAPS_KEY,
-  });
+  const { isLoaded: mapsLoaded } = useJsApiLoader({ googleMapsApiKey: GOOGLE_MAPS_KEY });
 
-  // ── Fetch de seguimiento ──
   const fetchSeguimiento = useCallback(async () => {
     try {
       const res = await getSeguimientoEnvio(id);
@@ -85,44 +73,24 @@ export default function TrackingEnvio() {
   const {
     actionLoading, actionError, setActionError, waLink, setWaLink,
     handleCancelar, handleArchivar, handleEliminar,
-  } = useEnvioAcciones({
-    onSuccess: () => {
-      fetchSeguimiento(); // refrescar datos después de acción
-    },
-  });
+  } = useEnvioAcciones({ onSuccess: () => { fetchSeguimiento(); } });
 
   useEffect(() => {
     if (!openActions) return;
-
-    const onMouseDown = (e) => {
-      if (!actionsRef.current) return;
-      if (!actionsRef.current.contains(e.target)) setOpenActions(false);
-    };
-
-    const onKeyDown = (e) => {
-      if (e.key === "Escape") setOpenActions(false);
-    };
-
+    const onMouseDown = (e) => { if (!actionsRef.current?.contains(e.target)) setOpenActions(false); };
+    const onKeyDown = (e) => { if (e.key === "Escape") setOpenActions(false); };
     document.addEventListener("mousedown", onMouseDown);
     document.addEventListener("keydown", onKeyDown);
-
-    return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
+    return () => { document.removeEventListener("mousedown", onMouseDown); document.removeEventListener("keydown", onKeyDown); };
   }, [openActions]);
 
-  // ── Mount + polling ──
   useEffect(() => {
     fetchSeguimiento();
     pollingRef.current = setInterval(fetchSeguimiento, POLL_INTERVAL_MS);
     return () => clearInterval(pollingRef.current);
   }, [fetchSeguimiento]);
 
-  // ── Centrar mapa cuando carga ──
-  const onMapLoad = useCallback((mapInstance) => {
-    setMap(mapInstance);
-  }, []);
+  const onMapLoad = useCallback((mapInstance) => { setMap(mapInstance); }, []);
 
   useEffect(() => {
     if (!map || !data?.mapa) return;
@@ -137,9 +105,7 @@ export default function TrackingEnvio() {
     <div className="rounded-xl border bg-white p-6 text-red-600">
       {error}
       <div className="mt-4">
-        <Link to="/cliente/envios" className="font-semibold text-blue-700 hover:underline">
-          Volver al historial
-        </Link>
+        <Link to="/cliente/envios" className="font-semibold text-blue-700 hover:underline">Volver al historial</Link>
       </div>
     </div>
   );
@@ -155,8 +121,6 @@ export default function TrackingEnvio() {
   const polylinePath = decodePolyline(data.mapa?.polyline);
   const origenPos = { lat: data.mapa?.lat_origen, lng: data.mapa?.lng_origen };
   const destinoPos = { lat: data.mapa?.lat_destino, lng: data.mapa?.lng_destino };
-
-  // En estado PENDIENTE/ASIGNADO: solo marcadores, sin polyline
   const mostrarPolyline = !["PENDIENTE", "ASIGNADO"].includes(estado) && polylinePath.length > 0;
 
   return (
@@ -167,145 +131,58 @@ export default function TrackingEnvio() {
           <h1 className="text-3xl font-bold tracking-tight text-slate-700">
             Envío #{data.nro_envio || id}
           </h1>
-
           <StatusBadge estado={estado.toLowerCase()} />
-
           {isDemorado && !isCancelado && (
-            <span className="rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold text-orange-700">
-              ⚠ Demorado
-            </span>
+            <span className="rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold text-orange-700">⚠ Demorado</span>
           )}
         </div>
 
-        {/* Acciones tipo Uber (⋮) */}
-<div className="relative" ref={actionsRef}>
-  <button
-    type="button"
-    onClick={() => setOpenActions((v) => !v)}
-    className={[
-      "h-10 w-10 transition",
-      "flex items-center justify-center hover:bg-slate-50",
-      openActions ? "ring-2 ring-blue-200" : "",
-    ].join(" ")}
-    aria-haspopup="menu"
-    aria-expanded={openActions}
-    title="Acciones"
-  >
-    <MoreVertical className="w-5 h-5 text-slate-700" />
-  </button>
-
-  {openActions && (
-    <div
-      role="menu"
-      className="absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border bg-white shadow-lg z-50"
-    >
-      {/* Error (si existe) */}
-      {actionError && (
-        <div className="flex items-start gap-2 bg-red-50 px-3 py-2 text-sm text-red-700">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span className="flex-1">{actionError}</span>
-          <button onClick={() => setActionError("")} className="ml-auto" type="button">
-            <XIcon className="w-3 h-3" />
+        {/* Acciones ⋮ */}
+        <div className="relative" ref={actionsRef}>
+          <button type="button" onClick={() => setOpenActions((v) => !v)}
+            className={["h-10 w-10 transition flex items-center justify-center hover:bg-slate-50", openActions ? "ring-2 ring-blue-200" : ""].join(" ")}
+            aria-haspopup="menu" aria-expanded={openActions} title="Acciones">
+            <MoreVertical className="w-5 h-5 text-slate-700" />
           </button>
+
+          {openActions && (
+            <div role="menu" className="absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border bg-white shadow-lg z-50">
+              {actionError && (
+                <div className="flex items-start gap-2 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span className="flex-1">{actionError}</span>
+                  <button onClick={() => setActionError("")} type="button"><XIcon className="w-3 h-3" /></button>
+                </div>
+              )}
+              {waLink && (
+                <div className="bg-green-50 px-3 py-2 text-sm text-green-800">
+                  Coordiná la devolución:{" "}
+                  <a href={waLink} target="_blank" rel="noreferrer" className="font-semibold underline">WhatsApp comisionista</a>
+                </div>
+              )}
+              <div className="py-2">
+                {[
+                  { label: "Cancelar envío", icon: <XIcon className="w-4 h-4" />, puede: puedeCancel(estado), fn: () => { handleCancelar(id, estado); setOpenActions(false); }, color: "text-red-600" },
+                  { label: "Archivar envío", icon: <Archive className="w-4 h-4" />, puede: puedeArchivar(estado), fn: () => { handleArchivar(id, estado); setOpenActions(false); }, color: "text-amber-700" },
+                  { label: "Eliminar del historial", icon: <Trash2 className="w-4 h-4" />, puede: puedeEliminar(estado), fn: () => { handleEliminar(id, estado); setOpenActions(false); }, color: "text-red-600" },
+                ].map(({ label, icon, puede, fn, color }) => (
+                  <button key={label} type="button" disabled={!puede || !!actionLoading}
+                    title={!puede ? mensajeBloqueo(label.split(" ")[0].toLowerCase(), estado) : ""}
+                    onClick={fn}
+                    className={["w-full px-4 py-3 text-left text-sm flex items-center gap-2 transition", puede ? `${color} hover:bg-slate-50` : "text-slate-300 cursor-not-allowed"].join(" ")}
+                    role="menuitem">
+                    {icon} {label}
+                    {!puede && <span className="ml-auto text-xs text-slate-400">No disponible</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
-
-      {/* WA Link (si existe) */}
-      {waLink && (
-        <div className="bg-green-50 px-3 py-2 text-sm text-green-800">
-          Coordiná la devolución:{" "}
-          <a
-            href={waLink}
-            target="_blank"
-            rel="noreferrer"
-            className="font-semibold underline"
-          >
-            WhatsApp comisionista
-          </a>
-        </div>
-      )}
-
-      <div className="py-2">
-        {/* Cancelar */}
-        <button
-          type="button"
-          disabled={!puedeCancel(estado) || !!actionLoading}
-          title={!puedeCancel(estado) ? mensajeBloqueo("cancelar", estado) : ""}
-          onClick={() => {
-            handleCancelar(id, estado);
-            setOpenActions(false);
-          }}
-          className={[
-            "w-full px-4 py-3 text-left text-sm flex items-center gap-2 transition",
-            puedeCancel(estado) ? "text-red-600 hover:bg-slate-50" : "text-slate-300 cursor-not-allowed",
-          ].join(" ")}
-          role="menuitem"
-        >
-          <XIcon className="w-4 h-4" />
-          Cancelar envío
-          {!puedeCancel(estado) && (
-            <span className="ml-auto text-xs text-slate-400">No disponible</span>
-          )}
-        </button>
-
-        {/* Archivar */}
-        <button
-          type="button"
-          disabled={!puedeArchivar(estado) || !!actionLoading}
-          title={!puedeArchivar(estado) ? mensajeBloqueo("archivar", estado) : ""}
-          onClick={() => {
-            handleArchivar(id, estado);
-            setOpenActions(false);
-          }}
-          className={[
-            "w-full px-4 py-3 text-left text-sm flex items-center gap-2 transition",
-            puedeArchivar(estado) ? "text-amber-700 hover:bg-slate-50" : "text-slate-300 cursor-not-allowed",
-          ].join(" ")}
-          role="menuitem"
-        >
-          <Archive className="w-4 h-4" />
-          Archivar envío
-          {!puedeArchivar(estado) && (
-            <span className="ml-auto text-xs text-slate-400">No disponible</span>
-          )}
-        </button>
-
-        {/* Eliminar */}
-        <button
-          type="button"
-          disabled={!puedeEliminar(estado) || !!actionLoading}
-          title={!puedeEliminar(estado) ? mensajeBloqueo("eliminar", estado) : ""}
-          onClick={() => {
-            handleEliminar(id, estado);
-            setOpenActions(false);
-          }}
-          className={[
-            "w-full px-4 py-3 text-left text-sm flex items-center gap-2 transition",
-            puedeEliminar(estado) ? "text-red-600 hover:bg-slate-50" : "text-slate-300 cursor-not-allowed",
-          ].join(" ")}
-          role="menuitem"
-        >
-          <Trash2 className="w-4 h-4" />
-          Eliminar del historial
-          {!puedeEliminar(estado) && (
-            <span className="ml-auto text-xs text-slate-400">No disponible</span>
-          )}
-        </button>
-      </div>
-    </div>
-  )}
-</div>
       </div>
 
-      {/* Alertas */}
-      {isCancelado && (
-        <Alert type="danger" title="Envío cancelado"
-          desc="Este envío fue cancelado. Si necesitás ayuda, contactá soporte." />
-      )}
-      {esRetorno && (
-        <Alert type="warn" title="En retorno"
-          desc="El paquete está siendo devuelto al remitente." />
-      )}
+      {isCancelado && <Alert type="danger" title="Envío cancelado" desc="Este envío fue cancelado. Si necesitás ayuda, contactá soporte." />}
+      {esRetorno && <Alert type="warn" title="En retorno" desc="El paquete está siendo devuelto al remitente." />}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Columna izquierda */}
@@ -313,73 +190,46 @@ export default function TrackingEnvio() {
           <Card title="Detalles del envío">
             <Row label="Origen" value={data.detalles?.origen || "—"} />
             <Row label="Destino" value={data.detalles?.destino || "—"} />
-            <Row label="Fecha entrega" value={
-              data.fechas?.entrega_estimada
-                ? new Date(data.fechas.entrega_estimada).toLocaleDateString("es-AR")
-                : "—"
-            } />
+            <Row label="Fecha entrega" value={formatFechaEntrega(data.fechas?.entrega_estimada)} />
             <Row label="Horario retiro" value={data.fechas?.franja_retiro || "—"} />
             <Row label="Retiro confirmado" value={
               data.fechas?.retiro_confirmado
-                ? new Date(data.fechas.retiro_confirmado).toLocaleDateString("es-AR")
+                ? formatFechaEntrega(data.fechas.retiro_confirmado)
                 : "Pendiente"
             } />
             <Row label="Bultos" value={data.detalles?.paquetes ?? "—"} />
-            {data.detalles?.notas && (
-              <Row label="Notas" value={data.detalles.notas} />
-            )}
+            {data.detalles?.notas && <Row label="Notas" value={data.detalles.notas} />}
           </Card>
 
-
-          {/* Comisionista */}
           <Card title="Comisionista">
             {data.comisionista ? (
               <>
                 <div className="flex items-center gap-4">
-                  <img
-                    src={data.comisionista.foto || "https://via.placeholder.com/64"}
-                    alt="comisionista"
-                    className="h-16 w-16 rounded-full object-cover bg-slate-200"
-                  />
+                  <img src={data.comisionista.foto || "https://via.placeholder.com/64"} alt="comisionista"
+                    className="h-16 w-16 rounded-full object-cover bg-slate-200" />
                   <div>
-                    <div className="text-lg font-bold text-slate-800">
-                      {data.comisionista.nombreCompleto}
-                    </div>
-                    {data.comisionista.telefono && (
-                      <div className="text-sm text-slate-500">
-                        📞 {data.comisionista.telefono}
-                      </div>
-                    )}
+                    <div className="text-lg font-bold text-slate-800">{data.comisionista.nombreCompleto}</div>
+                    {data.comisionista.telefono && <div className="text-sm text-slate-500">📞 {data.comisionista.telefono}</div>}
                   </div>
                 </div>
                 {!isCancelado && (
                   <div className="mt-4 flex gap-3">
-
                     <a href={`tel:${data.comisionista.telefono}`}
-                      className="flex-1 rounded-full bg-blue-700 px-4 py-2 text-center font-semibold text-white hover:bg-blue-800"
-                    >
+                      className="flex-1 rounded-full bg-blue-700 px-4 py-2 text-center font-semibold text-white hover:bg-blue-800">
                       Llamar
                     </a>
                   </div>
                 )}
               </>
             ) : (
-              <p className="text-slate-500 text-sm">
-                Aún no hay comisionista asignado. Te notificaremos cuando alguien acepte el envío.
-              </p>
+              <p className="text-slate-500 text-sm">Aún no hay comisionista asignado. Te notificaremos cuando alguien acepte el envío.</p>
             )}
           </Card>
 
-          {/* Calificar */}
           {isEntregado && (
             <Card title="¿Cómo fue la experiencia?">
-              <p className="text-slate-600 mb-4">
-                Calificá al comisionista para ayudar a la comunidad.
-              </p>
-              <Button
-                onClick={() => navigate(`/cliente/envios/${id}/calificar`)}
-                className="w-full"
-              >
+              <p className="text-slate-600 mb-4">Calificá al comisionista para ayudar a la comunidad.</p>
+              <Button onClick={() => navigate(`/cliente/envios/${id}/calificar`)} className="w-full">
                 Calificar comisionista
               </Button>
             </Card>
@@ -390,90 +240,35 @@ export default function TrackingEnvio() {
         <div className="lg:col-span-2 space-y-6">
           <div className="rounded-2xl border bg-white p-4">
             {mapsLoaded ? (
-              <GoogleMap
-                mapContainerStyle={MAP_CONTAINER}
-                zoom={12}
-                onLoad={onMapLoad}
-                options={{
-                  streetViewControl: false,
-                  mapTypeControl: false,
-                  fullscreenControl: true,
-                }}
-              >
-                {/* Marcador ORIGEN — verde */}
-                <Marker
-                  position={origenPos}
+              <GoogleMap mapContainerStyle={MAP_CONTAINER} zoom={12} onLoad={onMapLoad}
+                options={{ streetViewControl: false, mapTypeControl: false, fullscreenControl: true }}>
+                <Marker position={origenPos}
                   label={{ text: "A", color: "white", fontWeight: "bold" }}
-                  icon={{
-                    path: window.google.maps.SymbolPath.CIRCLE,
-                    scale: 14,
-                    fillColor: "#16a34a",
-                    fillOpacity: 1,
-                    strokeColor: "#fff",
-                    strokeWeight: 2,
-                  }}
-                  title={`Origen: ${data.detalles?.origen}`}
-                />
-
-                {/* Marcador DESTINO — rojo */}
-                <Marker
-                  position={destinoPos}
+                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: "#16a34a", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 }}
+                  title={`Origen: ${data.detalles?.origen}`} />
+                <Marker position={destinoPos}
                   label={{ text: "B", color: "white", fontWeight: "bold" }}
-                  icon={{
-                    path: window.google.maps.SymbolPath.CIRCLE,
-                    scale: 14,
-                    fillColor: "#dc2626",
-                    fillOpacity: 1,
-                    strokeColor: "#fff",
-                    strokeWeight: 2,
-                  }}
-                  title={`Destino: ${data.detalles?.destino}`}
-                />
-
-                {/* Polyline — solo cuando el envío está en movimiento */}
+                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: "#dc2626", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 }}
+                  title={`Destino: ${data.detalles?.destino}`} />
                 {mostrarPolyline && (
-                  <Polyline
-                    path={polylinePath}
-                    options={{
-                      strokeColor: "#2563eb",
-                      strokeOpacity: 0.85,
-                      strokeWeight: 5,
-                    }}
-                  />
+                  <Polyline path={polylinePath} options={{ strokeColor: "#2563eb", strokeOpacity: 0.85, strokeWeight: 5 }} />
                 )}
               </GoogleMap>
             ) : (
-              <div className="flex h-[380px] items-center justify-center rounded-xl bg-slate-100 text-slate-400">
-                Cargando mapa...
-              </div>
+              <div className="flex h-[380px] items-center justify-center rounded-xl bg-slate-100 text-slate-400">Cargando mapa...</div>
             )}
           </div>
 
-          {/* Leyenda del mapa */}
           <div className="flex gap-6 text-sm text-slate-600 px-1">
-            <span className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded-full bg-green-600" />
-              Origen
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded-full bg-red-600" />
-              Destino
-            </span>
-            {mostrarPolyline && (
-              <span className="flex items-center gap-2">
-                <span className="inline-block h-1 w-6 rounded bg-blue-600" />
-                Ruta
-              </span>
-            )}
+            <span className="flex items-center gap-2"><span className="inline-block h-3 w-3 rounded-full bg-green-600" /> Origen</span>
+            <span className="flex items-center gap-2"><span className="inline-block h-3 w-3 rounded-full bg-red-600" /> Destino</span>
+            {mostrarPolyline && <span className="flex items-center gap-2"><span className="inline-block h-1 w-6 rounded bg-blue-600" /> Ruta</span>}
           </div>
 
-          {/* Progress */}
           <TrackingProgress progreso={stepKey} />
 
           <div className="flex justify-end">
-            <Link to="/cliente/envios" className="font-semibold text-blue-700 hover:underline">
-              Volver a historial
-            </Link>
+            <Link to="/cliente/envios" className="font-semibold text-blue-700 hover:underline">Volver a historial</Link>
           </div>
         </div>
       </div>
@@ -482,9 +277,7 @@ export default function TrackingEnvio() {
 }
 
 function Alert({ type, title, desc }) {
-  const cls = type === "danger"
-    ? "border-red-200 bg-red-50 text-red-800"
-    : "border-orange-200 bg-orange-50 text-orange-900";
+  const cls = type === "danger" ? "border-red-200 bg-red-50 text-red-800" : "border-orange-200 bg-orange-50 text-orange-900";
   return (
     <div className={`rounded-2xl border p-5 ${cls}`}>
       <div className="font-bold">{title}</div>

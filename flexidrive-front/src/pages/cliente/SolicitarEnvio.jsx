@@ -15,6 +15,7 @@ import {
   getDirecciones, addDireccion, getDestinatarios, addDestinatario,
 } from "../../services/profileService";
 import { getProvinciasAR, getLocalidadesByProvincia } from "../../services/geoService";
+import { getTodayString } from "../../utils/testDate";
 
 registerLocale("es", es);
 
@@ -962,7 +963,7 @@ useEffect(() => {
                       onChange={(date) => onChange({ target: { name: "fechaEntrega", value: toISODate(date) } })}
                       dateFormat="dd/MM/yyyy"
                       className="max-w-[140px] rounded-md border px-4 py-2 outline-none text-slate-700"
-                      locale="es" calendarStartDay={1} minDate={new Date()}
+                      locale="es" calendarStartDay={1} minDate={fromISODate(getTodayString())}
                     />
                   </div>
                 </div>
@@ -1185,7 +1186,7 @@ function fromISODate(s) {
   return new Date(y, m - 1, d);
 }
 function getTodayISO() {
-  return toISODate(new Date());
+  return getTodayString();
 }
 
 /* ─── Helpers numéricos/errores ─── */

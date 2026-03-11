@@ -1,4 +1,4 @@
-//flexidrive-front\src\pages\cliente\HistorialEnvios.jsx
+// flexidrive-front/src/pages/cliente/HistorialEnvios.jsx
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Archive, Trash2, X, Eye, AlertCircle } from "lucide-react";
@@ -10,6 +10,7 @@ import {
   useEnvioAcciones, puedeCancel, puedeArchivar, puedeEliminar, mensajeBloqueo,
 } from "../../hooks/useShipments";
 import { toEstadoKey, estadoLabel } from "../../utils/estadoUtils";
+import { formatFechaEntrega } from "../../utils/fechas";
 
 const ESTADOS = [
   { value: "todos",             label: "Todos" },
@@ -62,7 +63,6 @@ export default function HistorialEnvios() {
       if (mostrarArchivados) {
       if (!s.archivado) return false;
     } else {
-      // filtro por estado normal
       if (estadoFiltro !== "todos") {
         if ((s.estadoId || "").toUpperCase() !== estadoFiltro) return false;
       }
@@ -91,7 +91,6 @@ export default function HistorialEnvios() {
     <div className="space-y-6 m-8">
       <h1 className="text-3xl font-bold tracking-tight text-slate-700">Mis Envíos</h1>
 
-      {/* Error de acción */}
       {actionError && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
           <AlertCircle className="w-4 h-4 shrink-0" />
@@ -102,7 +101,6 @@ export default function HistorialEnvios() {
         </div>
       )}
 
-      {/* WhatsApp link para cancelación en tránsito */}
       {waLink && (
         <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-800">
           <span>Envío cancelado. Coordiná la devolución:</span>
@@ -149,25 +147,22 @@ export default function HistorialEnvios() {
           )}
         </div>
 
-        {/* Limpiar filtros — mostrar solo si hay algo activo */}
-{(estadoFiltro !== "todos" || fechaDesde || fechaHasta || q) && (
-  <button
-    type="button"
-    onClick={() => {
-      setEstadoFiltro("todos");
-      setFechaDesde("");
-      setFechaHasta("");
-      setQ("");
-    }}
-    className="flex items-center gap-1 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-  >
-    <X className="w-4 h-4" />
-    Limpiar filtros
-  </button>
-)}
+        {(estadoFiltro !== "todos" || fechaDesde || fechaHasta || q) && (
+          <button
+            type="button"
+            onClick={() => {
+              setEstadoFiltro("todos");
+              setFechaDesde("");
+              setFechaHasta("");
+              setQ("");
+            }}
+            className="flex items-center gap-1 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+          >
+            <X className="w-4 h-4" />
+            Limpiar filtros
+          </button>
+        )}
       </div>
-
-      
 
       {/* Tabla */}
       {loading ? <Loader /> : filtered.length === 0 ? (
@@ -191,11 +186,8 @@ export default function HistorialEnvios() {
               {filtered.map((s) => {
                 const envioId = s._id || s.id;
                 const estadoRaw = s.estadoId || "PENDIENTE";
-const estadoKey = toEstadoKey(estadoRaw);
+                const estadoKey = toEstadoKey(estadoRaw);
                 const destino = s.destinoCiudad?.localidadNombre || "—";
-                const fechaEntrega = s.fecha_entrega
-                  ? new Date(s.fecha_entrega).toLocaleDateString("es-AR")
-                  : "—";
                 const isActioning = (k) => actionLoading === envioId + "_" + k;
 
                 return (
@@ -207,58 +199,35 @@ const estadoKey = toEstadoKey(estadoRaw);
                       </Link>
                     </td>
                     <td className="px-5 py-4 text-slate-700">
-  {s.nombreDestinatario || s.direccion_destino?.texto?.split(",")[0] || "—"}
-</td>
+                      {s.nombreDestinatario || s.direccion_destino?.texto?.split(",")[0] || "—"}
+                    </td>
                     <td className="px-5 py-4 text-slate-700">{destino}</td>
                     <td className="px-5 py-4 text-slate-700">
                       {s.nombreComisionista || (s.comisionistaId ? "Asignado" : "Sin asignar")}
                     </td>
-                    <td className="px-5 py-4 text-slate-700">{fechaEntrega}</td>
+                    <td className="px-5 py-4 text-slate-700">{formatFechaEntrega(s.fecha_entrega)}</td>
                     <td className="px-5 py-4">
-                      <StatusBadge 
-  estado={estadoKey} 
-  label={estadoLabel(estadoRaw)} 
-/>
+                      <StatusBadge estado={estadoKey} label={estadoLabel(estadoRaw)} />
                     </td>
                     <td className="px-5 py-4 ">
                       <div className="flex items-center justify-center gap-1 ">
-                        {/* Ver */}
-                        <ActionBtn
-                          icon={<Eye className="w-4 h-4" />}
-                          title="Ver detalle"
-                          onClick={() => navigate(`/cliente/envios/${envioId}`)}
-                          color="blue"
-                        />
-
-                        {/* Cancelar */}
-                        <ActionBtn
-                          icon={<X className="w-4 h-4" />}
-                          title={puedeCancel(estadoRaw ) ? "Cancelar envío" : mensajeBloqueo("cancelar", estadoRaw )}
-                          onClick={() => handleCancelar(envioId, estadoRaw )}
-                          disabled={!puedeCancel(estadoRaw ) || isActioning("cancelar")}
-                          blocked={!puedeCancel(estadoRaw )}
-                          color="red"
-                        />
-
-                        {/* Archivar */}
-                        <ActionBtn
-                          icon={<Archive className="w-4 h-4" />}
-                          title={puedeArchivar(estadoRaw ) ? "Archivar envío" : mensajeBloqueo("archivar", estadoRaw )}
-                          onClick={() => handleArchivar(envioId, estadoRaw )}
-                          disabled={!puedeArchivar(estadoRaw ) || isActioning("archivar")}
-                          blocked={!puedeArchivar(estadoRaw )}
-                          color="amber"
-                        />
-
-                        {/* Eliminar */}
-                        <ActionBtn
-                          icon={<Trash2 className="w-4 h-4" />}
-                          title={puedeEliminar(estadoRaw ) ? "Eliminar del historial" : mensajeBloqueo("eliminar", estadoRaw )}
-                          onClick={() => handleEliminar(envioId, estadoRaw )}
-                          disabled={!puedeEliminar(estadoRaw ) || isActioning("eliminar")}
-                          blocked={!puedeEliminar(estadoRaw )}
-                          color="red"
-                        />
+                        <ActionBtn icon={<Eye className="w-4 h-4" />} title="Ver detalle"
+                          onClick={() => navigate(`/cliente/envios/${envioId}`)} color="blue" />
+                        <ActionBtn icon={<X className="w-4 h-4" />}
+                          title={puedeCancel(estadoRaw) ? "Cancelar envío" : mensajeBloqueo("cancelar", estadoRaw)}
+                          onClick={() => handleCancelar(envioId, estadoRaw)}
+                          disabled={!puedeCancel(estadoRaw) || isActioning("cancelar")}
+                          blocked={!puedeCancel(estadoRaw)} color="red" />
+                        <ActionBtn icon={<Archive className="w-4 h-4" />}
+                          title={puedeArchivar(estadoRaw) ? "Archivar envío" : mensajeBloqueo("archivar", estadoRaw)}
+                          onClick={() => handleArchivar(envioId, estadoRaw)}
+                          disabled={!puedeArchivar(estadoRaw) || isActioning("archivar")}
+                          blocked={!puedeArchivar(estadoRaw)} color="amber" />
+                        <ActionBtn icon={<Trash2 className="w-4 h-4" />}
+                          title={puedeEliminar(estadoRaw) ? "Eliminar del historial" : mensajeBloqueo("eliminar", estadoRaw)}
+                          onClick={() => handleEliminar(envioId, estadoRaw)}
+                          disabled={!puedeEliminar(estadoRaw) || isActioning("eliminar")}
+                          blocked={!puedeEliminar(estadoRaw)} color="red" />
                       </div>
                     </td>
                   </tr>
@@ -272,7 +241,6 @@ const estadoKey = toEstadoKey(estadoRaw);
   );
 }
 
-// Botón de acción con tooltip nativo y estado bloqueado visual
 function ActionBtn({ icon, title, onClick, disabled, blocked, color }) {
   const colors = {
     blue:  "hover:bg-blue-50 hover:text-blue-700",
@@ -280,19 +248,12 @@ function ActionBtn({ icon, title, onClick, disabled, blocked, color }) {
     amber: "hover:bg-amber-50 hover:text-amber-600",
   };
   return (
-    <button
-      type="button"
-      title={title}
-      onClick={blocked ? undefined : onClick}
-      disabled={disabled}
+    <button type="button" title={title} onClick={blocked ? undefined : onClick} disabled={disabled}
       className={[
         "rounded-lg p-2 text-slate-400 transition-colors",
-        blocked
-          ? "cursor-not-allowed opacity-30"
-          : `cursor-pointer text-slate-500 ${colors[color] || ""}`,
+        blocked ? "cursor-not-allowed opacity-30" : `cursor-pointer text-slate-500 ${colors[color] || ""}`,
         disabled && !blocked ? "opacity-40" : "",
-      ].join(" ")}
-    >
+      ].join(" ")}>
       {icon}
     </button>
   );

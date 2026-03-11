@@ -8,6 +8,8 @@ import {
   createRutaMock,
   updateRutaMock,
   deleteRutaMock,
+  confirmarFechaRetiroMock,   // ← nuevo
+  completarParadaMock,        // ← nuevo
 } from "./mock";
 
 import {
@@ -20,7 +22,10 @@ import {
   updateRutaApi,
   deleteRutaApi,
   toggleRutaActivaApi,
+  confirmarFechaRetiroApi,    // ← nuevo
+  completarParadaApi,         // ← nuevo
 } from "./real";
+
 
 const USE_MOCK = String(import.meta.env.VITE_USE_MOCK ?? "true") === "true";
 
@@ -30,12 +35,21 @@ export const getDashboardResumen = (params) =>
 export const getAgendaHoy = (params) =>
   USE_MOCK ? getAgendaHoyMock(params) : getAgendaHoyApi(params);
 
-// ✅ generarRutaHoy reemplaza a getRutaSugerida
 export const generarRutaHoy = (params) =>
   USE_MOCK ? generarRutaHoyMock(params) : generarRutaHoyApi(params);
 
 export const getRutaActiva = (params) =>
   USE_MOCK ? getRutaActivaMock(params) : getRutaActivaApi(params);
+
+// ── Nuevas ────────────────────────────────────────────────────────────────────
+
+export const confirmarFechaRetiro = (params) =>
+  USE_MOCK ? confirmarFechaRetiroMock(params) : confirmarFechaRetiroApi(params);
+
+export const completarParada = (params) =>
+  USE_MOCK ? completarParadaMock(params) : completarParadaApi(params);
+
+// ── TripPlans ─────────────────────────────────────────────────────────────────
 
 export const listRutas = (params) =>
   USE_MOCK ? listRutasMock(params) : listRutasApi(params);

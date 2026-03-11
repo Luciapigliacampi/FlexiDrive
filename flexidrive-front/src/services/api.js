@@ -3,10 +3,10 @@ import axios from "axios";
 
 // Bases (por env o fallback)
 export const AUTH_BASE =
-  import.meta.env.VITE_AUTH_API || "http://localhost:3000/api/auth";
+  import.meta.env.VITE_AUTH_API || "http://localhost:3000";
 
 export const ENVIO_BASE =
-  import.meta.env.VITE_ENVIO_API || "http://localhost:3001/api/envios";
+  import.meta.env.VITE_ENVIO_API || "http://localhost:3001";
 
 // FIX: leer USE_MOCK una sola vez de forma consistente
 const USE_MOCK = String(import.meta.env.VITE_USE_MOCK || "false") === "true";

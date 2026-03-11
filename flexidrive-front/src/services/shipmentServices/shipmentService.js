@@ -1,7 +1,6 @@
 // src/services/shipmentServices/shipmentService.js
 import api from "../api";
 
-const AUTH_BASE = import.meta.env.VITE_AUTH_API_URL || "http://localhost:3000";
 const ENVIO_BASE = import.meta.env.VITE_ENVIO_API_URL || "http://localhost:3001";
 const CAL_BASE = import.meta.env.VITE_CALIFICACIONES_API_URL || "http://localhost:3003";
 const VIAJES_BASE = import.meta.env.VITE_VIAJES_API_URL || "http://localhost:3004";
@@ -39,6 +38,9 @@ export const aceptarEnvio = (data) => api.patch(`${ENVIO_BASE}/api/envios/acepta
 export const actualizarEstadoEnvio = (data) =>
   api.patch(`${ENVIO_BASE}/api/envios/actualizar-estado`, data);
 
+export const cancelarPorComisionista = (id) =>
+  api.patch(`${ENVIO_BASE}/api/envios/${id}/cancelar-comisionista`);
+
 /* =========================
    Buscar comisionistas (auth-service)
    GET /api/auth/comisionistas/habilitados (público)
@@ -61,8 +63,14 @@ export async function searchComisionistas(params) {
    POST /api/calificaciones  (requiere token + rol cliente)
 ========================= */
 
-export const mockRate = (payload) =>
-  api.post(`${CAL_BASE}/api/calificaciones`, payload);
+export async function calificarEnvio({ id, rating, comment }) {
+  const res = await api.post(`/api/calificaciones`, {
+    envioId: id,
+    puntuacion: rating,
+    comentario: comment,
+  });
+  return res?.data ?? res;
+}
 
 /* =========================
    PAGO (todavía mock si no hay servicio pago)
@@ -72,8 +80,17 @@ export const mockPay = ({ method }) =>
     data: { ok: true, status: method === "mercadopago" ? "approved" : "registered" },
   });
 
-
-
-
 export const confirmarComisionistaEnEnvio = (envioId, data) =>
   api.patch(`${ENVIO_BASE}/api/envios/${envioId}/confirmar-comisionista`, data);
+
+export const marcarRetirado = (envioId) =>
+  api.patch(`${ENVIO_BASE}/api/envios/${envioId}/marcar-retirado`);
+
+export const marcarEntregado = (envioId) =>
+  api.patch(`${ENVIO_BASE}/api/envios/${envioId}/marcar-entregado`);
+
+export const iniciarViaje = (fecha) =>
+  api.post(`${ENVIO_BASE}/api/envios/comisionista/dashboard/iniciar-viaje`, { fecha });
+
+export const finalizarViaje = (fecha) =>
+  api.post(`${ENVIO_BASE}/api/envios/comisionista/dashboard/finalizar-viaje`, { fecha });

@@ -1,42 +1,75 @@
-//flexidrive-front\src\services\comisionistaServices\real.js
+// flexidrive-front/src/services/comisionistaServices/real.js
 import api from "../api";
 import { tripPlanToRutaUI } from "../tripPlanMappers";
+import { getTodayString } from "../../utils/testDate";
 
 const ENVIO_BASE  = import.meta.env.VITE_ENVIO_API_URL  || "http://localhost:3001";
 const VIAJES_BASE = import.meta.env.VITE_VIAJES_API_URL || "http://localhost:3004";
-const IA_BASE     = import.meta.env.VITE_IA_API_URL     || "http://localhost:3002";
+const IA_ROUTE_BASE = import.meta.env.VITE_IA_API_URL     || "http://localhost:3002";
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export async function getDashboardResumenApi({ date } = {}) {
+  const fecha = getTodayString(date);
+
   const res = await api.get(
     `${ENVIO_BASE}/api/envios/comisionista/dashboard/resumen`,
-    { params: { date } }
+    { params: { date: fecha } }
   );
   return res.data;
 }
 
 export async function getAgendaHoyApi({ date } = {}) {
+  const fecha = getTodayString(date);
+
   const res = await api.get(
     `${ENVIO_BASE}/api/envios/comisionista/dashboard/agenda`,
-    { params: { date } }
+    { params: { date: fecha } }
   );
   return res.data?.items || res.data;
 }
 
-// ─── Ruta sugerida via ia-route-service ──────────────────────────────────────
+// ─── Ruta optimizada via ia-route-service ─────────────────────────────────────
 
-export async function generarRutaHoyApi({ comisionistaId, fecha }) {
-  const hoy = fecha || new Date().toISOString().split("T")[0];
+export async function generarRutaHoyApi({ comisionistaId, fecha } = {}) {
+  const hoy = getTodayString(fecha);
+
   const res = await api.get(
-    `${IA_BASE}/api/rutas/generar/${comisionistaId}`,
+    `${IA_ROUTE_BASE}/api/rutas/generar/${comisionistaId}`,
     { params: { fecha: hoy } }
   );
   return res.data;
 }
 
 export async function getRutaActivaApi({ comisionistaId }) {
-  const res = await api.get(`${IA_BASE}/api/rutas/activa/${comisionistaId}`);
+  const res = await api.get(`${IA_ROUTE_BASE}/api/rutas/activa/${comisionistaId}`);
+  return res.data;
+}
+
+export async function confirmarFechaRetiroApi({ envioId, fecha, comisionistaId }) {
+  const fechaFinal = getTodayString(fecha);
+
+  const res = await api.patch(
+    `${IA_ROUTE_BASE}/api/rutas/parada/${envioId}/confirmar-retiro`,
+    { fecha: fechaFinal, comisionistaId }
+  );
+  return res.data;
+}
+
+export async function completarParadaApi({
+  envioId,
+  tipo,
+  comisionistaId,
+  fecha,
+  latActual,
+  lngActual,
+}) {
+  const fechaFinal = getTodayString(fecha);
+
+  const res = await api.patch(
+    `${IA_ROUTE_BASE}/api/rutas/parada/${envioId}/completar`,
+    { tipo, comisionistaId, fecha: fechaFinal, latActual, lngActual }
+  );
   return res.data;
 }
 

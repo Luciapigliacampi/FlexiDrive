@@ -51,12 +51,13 @@ const envioSchema = new mongoose.Schema({
   //    Queda null hasta que el comisionista la confirme.
   fecha_retiro: { type: Date, default: null },
 
-  estadoId: {
-    type: String,
-    enum: ['PENDIENTE', 'ASIGNADO', 'EN_RETIRO', 'EN_CAMINO',
-      'ENTREGADO', 'DEMORADO', 'CANCELADO', 'CANCELADO_RETORNO', 'DEVUELTO'],
-    default: 'PENDIENTE',
-  },
+ estadoId: {
+  type: String,
+  enum: ['PENDIENTE','ASIGNADO','RETIRADO','EN_RETIRO','EN_CAMINO','DEMORADO',
+         'ENTREGADO','CANCELADO','CANCELADO_RETORNO','DEVUELTO'],
+  default: 'PENDIENTE',
+},
+
 
   tripPlanId: { type: mongoose.Schema.Types.ObjectId, default: null },
 

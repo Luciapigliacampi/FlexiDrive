@@ -137,7 +137,7 @@ export default function ConfirmacionEnvio() {
           <PayOption checked={method === "efectivoOrigen"} onSelect={() => setMethod("efectivoOrigen")} title="Efectivo en origen" />
           <PayOption checked={method === "efectivoDestino"} onSelect={() => setMethod("efectivoDestino")} title="Efectivo en destino" />
           <PayOption checked={method === "transferencia"} onSelect={() => setMethod("transferencia")} title="Transferencia" />
-          <PayOption checked={method === "mercadopago"} onSelect={() => setMethod("mercadopago")} title="Mercado Pago" />
+          {/* <PayOption checked={method === "mercadopago"} onSelect={() => setMethod("mercadopago")} title="Mercado Pago" /> */}
         </div>
       </Card>
 

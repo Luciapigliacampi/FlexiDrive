@@ -89,4 +89,24 @@ export async function confirmarComisionistaEnEnvio(envioId, payload) {
   return unwrap(svc.confirmarComisionistaEnEnvio(envioId, payload));
 }
 
+export async function marcarEntregado(envioId) {
+  return unwrap(svc.marcarEntregado(envioId));
+}
+
+export async function marcarRetirado(envioId) {
+  return unwrap(svc.marcarRetirado(envioId));
+}
+
+export async function iniciarViaje(fecha) {
+  return unwrap(svc.iniciarViaje(fecha));
+}
+
+export async function finalizarViaje(fecha) {
+  return unwrap(svc.finalizarViaje(fecha));
+}
+
+export async function cancelarPorComisionista(id) {
+  return unwrap(svc.cancelarPorComisionista(id));
+}
+
 export const __USE_MOCK__ = USE_MOCK;

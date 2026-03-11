@@ -64,29 +64,7 @@ export async function getAgendaHoyMock() {
   ];
 }
 
-export async function generarRutaHoyMock() {
-  await wait(400);
-  return {
-    _id: "mock-ruta-1",
-    comisionistaId: "mock-user",
-    fecha_generada: new Date().toISOString(),
-    distancia_total_km: 87.4,
-    tiempo_estimado_min: 112,
-    polyline: null,
-    orden_entregas: [
-      { envioId: "1548", nro_envio: "FD-2501-1548", orden: 1, tipo: "RETIRO",  lat: -32.4098, lng: -63.2386 },
-      { envioId: "2548", nro_envio: "FD-2501-2548", orden: 2, tipo: "ENTREGA", lat: -32.5,    lng: -63.3    },
-      { envioId: "257",  nro_envio: "FD-2501-257",  orden: 3, tipo: "ENTREGA", lat: -32.68,   lng: -63.56   },
-      { envioId: "1574", nro_envio: "FD-2501-1574", orden: 4, tipo: "RETIRO",  lat: -32.69,   lng: -63.57   },
-      { envioId: "2385", nro_envio: "FD-2501-2385", orden: 5, tipo: "ENTREGA", lat: -32.95,   lng: -63.87   },
-    ],
-    activo: true,
-  };
-}
 
-export async function getRutaActivaMock() {
-  return generarRutaHoyMock();
-}
 
 // ─── Rutas (TripPlans) ───────────────────────────────────────────────────────
 // FIX: el mock ahora usa exactamente la misma forma que devuelve el backend real:
@@ -188,3 +166,118 @@ export async function deleteRutaMock(id) {
   ROUTES = ROUTES.filter((r) => String(r._id) !== String(id));
   return { ok: true };
 }
+
+const RUTA_MOCK = {
+  _id: "ruta_mock_001",
+  comisionistaId: "mock_comisionista",
+  fecha_viaje: new Date().toISOString(),
+  polyline: "_p~iF~cn~U_ulLnnqC_mqNvxq`@", // polyline de ejemplo (SF→LA)
+  distancia_total_km: 42.3,
+  tiempo_estimado_min: 65,
+  activo: true,
+  orden_entregas: [
+    {
+      envioId: "envio_001",
+      nro_envio: "FD-001",
+      orden: 1,
+      tipo: "RETIRO",
+      lat: -31.4167,
+      lng: -64.1833,
+      texto: "San Martín 123, Córdoba",
+      franja_horaria: "08:00-10:00",
+      fecha_retiro_confirmada: null,
+      completada: false,
+    },
+    {
+      envioId: "envio_001",
+      nro_envio: "FD-001",
+      orden: 2,
+      tipo: "ENTREGA",
+      lat: -31.3900,
+      lng: -64.2100,
+      texto: "Av. Colón 456, Córdoba",
+      franja_horaria: null,
+      fecha_retiro_confirmada: null,
+      completada: false,
+    },
+    {
+      envioId: "envio_002",
+      nro_envio: "FD-002",
+      orden: 3,
+      tipo: "RETIRO",
+      lat: -31.4300,
+      lng: -64.1600,
+      texto: "Belgrano 789, Villa Allende",
+      franja_horaria: "10:00-12:00",
+      fecha_retiro_confirmada: null,
+      completada: false,
+    },
+    {
+      envioId: "envio_002",
+      nro_envio: "FD-002",
+      orden: 4,
+      tipo: "ENTREGA",
+      lat: -31.3500,
+      lng: -64.2500,
+      texto: "Rivadavia 321, La Calera",
+      franja_horaria: null,
+      fecha_retiro_confirmada: null,
+      completada: false,
+    },
+  ],
+};
+
+let rutaMockState = JSON.parse(JSON.stringify(RUTA_MOCK));
+
+export function generarRutaHoyMock(_params = {}) {
+  // Simula un pequeño delay de red
+  return new Promise((resolve) =>
+    setTimeout(() => resolve({ ...rutaMockState }), 600)
+  );
+}
+
+export function getRutaActivaMock(_params = {}) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      // Simula 404 si no hay ruta (para probar el fallback a generar)
+      // Cambiar a reject({ response: { status: 404 } }) para probar ese path
+      resolve({ ...rutaMockState });
+    }, 300);
+  });
+}
+
+
+export function confirmarFechaRetiroMock({ envioId, fecha } = {}) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      // Mutar la ruta mock en memoria
+      rutaMockState = {
+        ...rutaMockState,
+        orden_entregas: rutaMockState.orden_entregas.map((p) =>
+          String(p.envioId) === String(envioId) && p.tipo === "RETIRO"
+            ? { ...p, fecha_retiro_confirmada: fecha + "T12:00:00.000Z" }
+            : p
+        ),
+      };
+      resolve({ message: "Fecha de retiro confirmada (mock).", fecha });
+    }, 400);
+  });
+}
+
+export function completarParadaMock({ envioId, tipo } = {}) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      // Marcar como completada en el estado mock
+      rutaMockState = {
+        ...rutaMockState,
+        orden_entregas: rutaMockState.orden_entregas.map((p) =>
+          String(p.envioId) === String(envioId) && p.tipo === tipo
+            ? { ...p, completada: true, completada_at: new Date().toISOString() }
+            : p
+        ),
+      };
+      resolve({ message: "Parada completada (mock).", ruta: rutaMockState });
+    }, 500);
+  });
+}
+
