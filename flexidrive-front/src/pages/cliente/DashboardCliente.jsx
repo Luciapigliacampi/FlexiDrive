@@ -1,4 +1,3 @@
-// src/pages/cliente/DashboardCliente.jsx
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 
@@ -10,18 +9,14 @@ import mapIcon from "../../assets/direcciones-mapa.png";
 import cardIcon from "../../assets/card.png";
 import cardIdIcon from "../../assets/card-id.png";
 
-// ✅ axios real
-// MOCK
 import { getMyShipments } from "../../services/shipmentServices";
-
 
 export default function DashboardCliente() {
   const username = localStorage.getItem("username") || "Usuario";
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  const [envios, setEnvios] = useState([]); // historial del back
+  const [envios, setEnvios] = useState([]);
 
   useEffect(() => {
     let alive = true;
@@ -33,28 +28,19 @@ export default function DashboardCliente() {
       try {
         const res = await getMyShipments();
 
-// si es mock -> res es un array
-// si es axios -> res.data
-const data = Array.isArray(res) ? res : res?.data;
+        const data = Array.isArray(res) ? res : res?.data;
 
-const list =
-  Array.isArray(data) ? data :
-  Array.isArray(data?.envios) ? data.envios :
-  [];
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.envios)
+          ? data.envios
+          : Array.isArray(data?.historial)
+          ? data.historial
+          : [];
 
-setEnvios(list);
-        // const res = await getMyShipments();
-        // // axios -> res.data
-        // const data = Array.isArray(res) ? res : res?.data;
-
-        // // Ajuste flexible por si el back devuelve { envios: [...] }
-        // const list = Array.isArray(data)
-        //   ? data
-        //   : Array.isArray(data?.envios)
-        //     ? data.envios
-        //     : [];
-
-        // if (alive) setEnvios(list);
+        if (alive) {
+          setEnvios(list);
+        }
       } catch (e) {
         if (alive) setError(e?.message || "No se pudieron cargar los envíos.");
       } finally {
@@ -63,42 +49,52 @@ setEnvios(list);
     }
 
     load();
+
     return () => {
       alive = false;
     };
   }, []);
 
-  // ✅ métricas (2) derivadas del historial
   const { activos, completados } = useMemo(() => {
-    const upper = (v) => String(v || "").toUpperCase();
-
-    const isCompletado = (estado) => upper(estado) === "ENTREGADO";
-    const isActivo = (estado) => {
-      const e = upper(estado);
-      return e === "PENDIENTE" || e === "EN_CAMINO" || e === "ASIGNADO" || e === "ACEPTADO";
-    };
-
     let a = 0;
     let c = 0;
 
-    for (const s of envios) {
-      const estado = s?.estado;
-      if (isCompletado(estado)) c += 1;
-      else if (isActivo(estado)) a += 1;
+    for (const envio of envios) {
+      const estado = getEstadoEnvio(envio);
+
+      if (isCompletado(estado)) {
+        c += 1;
+      } else if (isActivo(estado)) {
+        a += 1;
+      }
     }
 
     return { activos: a, completados: c };
   }, [envios]);
 
-  // ✅ “Ver envíos” (preview)
   const ultimos3 = useMemo(() => {
-    // Si tu back ya viene ordenado, ok. Si no, intentamos ordenar por fecha
     const copy = [...envios];
+
     copy.sort((a, b) => {
-      const fa = new Date(a?.fecha || a?.createdAt || 0).getTime();
-      const fb = new Date(b?.fecha || b?.createdAt || 0).getTime();
+      const fa = new Date(
+        a?.fecha ||
+          a?.createdAt ||
+          a?.fecha_creacion ||
+          a?.fechaRegistro ||
+          0
+      ).getTime();
+
+      const fb = new Date(
+        b?.fecha ||
+          b?.createdAt ||
+          b?.fecha_creacion ||
+          b?.fechaRegistro ||
+          0
+      ).getTime();
+
       return fb - fa;
     });
+
     return copy.slice(0, 3);
   }, [envios]);
 
@@ -106,9 +102,7 @@ setEnvios(list);
     <main className="bg-slate-100">
       <section className="bg-slate-100">
         <div className="relative bg-slate-80 overflow-x-hidden max-h-[500px]">
-          {/* CONTENIDO */}
           <div className="relative z-10 mx-auto max-w-7xl px-6 sm:px-10 lg:px-4 pt-4">
-            {/* TITULO */}
             <div>
               <h1 className="text-4xl font-bold tracking-tight text-slate-700">
                 Hola, {username}
@@ -118,18 +112,14 @@ setEnvios(list);
               </p>
             </div>
 
-            {/* feedback */}
             {error ? (
               <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
               </div>
             ) : null}
 
-            {/*CARDS*/}
             <div className="grid grid-cols-1 lg:grid-cols-3 mt-2">
-              {/*METRICAS Y CARDS*/}
               <div className="lg:col-span-2">
-                {/*METRICAS*/}
                 <div className="rounded-xl border border-slate-200 bg-white shadow-sm mb-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 md:divide-x md:divide-slate-300 mb-4 mt-4">
                     <div className="col-span-1 flex items-center ml-2">
@@ -138,6 +128,7 @@ setEnvios(list);
                         label="Envíos activos"
                       />
                     </div>
+
                     <div className="col-span-1 flex items-center ml-2">
                       <Metric
                         number={loading ? "—" : String(completados)}
@@ -147,7 +138,6 @@ setEnvios(list);
                   </div>
                 </div>
 
-                {/* FILA 2: Solicitar + Ver envíos */}
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 items-stretch h-auto">
                   <div className="lg:col-span-1">
                     <Card title="Solicitar envío">
@@ -181,14 +171,18 @@ setEnvios(list);
                           </div>
                         ) : (
                           <>
-                            {ultimos3.map((e) => (
-                              <EnvioRow
-                                key={e?._id || e?.id}
-                                id={e?.numero || e?._id || e?.id}
-                                estado={e?.estado || "—"}
-                                variant={estadoToVariant(e?.estado)}
-                              />
-                            ))}
+                            {ultimos3.map((e) => {
+                              const estado = getEstadoEnvio(e);
+
+                              return (
+                                <EnvioRow
+                                  key={e?._id || e?.id}
+                                  id={getShipmentNumber(e)}
+                                  estado={estado || "—"}
+                                  variant={estadoToVariant(estado)}
+                                />
+                              );
+                            })}
 
                             <div className="pt-2 text-right">
                               <Link
@@ -206,12 +200,23 @@ setEnvios(list);
                 </div>
               </div>
 
-              {/* DATOS, MEDIOS DE PAGO, ETC */}
               <div className="grid grid-cols-1 lg:col-span-1 h-full place-content-between ml-4">
                 <QuickLink to="/cliente/datos" label="Mis Datos" icon={cardIdIcon} />
-                <QuickLink to="/cliente/metodos-pago" label="Métodos de pago" icon={cardIcon} />
-                <QuickLink to="/cliente/direcciones" label="Direcciones frecuentes" icon={mapIcon} />
-                <QuickLink to="/cliente/soporte" label="Ayuda y soporte" icon={helpIcon} />
+                <QuickLink
+                  to="/cliente/metodos-pago"
+                  label="Métodos de pago"
+                  icon={cardIcon}
+                />
+                <QuickLink
+                  to="/cliente/direcciones"
+                  label="Direcciones frecuentes"
+                  icon={mapIcon}
+                />
+                <QuickLink
+                  to="/cliente/soporte"
+                  label="Ayuda y soporte"
+                  icon={helpIcon}
+                />
               </div>
             </div>
           </div>
@@ -232,6 +237,102 @@ setEnvios(list);
 }
 
 /* ===== Helpers ===== */
+
+function getShipmentNumber(envio) {
+  return (
+    envio?.numero_envio ||
+    envio?.nro_envio ||
+    envio?.numero ||
+    envio?.shipmentNumber ||
+    envio?.codigo ||
+    envio?._id ||
+    envio?.id ||
+    "—"
+  );
+}
+
+function getEstadoEnvio(envio) {
+  return normalizeEstado(
+    envio?.estado ??
+      envio?.estadoId ??
+      envio?.estado_actual ??
+      envio?.status ??
+      envio?.estadoNombre ??
+      envio?.estado_nombre ??
+      envio?.estado?.nombre ??
+      envio?.estado?.id ??
+      ""
+  );
+}
+
+function normalizeEstado(value) {
+  const raw = String(value || "")
+    .trim()
+    .toUpperCase();
+
+  if (!raw) return "";
+
+  // completados
+  if (
+    raw === "ENTREGADO" ||
+    raw === "COMPLETADO" ||
+    raw === "COMPLETADA" ||
+    raw === "FINALIZADO" ||
+    raw === "FINALIZADA"
+  ) {
+    return "ENTREGADO";
+  }
+
+  // activos
+  if (
+    raw === "PENDIENTE" ||
+    raw === "CREADO" ||
+    raw === "PUBLICADO"
+  ) {
+    return "PENDIENTE";
+  }
+
+  if (
+    raw === "ASIGNADO" ||
+    raw === "ACEPTADO"
+  ) {
+    return "ASIGNADO";
+  }
+
+  if (
+    raw === "EN_CAMINO" ||
+    raw === "EN CURSO" ||
+    raw === "EN_TRANSITO" ||
+    raw === "EN TRÁNSITO" ||
+    raw === "EN TRANSITO"
+  ) {
+    return "EN_CAMINO";
+  }
+
+  // cancelados / archivados
+  if (
+    raw === "CANCELADO" ||
+    raw === "CANCELADA" ||
+    raw === "ELIMINADO" ||
+    raw === "ARCHIVADO"
+  ) {
+    return "CANCELADO";
+  }
+
+  return raw;
+}
+
+function isActivo(estado) {
+  return (
+    estado === "PENDIENTE" ||
+    estado === "ASIGNADO" ||
+    estado === "EN_CAMINO"
+  );
+}
+
+function isCompletado(estado) {
+  return estado === "ENTREGADO";
+}
 
 function Metric({ number, label }) {
   return (
@@ -276,10 +377,9 @@ function QuickLink({ to, label, icon, className = "", big = false }) {
 }
 
 function estadoToVariant(estado) {
-  const e = String(estado || "").toUpperCase();
-  if (e === "PENDIENTE") return "warning";
-  if (e === "EN_CAMINO" || e === "ASIGNADO" || e === "ACEPTADO") return "info";
-  if (e === "ENTREGADO") return "success";
+  if (estado === "PENDIENTE") return "warning";
+  if (estado === "ASIGNADO" || estado === "EN_CAMINO") return "info";
+  if (estado === "ENTREGADO") return "success";
   return "info";
 }
 
@@ -288,8 +388,8 @@ function EnvioRow({ id, estado, variant }) {
     variant === "warning"
       ? "bg-yellow-100 text-yellow-800"
       : variant === "info"
-        ? "bg-blue-100 text-blue-800"
-        : "bg-green-100 text-green-800";
+      ? "bg-blue-100 text-blue-800"
+      : "bg-green-100 text-green-800";
 
   return (
     <div className="flex items-center justify-between border-b border-slate-200 py-2">

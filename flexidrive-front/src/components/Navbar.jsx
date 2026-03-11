@@ -1,4 +1,4 @@
-//flexidrive-front\src\components\Navbar.jsx
+// flexidrive-front/src/components/Navbar.jsx
 import { Link, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { ChevronDown, Search, UserCircle2 } from "lucide-react";
 import { useEffect, useRef, useState, useMemo } from "react";
@@ -9,6 +9,7 @@ import useScrolled from "../hooks/useScrolled";
 export default function Navbar() {
   const scrolled = useScrolled(10);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const base = "text-slate-500 hover:text-slate-900 transition";
   const active = "font-semibold text-blue-700";
@@ -27,12 +28,9 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
-  const location = useLocation(); // fuerza re-render cuando cambia la ruta
-
   const isLoggedIn = !!localStorage.getItem("token");
   const username = localStorage.getItem("username");
 
-  // 👇 Esto se recalcula al cambiar de ruta (por si el rol cambia tras login/logout)
   const rol = useMemo(() => localStorage.getItem("rol") || "", [location.pathname]);
 
   const handleLogout = () => {
@@ -44,44 +42,39 @@ export default function Navbar() {
     navigate("/auth/login", { replace: true });
   };
 
-  // Cerrar menú al click afuera
   useEffect(() => {
     const onClick = (e) => {
       if (!menuRef.current) return;
       if (!menuRef.current.contains(e.target)) setMenuOpen(false);
     };
+
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  // Rutas del dropdown según rol
-  const perfilPath = rol === "cliente" ? "/cliente/perfil" : "/comisionista/perfil";
   const misDatosPath = rol === "cliente" ? "/cliente/datos" : "/comisionista/datos";
 
-  // ✅ Dashboard dinámico para "Inicio"
   const getDashboardPath = () => {
     if (!isLoggedIn) return "/";
 
-   switch (rol) {
-    case "cliente":
-      return "/cliente/dashboard";
-    case "comisionista":
-      return "/comisionista/DashboardComisionista";
-    case "admin":
-      return "/admin"; 
-    default:
-      return "/";
+    switch (rol) {
+      case "cliente":
+        return "/cliente/dashboard";
+      case "comisionista":
+        return "/comisionista/DashboardComisionista";
+      case "admin":
+        return "/admin";
+      default:
+        return "/";
     }
   };
 
   const goInicio = (e) => {
-    // Evita que NavLink intente ir a su "to"
     e.preventDefault();
     setMenuOpen(false);
     navigate(getDashboardPath());
   };
 
-  // (Opcional) si querés que el logo también respete el dashboard:
   const goLogo = (e) => {
     e.preventDefault();
     setMenuOpen(false);
@@ -98,9 +91,8 @@ export default function Navbar() {
           : "bg-white border-slate-200",
       ].join(" ")}
     >
-      {/* FILA 1 — Idioma + Perfil */}
+      {/* FILA 1 */}
       <div className="w-full px-4 h-8 flex items-center justify-between border-b border-slate-200">
-        {/* Idioma izquierda */}
         <div className="flex items-center text-xs text-slate-500">
           <img src={arFlag} alt="Argentina" className="w-4 h-4 mr-2" />
           <span>ARG - ES</span>
@@ -109,7 +101,6 @@ export default function Navbar() {
           <button className="hover:text-slate-700">EN</button>
         </div>
 
-        {/* Perfil derecha (solo si logueado) */}
         {isLoggedIn && (
           <div className="relative z-50" ref={menuRef}>
             <button
@@ -127,7 +118,7 @@ export default function Navbar() {
                 <Link
                   to={misDatosPath}
                   onClick={() => setMenuOpen(false)}
-                  className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-80"
+                  className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
                 >
                   Ver perfil
                 </Link>
@@ -144,17 +135,13 @@ export default function Navbar() {
         )}
       </div>
 
-      {/* FILA 2 — Logo + menú centrado + acciones derecha */}
+      {/* FILA 2 */}
       <div className="relative w-full h-16 flex items-center px-4">
-        {/* LOGO */}
-        {/* ✅ si querés que el logo vaya al dashboard, usá onClick={goLogo} */}
-        <Link to="/" onClick={goLogo} className="flex items-center">
+        <Link to="/" onClick={goLogo} className="flex items-center shrink-0">
           <img src={logo} alt="FlexiDrive" className="h-20 object-contain" />
         </Link>
 
-        {/* MENÚ centrado */}
-        <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-10">
-          {/* ✅ "Inicio" ahora redirige según rol */}
+        <nav className="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center gap-10">
           <NavLink
             to={getDashboardPath()}
             end
@@ -183,21 +170,40 @@ export default function Navbar() {
           </NavLink>
         </nav>
 
-        {isLoggedIn && (
-          <div className="ml-auto hidden md:flex items-center">
-            <form onSubmit={onSearch} className="flex items-center gap-2">
-              <div className="flex items-center rounded-full border border-slate-300 bg-white px-3 py-2">
-                <Search className="w-4 h-4 text-slate-500" />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search"
-                  className="ml-2 w-44 lg:w-56 outline-none text-sm"
-                />
-              </div>
-            </form>
-          </div>
-        )}
+        {/* DERECHA */}
+        <div className="ml-auto flex items-center gap-3">
+          {isLoggedIn ? (
+            <div className="hidden md:flex items-center">
+              <form onSubmit={onSearch} className="flex items-center gap-2">
+                <div className="flex items-center rounded-full border border-slate-300 bg-white px-3 py-2">
+                  <Search className="w-4 h-4 text-slate-500" />
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search"
+                    className="ml-2 w-44 lg:w-56 outline-none text-sm bg-transparent"
+                  />
+                </div>
+              </form>
+            </div>
+          ) : (
+            <>
+              <Link
+                to="/auth/login"
+                className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 transition"
+              >
+                Iniciar sesión
+              </Link>
+
+              <Link
+                to="/auth/register"
+                className="inline-flex items-center justify-center rounded-full bg-blue-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-800 transition"
+              >
+                Registrarse
+              </Link>
+            </>
+          )}
+        </div>
       </div>
     </header>
   );

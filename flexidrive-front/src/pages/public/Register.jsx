@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import QRCode from "qrcode";
 import heroImg from "../../assets/hero.svg";
 import { registerUser } from "../../services/authService";
 import { Eye, EyeOff } from "lucide-react";
@@ -33,14 +32,11 @@ export default function Register() {
   // ui
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   // show/hide password
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  // totp setup
-  const [otpauthUrl, setOtpauthUrl] = useState("");
-  const [qrDataUrl, setQrDataUrl] = useState("");
 
   const passwordsMatch = useMemo(() => {
     if (!confirmPassword) return true;
@@ -61,23 +57,22 @@ export default function Register() {
     [nombre, apellido, email, password, dni, telefono, fechaNacimiento, rol]
   );
 
-  useEffect(() => {
-    if (!otpauthUrl) return;
-
-    QRCode.toDataURL(otpauthUrl)
-      .then(setQrDataUrl)
-      .catch(() => setError("No se pudo generar el QR."));
-  }, [otpauthUrl]);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setSuccess("");
     setLoading(true);
 
-    // validaciones mínimas front (el back valida igual)
+    // validaciones mínimas front
     if (!/^\d+$/.test(String(telefono))) {
       setLoading(false);
-      setError("El teléfono debe tener solo números (sin +, espacios ni guiones).");
+      setError("El teléfono debe tener solo números.");
+      return;
+    }
+
+    if (String(telefono).length !== 10) {
+      setLoading(false);
+      setError("El teléfono debe tener exactamente 10 dígitos.");
       return;
     }
 
@@ -93,20 +88,35 @@ export default function Register() {
       return;
     }
 
-
     try {
       const data = await registerUser(payload);
 
+      // ✅ CORRECCIÓN:
+      // Tu backend actual NO devuelve otpauthUrl en el registro.
+      // Devuelve algo como:
+      // { message: "Usuario creado correctamente", usuarioId: "..." }
+      if (data?.message || data?.usuarioId) {
+        setSuccess(
+          "Cuenta creada correctamente. Ahora iniciá sesión para configurar tu verificación TOTP."
+        );
 
-      // lo importante para TOTP
-      if (data?.otpauthUrl) {
-        setOtpauthUrl(data.otpauthUrl);
+        // Redirigimos al login después de un instante
+        setTimeout(() => {
+          navigate("/auth/login", {
+            replace: true,
+            state: {
+              registered: true,
+              email: payload.email,
+              message:
+                "Cuenta creada correctamente. Iniciá sesión para configurar tu verificación TOTP.",
+            },
+          });
+        }, 1500);
+
         return;
       }
 
-      setError(
-        "Registro ok, pero el servidor no devolvió otpauthUrl para configurar TOTP."
-      );
+      setError("El servidor devolvió una respuesta inesperada al registrarte.");
     } catch (err) {
       setError(getApiErrorMessage(err, "Error al registrarte."));
     } finally {
@@ -126,7 +136,8 @@ export default function Register() {
               </h1>
 
               <p className="mt-5 text-slate-700 max-w-md font-medium">
-                Completá tus datos. Al finalizar, vas a escanear un QR para activar tu código TOTP.
+                Completá tus datos. Después de crear tu cuenta, vas a iniciar sesión
+                para configurar tu código TOTP.
               </p>
 
               <div className="mt-8 hidden lg:flex justify-start">
@@ -147,193 +158,180 @@ export default function Register() {
                   </div>
                 ) : null}
 
-                {/* Si ya tenemos otpauthUrl -> mostrar QR */}
-                {otpauthUrl ? (
-                  <div className="rounded-2xl bg-white border border-slate-200 p-6">
-                    <h2 className="text-lg font-semibold text-slate-900">
-                      Activá tu verificación (TOTP)
-                    </h2>
-                    <p className="mt-2 text-sm text-slate-600">
-                      Escaneá este QR con Google Authenticator. Después volvé a iniciar sesión.
-                    </p>
+                {success ? (
+                  <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 whitespace-pre-line">
+                    {success}
+                  </div>
+                ) : null}
 
-                    <div className="mt-5 flex justify-center">
-                      {qrDataUrl ? (
-                        <img src={qrDataUrl} alt="QR TOTP" className="w-48 h-48" />
-                      ) : (
-                        <div className="text-sm text-slate-600">Generando QR...</div>
-                      )}
-                    </div>
+                <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-2">Nombre</label>
+                    <input
+                      value={nombre}
+                      onChange={(e) => setNombre(e.target.value)}
+                      required
+                      className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
+                    />
+                  </div>
 
-                    <div className="mt-5 flex flex-col sm:flex-row gap-3">
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-2">Apellido</label>
+                    <input
+                      value={apellido}
+                      onChange={(e) => setApellido(e.target.value)}
+                      required
+                      className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm text-slate-700 mb-2">Email</label>
+                    <input
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      type="email"
+                      required
+                      className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
+                    />
+                  </div>
+
+                  {/* Password + toggle */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm text-slate-700 mb-2">Contraseña</label>
+                    <div className="relative">
+                      <input
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        type={showPassword ? "text" : "password"}
+                        required
+                        className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 pr-24 outline-none"
+                      />
                       <button
                         type="button"
-                        onClick={() => navigate("/auth/login")}
-                        className="w-full inline-flex items-center justify-center rounded-full bg-blue-700 text-white py-3.5 font-medium hover:bg-blue-800 transition"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center rounded-md p-2 text-slate-600 hover:text-blue-700 hover:bg-slate-100 transition"
+                        aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                       >
-                        Ya lo escaneé → Ir a Login
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOtpauthUrl("");
-                          setQrDataUrl("");
-                        }}
-                        className="w-full inline-flex items-center justify-center rounded-full border border-slate-300 bg-white py-3.5 font-medium text-slate-800"
-                      >
-                        Volver al formulario
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
                     </div>
                   </div>
-                ) : (
-                  <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm text-slate-700 mb-2">Nombre</label>
+
+                  {/* Confirm Password */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm text-slate-700 mb-2">
+                      Confirmar contraseña
+                    </label>
+                    <div className="relative">
                       <input
-                        value={nombre}
-                        onChange={(e) => setNombre(e.target.value)}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        type={showConfirmPassword ? "text" : "password"}
                         required
-                        className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
+                        className={`w-full rounded-lg border bg-white px-4 py-3 pr-24 outline-none ${
+                          passwordsMatch ? "border-slate-200" : "border-red-300"
+                        }`}
                       />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm text-slate-700 mb-2">Apellido</label>
-                      <input
-                        value={apellido}
-                        onChange={(e) => setApellido(e.target.value)}
-                        required
-                        className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
-                      />
-                    </div>
-
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm text-slate-700 mb-2">Email</label>
-                      <input
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        type="email"
-                        required
-                        className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
-                      />
-                    </div>
-
-                    {/* Password + toggle */}
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm text-slate-700 mb-2">Contraseña</label>
-                      <div className="relative">
-                        <input
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          type={showPassword ? "text" : "password"}
-                          required
-                          className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 pr-24 outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword((v) => !v)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center rounded-md p-2 text-slate-600 hover:text-blue-700 hover:bg-slate-100 transition"
-                          aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                        >
-                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Confirm Password + toggle + error inline */}
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm text-slate-700 mb-2">Confirmar contraseña</label>
-                      <div className="relative">
-                        <input
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          type={showConfirmPassword ? "text" : "password"}
-                          required
-                          className={`w-full rounded-lg border bg-white px-4 py-3 pr-24 outline-none ${passwordsMatch ? "border-slate-200" : "border-red-300"
-                            }`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPassword((v) => !v)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center rounded-md p-2 text-slate-600 hover:text-blue-700 hover:bg-slate-100 transition"
-                          aria-label={showConfirmPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                        >
-                          {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </button>
-                      </div>
-
-                      {!passwordsMatch ? (
-                        <p className="mt-1 text-xs text-red-600">Las contraseñas no coinciden.</p>
-                      ) : null}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm text-slate-700 mb-2">DNI</label>
-                      <input
-                        value={dni}
-                        onChange={(e) => setDni(e.target.value)}
-                        inputMode="numeric"
-                        required
-                        className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm text-slate-700 mb-2">Teléfono</label>
-                      <input
-                        value={telefono}
-                        onChange={(e) => setTelefono(e.target.value)}
-                        inputMode="numeric"
-                        placeholder="549353..."
-                        required
-                        className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
-                      />
-                      <p className="mt-1 text-xs text-slate-500">Solo números. Ej: 54 + 9 + 353 + número.</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm text-slate-700 mb-2">Fecha de nacimiento</label>
-                      <input
-                        value={fechaNacimiento}
-                        onChange={(e) => setFechaNacimiento(e.target.value)}
-                        type="date"
-                        required
-                        className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm text-slate-700 mb-2">Rol</label>
-                      <select
-                        value={rol}
-                        onChange={(e) => setRol(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
-                      >
-                        <option value="cliente">Cliente</option>
-                        <option value="comisionista">Comisionista</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    </div>
-
-                    <div className="sm:col-span-2">
                       <button
-                        type="submit"
-                        disabled={loading || !passwordsMatch}
-                        className="mt-2 w-full inline-flex items-center justify-center rounded-full bg-blue-700 text-white py-3.5 font-medium shadow-sm hover:bg-blue-800 transition disabled:opacity-60"
+                        type="button"
+                        onClick={() => setShowConfirmPassword((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center rounded-md p-2 text-slate-600 hover:text-blue-700 hover:bg-slate-100 transition"
+                        aria-label={
+                          showConfirmPassword
+                            ? "Ocultar contraseña"
+                            : "Mostrar contraseña"
+                        }
                       >
-                        {loading ? "Creando cuenta..." : "Crear cuenta"}
+                        {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
-
-                      <div className="mt-4 text-center text-sm text-slate-700">
-                        ¿Ya tenés cuenta?{" "}
-                        <Link to="/auth/login" className="text-blue-700 font-medium hover:underline">
-                          Iniciá sesión
-                        </Link>
-                      </div>
                     </div>
-                  </form>
-                )}
+
+                    {!passwordsMatch ? (
+                      <p className="mt-1 text-xs text-red-600">
+                        Las contraseñas no coinciden.
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-2">DNI</label>
+                    <input
+                      value={dni}
+                      onChange={(e) => setDni(e.target.value.replace(/\D/g, ""))}
+                      inputMode="numeric"
+                      required
+                      className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-2">Teléfono</label>
+                    <input
+                      value={telefono}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, "");
+                        if (value.length <= 10) {
+                          setTelefono(value);
+                        }
+                      }}
+                      inputMode="numeric"
+                      maxLength={10}
+                      placeholder="3531234567"
+                      required
+                      className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
+                    />
+                    <p className="mt-1 text-xs text-slate-500">
+                      Código de área + número.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-2">
+                      Fecha de nacimiento
+                    </label>
+                    <input
+                      value={fechaNacimiento}
+                      onChange={(e) => setFechaNacimiento(e.target.value)}
+                      type="date"
+                      required
+                      className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-2">Rol</label>
+                    <select
+                      value={rol}
+                      onChange={(e) => setRol(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
+                    >
+                      <option value="cliente">Cliente</option>
+                      <option value="comisionista">Comisionista</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <button
+                      type="submit"
+                      disabled={loading || !passwordsMatch}
+                      className="mt-2 w-full inline-flex items-center justify-center rounded-full bg-blue-700 text-white py-3.5 font-medium shadow-sm hover:bg-blue-800 transition disabled:opacity-60"
+                    >
+                      {loading ? "Creando cuenta..." : "Crear cuenta"}
+                    </button>
+
+                    <div className="mt-4 text-center text-sm text-slate-700">
+                      ¿Ya tenés cuenta?{" "}
+                      <Link
+                        to="/auth/login"
+                        className="text-blue-700 font-medium hover:underline"
+                      >
+                        Iniciá sesión
+                      </Link>
+                    </div>
+                  </div>
+                </form>
               </div>
             </div>
           </div>

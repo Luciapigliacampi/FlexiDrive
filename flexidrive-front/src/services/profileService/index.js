@@ -1,4 +1,3 @@
-//flexidrive-front\src\services\profileService\index.js
 import * as real from "./profileService";
 import * as mock from "./profileService.mock";
 
@@ -10,13 +9,20 @@ async function unwrap(promise) {
   return res?.data !== undefined ? res.data : res;
 }
 
+/* PERFIL */
+export async function getMyProfile() {
+  return unwrap(svc.getMyProfile());
+}
+
 /* ORIGEN */
 export async function getDirecciones() {
   return unwrap(svc.getDirecciones());
 }
+
 export async function addDireccion(payload) {
   return unwrap(svc.addDireccion(payload));
 }
+
 export async function deleteDireccion(id) {
   return unwrap(svc.deleteDireccion(id));
 }
@@ -25,9 +31,11 @@ export async function deleteDireccion(id) {
 export async function getDestinatarios() {
   return unwrap(svc.getDestinatarios());
 }
+
 export async function addDestinatario(payload) {
   return unwrap(svc.addDestinatario(payload));
 }
+
 export async function deleteDestinatario(id) {
   return unwrap(svc.deleteDestinatario(id));
 }
