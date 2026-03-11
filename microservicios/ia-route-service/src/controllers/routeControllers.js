@@ -522,14 +522,19 @@ export const getSeguimientoEnvio = async (req, res) => {
       } catch {}
     }
 
-    let calificado = false;
-    try {
-      const CAL_BASE = process.env.CALIFICACIONES_SERVICE_URL || 'http://localhost:3003';
-      await axios.get(`${CAL_BASE}/api/calificaciones/envio/${envioId}`);
-      calificado = true;
-    } catch (e) {
-      calificado = e?.response?.status !== 404;
-    }
+   let calificado = false;
+let calificacion = null;
+try {
+  const CAL_BASE = process.env.CALIFICACIONES_SERVICE_URL || 'http://localhost:3003';
+  const calRes = await axios.get(`${CAL_BASE}/api/calificaciones/envio/${envioId}`);
+  calificado = true;
+  calificacion = {
+    puntuacion: calRes.data.puntuacion,
+    comentario: calRes.data.comentario ?? null,
+  };
+} catch (e) {
+  calificado = e?.response?.status !== 404;
+}
 
     res.json({
       nro_envio: envio.nro_envio,
@@ -556,6 +561,8 @@ export const getSeguimientoEnvio = async (req, res) => {
         lng_destino: envio.direccion_destino.lng,
         polyline,
       },
+      calificado,
+calificacion,
     });
   } catch (err) {
     res.status(500).json({ message: getApiErrorMessage(err, 'Error al obtener el seguimiento.') });

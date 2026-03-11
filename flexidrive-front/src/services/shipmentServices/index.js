@@ -109,4 +109,8 @@ export async function cancelarPorComisionista(id) {
   return unwrap(svc.cancelarPorComisionista(id));
 }
 
+export async function actualizarCalificacion(payload) {
+  return unwrap(real.actualizarCalificacion(payload));
+}
+
 export const __USE_MOCK__ = USE_MOCK;

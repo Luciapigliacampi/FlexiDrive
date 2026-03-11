@@ -1,3 +1,4 @@
+//microservicios\notificaciones-service\src\middlewares\authMiddlewares.js
 import jwt from 'jsonwebtoken';
 
 export const authMiddleware = (req, res, next) => {
@@ -7,7 +8,7 @@ export const authMiddleware = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(header.split(' ')[1], process.env.JWT_SECRET);
-    req.userId = decoded.id;
+    req.userId = String(decoded.userId || decoded.id || decoded._id);
     req.userRol = decoded.rol;
     next();
   } catch {

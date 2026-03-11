@@ -64,7 +64,8 @@ export async function searchComisionistas(params) {
 ========================= */
 
 export async function calificarEnvio({ id, rating, comment }) {
-  const res = await api.post(`/api/calificaciones`, {
+  const CAL_BASE = import.meta.env.VITE_CALIFICACIONES_API_URL || "http://localhost:3003";
+  const res = await api.post(`${CAL_BASE}/api/calificaciones`, {
     envioId: id,
     puntuacion: rating,
     comentario: comment,
@@ -94,3 +95,12 @@ export const iniciarViaje = (fecha) =>
 
 export const finalizarViaje = (fecha) =>
   api.post(`${ENVIO_BASE}/api/envios/comisionista/dashboard/finalizar-viaje`, { fecha });
+
+export async function actualizarCalificacion({ id, rating, comment }) {
+  const CAL_BASE = import.meta.env.VITE_CALIFICACIONES_API_URL || "http://localhost:3003";
+  const res = await api.put(`${CAL_BASE}/api/calificaciones/envio/${id}`, {
+    puntuacion: rating,
+    comentario: comment,
+  });
+  return res?.data ?? res;
+}

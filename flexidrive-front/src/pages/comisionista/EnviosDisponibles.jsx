@@ -60,6 +60,18 @@ function fromISODate(s) {
 export default function EnviosDisponibles() {
   const navigate = useNavigate();
 
+  const [fechaHoySimulada, setFechaHoySimulada] = useState(() => getTodayString());
+
+  // Reaccionar al panel de pruebas
+  useEffect(() => {
+    function onTestDateChanged(e) {
+      const nuevaFecha = e?.detail?.TEST_DATE;
+      if (nuevaFecha) setFechaHoySimulada(nuevaFecha);
+    }
+    window.addEventListener("test-date-changed", onTestDateChanged);
+    return () => window.removeEventListener("test-date-changed", onTestDateChanged);
+  }, []);
+
   const [estadoFiltro, setEstadoFiltro] = useState("todos");
   const [q, setQ] = useState("");
   const [fechaDesde, setFechaDesde] = useState("");
@@ -320,6 +332,7 @@ export default function EnviosDisponibles() {
             error={actionError}
             onConfirm={confirmarAceptar}
             loading={String(actionLoading || "").includes("_aceptar")}
+            fechaHoySimulada={fechaHoySimulada}
           />
         </div>
       )}
@@ -357,13 +370,14 @@ function AceptarEnvioModal({
   vehiculos, vehiculoId, setVehiculoId,
   fechaRetiro, setFechaRetiro,
   franjaRetiro, setFranjaRetiro,
-  onConfirm, loading, error
+  onConfirm, loading, error,
+  fechaHoySimulada,
 }) {
   if (!open) return null;
   const list = Array.isArray(vehiculos) ? vehiculos : [];
 
-  // Fecha mínima: hoy simulado
-  const minDate = fromISODate(getTodayString());
+  // Fecha mínima: hoy simulado (viene como prop para ser reactiva al panel de pruebas)
+  const minDate = fromISODate(fechaHoySimulada || getTodayString());
 
   return (
     <div className="fixed inset-0 z-50">
@@ -414,7 +428,8 @@ function AceptarEnvioModal({
               <DatePicker
                 selected={fromISODate(fechaRetiro)}
                 onChange={(date) => setFechaRetiro(toISODate(date))}
-                minDate={minDate}
+                filterDate={(date) => date >= minDate}
+                openToDate={minDate}
                 dateFormat="dd/MM/yyyy"
                 locale="es"
                 calendarStartDay={1}

@@ -87,3 +87,34 @@ export const getCalificacionPorEnvio = async (req, res, next) => {
     res.json({ puntuacion: cal.puntuacion, comentario: cal.comentario, fecha: cal.fecha });
   } catch (error) { next(error); }
 };
+
+export const actualizarCalificacion = async (req, res, next) => {
+  try {
+    const { envioId } = req.params;
+    const { puntuacion, comentario } = req.body;
+    const emisorId = req.userId;
+
+    const cal = await Calificacion.findOne({ envioId });
+    if (!cal) return res.status(404).json({ message: "No hay calificación para modificar." });
+    if (String(cal.emisorId) !== String(emisorId)) {
+      return res.status(403).json({ message: "No podés modificar una calificación que no es tuya." });
+    }
+
+    cal.puntuacion = puntuacion ?? cal.puntuacion;
+    cal.comentario = comentario ?? cal.comentario;
+    await cal.save();
+
+    // Recalcular promedio
+    const todas = await Calificacion.find({ receptorId: cal.receptorId });
+    const promedio = todas.reduce((acc, c) => acc + c.puntuacion, 0) / todas.length;
+    try {
+      await axios.patch(
+        `http://localhost:3000/api/auth/update-reputacion/${cal.receptorId}`,
+        { promedio: promedio.toFixed(1) },
+        { headers: { Authorization: req.headers.authorization } }
+      );
+    } catch {}
+
+    res.json({ message: "Calificación actualizada.", calificacion: cal });
+  } catch (error) { next(error); }
+};

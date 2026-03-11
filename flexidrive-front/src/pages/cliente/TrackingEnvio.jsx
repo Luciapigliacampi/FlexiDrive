@@ -36,8 +36,8 @@ const MAP_CONTAINER = { width: "100%", height: "380px" };
 
 const ESTADO_A_STEP = {
   PENDIENTE: "solicitado", ASIGNADO: "solicitado",
-  EN_RETIRO: "en_retiro",  EN_CAMINO: "en_camino",
-  ENTREGADO: "entregado",  CANCELADO: "solicitado",
+  EN_RETIRO: "en_retiro", EN_CAMINO: "en_camino",
+  ENTREGADO: "entregado", CANCELADO: "solicitado",
   CANCELADO_RETORNO: "en_camino", DEMORADO: "en_camino",
 };
 
@@ -229,9 +229,26 @@ export default function TrackingEnvio() {
           {isEntregado && (
   <Card title="¿Cómo fue la experiencia?">
     {data.calificado ? (
-      <div className="flex items-center gap-2 text-sm text-emerald-700 font-semibold">
-        <CheckCircle2 className="h-4 w-4" />
-        Ya calificaste este envío ✓
+      <div className="space-y-3">
+        {/* Mostrar calificación existente */}
+        <div className="flex flex-wrap items-center gap-1">
+          {[1,2,3,4,5,6,7,8,9,10].map((n) => (
+            <span key={n} className={`text-xl ${n <= (data.calificacion?.puntuacion ?? 0) ? "text-yellow-500" : "text-slate-200"}`}>★</span>
+          ))}
+          <span className="ml-1 font-bold text-slate-700">
+            {data.calificacion?.puntuacion}/10
+          </span>
+        </div>
+        {data.calificacion?.comentario && (
+          <p className="text-sm text-slate-600 italic">"{data.calificacion.comentario}"</p>
+        )}
+        <Button
+          variant="outline"
+          onClick={() => navigate(`/cliente/envios/${id}/calificar`)}
+          className="w-full"
+        >
+          ✏️ Modificar calificación
+        </Button>
       </div>
     ) : (
       <>

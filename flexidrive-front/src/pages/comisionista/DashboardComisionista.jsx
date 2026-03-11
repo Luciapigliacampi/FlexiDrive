@@ -45,14 +45,14 @@ export default function DashboardComisionista() {
   const [ruta,    setRuta]    = useState(null);
   const [viajeIniciado, setViajeIniciado] = useState(false);
 
-  const fechaHoy = useMemo(() => getTodayString(), []);
+  const [fechaHoy, setFechaHoy] = useState(() => getTodayString());
 
   /* ─── Carga agenda ─────────────────────────────────────────────────────── */
   const cargarAgenda = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [r1, r2] = await Promise.all([getDashboardResumen(), getAgendaHoy()]);
+      const [r1, r2] = await Promise.all([getDashboardResumen({ date: fechaHoy }), getAgendaHoy({ date: fechaHoy })]);
       setResumen(r1);
       setAgenda(Array.isArray(r2?.items ?? r2) ? (r2?.items ?? r2) : []);
     } catch (e) {
@@ -60,7 +60,7 @@ export default function DashboardComisionista() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fechaHoy]);
 
   useEffect(() => { cargarAgenda(); }, [cargarAgenda]);
 
@@ -74,8 +74,9 @@ export default function DashboardComisionista() {
         // Sin forzar: leer la ruta activa desde el servidor (fuente de verdad)
         try {
           const rutaActiva = await getRutaActiva({ comisionistaId: userId });
-          // Si el viaje ya está iniciado, regenerar siempre para incluir
-          // envíos nuevos aceptados desde otras páginas
+          // Si el viaje ya está iniciado Y la ruta es de hoy, regenerar
+          // para incluir envíos nuevos aceptados desde otras páginas.
+          // Si no está iniciado, solo leer la ruta guardada.
           if (rutaActiva?.viaje_iniciado === true) {
             // continuar hacia regeneración (no hacer return)
           } else {
@@ -85,7 +86,10 @@ export default function DashboardComisionista() {
           }
         } catch (e) {
           if (e?.response?.status !== 404) throw e;
+          // No hay ruta activa → sin envíos hoy
+          setRuta(null);
           setViajeIniciado(false);
+          return;
         }
       }
 
@@ -119,8 +123,10 @@ export default function DashboardComisionista() {
       // (generarRutaHoy puede devolver false por defecto aunque el viaje ya esté iniciado)
       setViajeIniciado(nuevaRuta?.viaje_iniciado === true || viajeYaIniciado);
     } catch (e) {
-      if (e?.response?.status === 404) { setRuta(null); setViajeIniciado(false); }
-      else setRutaError(e?.message || "No se pudo generar la ruta.");
+      if (e?.response?.status === 404 || e?.response?.status === 500) {
+        setRuta(null);
+        setViajeIniciado(false);
+      } else setRutaError(e?.message || "No se pudo generar la ruta.");
     } finally {
       setLoadingRuta(false);
     }
@@ -130,7 +136,9 @@ export default function DashboardComisionista() {
 
   /* ─── Listener panel de pruebas ────────────────────────────────────────── */
   useEffect(() => {
-    function onTestDateChanged() {
+    function onTestDateChanged(e) {
+      const nuevaFecha = e?.detail?.TEST_DATE;
+      if (nuevaFecha) setFechaHoy(nuevaFecha);
       cargarAgenda();
       cargarOGenerarRuta(true);
     }
