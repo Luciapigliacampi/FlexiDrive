@@ -599,7 +599,7 @@ export const marcarEntregado = async (req, res, next) => {
     envio.estadoId = 'ENTREGADO';
     await envio.save();
 
-   const { distanciaKm } = req.body;
+   const { distanciaKm } = req.body ?? {};
 
 await EnvioXComisionista.findOneAndUpdate(
   { envioId: id, comisionistaId },

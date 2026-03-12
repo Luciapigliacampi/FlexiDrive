@@ -509,7 +509,7 @@ export default function DashboardComisionista() {
     <div className="space-y-2">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-5xl font-extrabold tracking-tight text-slate-700">
+          <h1 className="text-4xl font-extrabold tracking-tight text-slate-700">
             Hola, {username}
           </h1>
           <p className="mt-1 text-xl font-semibold text-slate-600">
@@ -595,7 +595,7 @@ export default function DashboardComisionista() {
             </h2>
 
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="max-h-[255px] overflow-y-auto">
+              <div className="max-h-[200px] overflow-y-auto">
                 <table className="w-full text-left">
                   <thead className="bg-slate-50 text-slate-600 sticky top-0 z-10">
                     <tr className="text-xs font-bold uppercase tracking-wide">
@@ -863,7 +863,7 @@ function QuickAction({ to, icon, title }) {
       to={to}
       className="rounded-lg border border-slate-200 bg-white shadow-sm hover:bg-slate-50 transition p-2 flex items-center gap-3"
     >
-      <div className="h-10 w-10 rounded-lg bg-slate-100 grid place-items-center text-slate-700">
+      <div className="h-8 w-10 rounded-lg bg-slate-100 grid place-items-center text-slate-700">
         {icon}
       </div>
       <div className="font-bold text-slate-700">{title}</div>
