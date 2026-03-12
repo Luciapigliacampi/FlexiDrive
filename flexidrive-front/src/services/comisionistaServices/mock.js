@@ -1,283 +1,198 @@
 // flexidrive-front/src/services/comisionistaServices/mock.js
-function wait(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
 
-export async function getDashboardResumenMock() {
-  await wait(250);
-  return {
-    enviosHoy: 12,
-    enRuta: 6,
-    pendientesRetiro: 2,
-    calificacion: 4.8,
-  };
-}
+const wait = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 
-export async function getAgendaHoyMock() {
-  await wait(250);
-  return [
-    {
-      id: "1548",
-      numero: "1548",
-      orden: 1,
-      cliente: "John Lilki",
-      destino: "Ruta Nacional 9 km 560",
-      localidad: "Tío Pujio",
-      estado: "entregado",
-    },
-    {
-      id: "2548",
-      numero: "2548",
-      orden: 2,
-      cliente: "Jamie Harington",
-      destino: "Av. Córdoba 875",
-      localidad: "James Craik",
-      estado: "en_camino",
-    },
-    {
-      id: "257",
-      numero: "257",
-      orden: 3,
-      cliente: "John Lilki",
-      destino: "Ruta 9 Norte km 593",
-      localidad: "Oliva",
-      estado: "en_camino",
-    },
-    {
-      id: "1574",
-      numero: "1574",
-      orden: 4,
-      cliente: "Jamie Harington",
-      destino: "Av. Libertador 1420",
-      localidad: "Oliva",
-      estado: "en_camino",
-    },
-    {
-      id: "2385",
-      numero: "2385",
-      orden: 5,
-      cliente: "John Lilki",
-      destino: "Ruta Nacional 9 km 612",
-      localidad: "Villa del Rosario",
-      estado: "en_camino",
-    },
-  ];
-}
-
-
-
-// ─── Rutas (TripPlans) ───────────────────────────────────────────────────────
-// FIX: el mock ahora usa exactamente la misma forma que devuelve el backend real:
-//   - diasSemana: number[]  (0=Dom, 1=Lun … 6=Sáb)
-//   - activo: boolean       (no "activa")
-//   - preciosPorLocalidad[].precio: number  (no "precioPorBulto")
-// tripPlanToRutaUI() convierte esto a la forma UI al leerlo.
-// rutaToTripPlanPayload() convierte la forma UI a esto al guardarlo.
-
-let ROUTES = [
+const rutasMock = [
   {
-    _id: "r1",
-    comisionistaId: "mock-user",
-    vehiculoId: "veh_1",
-    origen: {
-      provinciaId: "14",
-      provinciaNombre: "Córdoba",
-      localidadId: "14098030",
-      localidadNombre: "Villa María",
-    },
-    destino: {
-      provinciaId: "14",
-      provinciaNombre: "Córdoba",
-      localidadId: "14014010",
-      localidadNombre: "Córdoba",
-    },
-    intermedias: [
-      { provinciaId: "14", provinciaNombre: "Córdoba", localidadId: "14091060", localidadNombre: "Tío Pujio" },
-      { provinciaId: "14", provinciaNombre: "Córdoba", localidadId: "14056010", localidadNombre: "Oliva" },
-    ],
-    diasSemana: [1, 3, 5], // Lun, Mié, Vie
-    activo: true,
-    preciosPorLocalidad: [
-      { localidadId: "14014010", localidadNombre: "Córdoba",   precio: 1500 },
-      { localidadId: "14091060", localidadNombre: "Tío Pujio", precio: 1200 },
-      { localidadId: "14056010", localidadNombre: "Oliva",     precio: 1300 },
-    ],
-    descuentoPorBultos: { minBultos: 0, tipo: "porcentaje", valor: 0 },
+    id: "ruta_1",
+    nombre: "Ruta Centro",
+    activa: true,
+    zonas: ["Centro", "Norte"],
   },
   {
-    _id: "r2",
-    comisionistaId: "mock-user",
-    vehiculoId: "veh_2",
-    origen: {
-      provinciaId: "14",
-      provinciaNombre: "Córdoba",
-      localidadId: "14098030",
-      localidadNombre: "Villa María",
-    },
-    destino: {
-      provinciaId: "14",
-      provinciaNombre: "Córdoba",
-      localidadId: "14014010",
-      localidadNombre: "Córdoba",
-    },
-    intermedias: [],
-    diasSemana: [2, 4], // Mar, Jue
-    activo: false,
-    preciosPorLocalidad: [
-      { localidadId: "14014010", localidadNombre: "Córdoba", precio: 1100 },
-    ],
-    descuentoPorBultos: { minBultos: 0, tipo: "porcentaje", valor: 0 },
+    id: "ruta_2",
+    nombre: "Ruta Sur",
+    activa: false,
+    zonas: ["Sur"],
   },
 ];
 
-// Helper de búsqueda en texto
-function routeText(r) {
-  const inter   = (r.intermedias || []).map((x) => x.localidadNombre).join(" ");
-  const dias    = (r.diasSemana  || []).join(" ");
-  const precios = (r.preciosPorLocalidad || [])
-    .map((p) => `${p.localidadNombre} ${p.precio}`)
-    .join(" ");
-  return `${r.origen?.localidadNombre} ${r.destino?.localidadNombre} ${inter} ${dias} ${precios}`.toLowerCase();
-}
+const agendaMock = [
+  {
+    id: "env_1",
+    orden: 1,
+    numero: "1001",
+    cliente: "Juan Pérez",
+    destino: "San Martín 123",
+    localidad: "Villa María",
+    estado: "ASIGNADO",
+    tipo: "RETIRO",
+    franja: "08:00-10:00",
+    precio: 4200,
+    fecha: new Date().toISOString(),
+  },
+  {
+    id: "env_2",
+    orden: 2,
+    numero: "1002",
+    cliente: "María Gómez",
+    destino: "Buenos Aires 456",
+    localidad: "Villa Nueva",
+    estado: "EN_CAMINO",
+    tipo: "ENTREGA",
+    franja: "10:00-12:00",
+    precio: 5800,
+    fecha: new Date().toISOString(),
+  },
+  {
+    id: "env_3",
+    orden: 3,
+    numero: "1003",
+    cliente: "Carlos Ruiz",
+    destino: "Mitre 789",
+    localidad: "Villa María",
+    estado: "RETIRADO",
+    tipo: "ENTREGA",
+    franja: "12:00-14:00",
+    precio: 6100,
+    fecha: new Date().toISOString(),
+  },
+  {
+    id: "env_4",
+    orden: 4,
+    numero: "1004",
+    cliente: "Lucía Fernández",
+    destino: "Sarmiento 250",
+    localidad: "Tío Pujio",
+    estado: "ASIGNADO",
+    tipo: "RETIRO",
+    franja: "14:00-16:00",
+    precio: 3900,
+    fecha: new Date().toISOString(),
+  },
+  {
+    id: "env_5",
+    orden: 5,
+    numero: "1005",
+    cliente: "Ana López",
+    destino: "Belgrano 88",
+    localidad: "Villa María",
+    estado: "ENTREGADO",
+    tipo: "ENTREGA",
+    franja: "16:00-18:00",
+    precio: 7200,
+    fecha: new Date().toISOString(),
+  },
+];
 
-export async function listRutasMock({ q = "" } = {}) {
-  await wait(200);
-  const term = q.trim().toLowerCase();
-  if (!term) return [...ROUTES];
-  return ROUTES.filter((r) => routeText(r).includes(term));
-}
+export const getDashboardResumenMock = async () => {
+  await wait();
 
-export async function createRutaMock(data) {
-  await wait(150);
-  // data ya viene en formato backend (diasSemana, activo, precio)
-  const newOne = { ...data, _id: `r${Date.now()}`, comisionistaId: "mock-user" };
-  ROUTES = [newOne, ...ROUTES];
-  return newOne;
-}
-
-export async function updateRutaMock(id, data) {
-  await wait(150);
-  ROUTES = ROUTES.map((r) => (String(r._id) === String(id) ? { ...r, ...data } : r));
-  return ROUTES.find((r) => String(r._id) === String(id));
-}
-
-export async function deleteRutaMock(id) {
-  await wait(150);
-  ROUTES = ROUTES.filter((r) => String(r._id) !== String(id));
-  return { ok: true };
-}
-
-const RUTA_MOCK = {
-  _id: "ruta_mock_001",
-  comisionistaId: "mock_comisionista",
-  fecha_viaje: new Date().toISOString(),
-  polyline: "_p~iF~cn~U_ulLnnqC_mqNvxq`@", // polyline de ejemplo (SF→LA)
-  distancia_total_km: 42.3,
-  tiempo_estimado_min: 65,
-  activo: true,
-  orden_entregas: [
-    {
-      envioId: "envio_001",
-      nro_envio: "FD-001",
-      orden: 1,
-      tipo: "RETIRO",
-      lat: -31.4167,
-      lng: -64.1833,
-      texto: "San Martín 123, Córdoba",
-      franja_horaria: "08:00-10:00",
-      fecha_retiro_confirmada: null,
-      completada: false,
-    },
-    {
-      envioId: "envio_001",
-      nro_envio: "FD-001",
-      orden: 2,
-      tipo: "ENTREGA",
-      lat: -31.3900,
-      lng: -64.2100,
-      texto: "Av. Colón 456, Córdoba",
-      franja_horaria: null,
-      fecha_retiro_confirmada: null,
-      completada: false,
-    },
-    {
-      envioId: "envio_002",
-      nro_envio: "FD-002",
-      orden: 3,
-      tipo: "RETIRO",
-      lat: -31.4300,
-      lng: -64.1600,
-      texto: "Belgrano 789, Villa Allende",
-      franja_horaria: "10:00-12:00",
-      fecha_retiro_confirmada: null,
-      completada: false,
-    },
-    {
-      envioId: "envio_002",
-      nro_envio: "FD-002",
-      orden: 4,
-      tipo: "ENTREGA",
-      lat: -31.3500,
-      lng: -64.2500,
-      texto: "Rivadavia 321, La Calera",
-      franja_horaria: null,
-      fecha_retiro_confirmada: null,
-      completada: false,
-    },
-  ],
+  return {
+    enviosHoy: agendaMock.length,
+    enRuta: agendaMock.filter((i) =>
+      ["EN_CAMINO", "RETIRADO"].includes(i.estado)
+    ).length,
+    pendientesRetiro: agendaMock.filter((i) => i.tipo === "RETIRO" && i.estado === "ASIGNADO").length,
+    calificacion: 4.8,
+  };
 };
 
-let rutaMockState = JSON.parse(JSON.stringify(RUTA_MOCK));
+export const getAgendaHoyMock = async () => {
+  await wait();
+  return { items: agendaMock };
+};
 
-export function generarRutaHoyMock(_params = {}) {
-  // Simula un pequeño delay de red
-  return new Promise((resolve) =>
-    setTimeout(() => resolve({ ...rutaMockState }), 600)
-  );
-}
+export const generarRutaHoyMock = async () => {
+  await wait();
 
-export function getRutaActivaMock(_params = {}) {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      // Simula 404 si no hay ruta (para probar el fallback a generar)
-      // Cambiar a reject({ response: { status: 404 } }) para probar ese path
-      resolve({ ...rutaMockState });
-    }, 300);
-  });
-}
+  return {
+    id: "ruta_optima_1",
+    viaje_iniciado: false,
+    distancia_total_km: 42.5,
+    orden_entregas: agendaMock.map((item) => ({
+      envioId: item.id,
+      tipo: item.tipo === "RETIRO" ? "RETIRO" : "ENTREGA",
+      cliente: item.cliente,
+      destino: item.destino,
+      localidad: item.localidad,
+      estado: item.estado,
+      completada: ["ENTREGADO"].includes(item.estado),
+    })),
+  };
+};
 
+export const getRutaActivaMock = async () => {
+  await wait();
 
-export function confirmarFechaRetiroMock({ envioId, fecha } = {}) {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      // Mutar la ruta mock en memoria
-      rutaMockState = {
-        ...rutaMockState,
-        orden_entregas: rutaMockState.orden_entregas.map((p) =>
-          String(p.envioId) === String(envioId) && p.tipo === "RETIRO"
-            ? { ...p, fecha_retiro_confirmada: fecha + "T12:00:00.000Z" }
-            : p
-        ),
-      };
-      resolve({ message: "Fecha de retiro confirmada (mock).", fecha });
-    }, 400);
-  });
-}
+  return {
+    id: "ruta_optima_1",
+    viaje_iniciado: false,
+    distancia_total_km: 42.5,
+    orden_entregas: agendaMock.map((item) => ({
+      envioId: item.id,
+      tipo: item.tipo === "RETIRO" ? "RETIRO" : "ENTREGA",
+      cliente: item.cliente,
+      destino: item.destino,
+      localidad: item.localidad,
+      estado: item.estado,
+      completada: ["ENTREGADO"].includes(item.estado),
+    })),
+  };
+};
 
-export function completarParadaMock({ envioId, tipo } = {}) {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      // Marcar como completada en el estado mock
-      rutaMockState = {
-        ...rutaMockState,
-        orden_entregas: rutaMockState.orden_entregas.map((p) =>
-          String(p.envioId) === String(envioId) && p.tipo === tipo
-            ? { ...p, completada: true, completada_at: new Date().toISOString() }
-            : p
-        ),
-      };
-      resolve({ message: "Parada completada (mock).", ruta: rutaMockState });
-    }, 500);
-  });
-}
+export const listRutasMock = async () => {
+  await wait();
+  return rutasMock;
+};
 
+export const createRutaMock = async (payload) => {
+  await wait();
+  return {
+    id: `ruta_${Date.now()}`,
+    ...payload,
+  };
+};
+
+export const updateRutaMock = async (id, payload) => {
+  await wait();
+  return {
+    id,
+    ...payload,
+  };
+};
+
+export const deleteRutaMock = async (id) => {
+  await wait();
+  return { ok: true, id };
+};
+
+export const confirmarFechaRetiroMock = async (params) => {
+  await wait();
+  return { ok: true, ...params };
+};
+
+export const completarParadaMock = async (params) => {
+  await wait();
+  return { ok: true, ...params };
+};
+
+/* ✅ NUEVO */
+export const getEstadisticasComisionistaMock = async () => {
+  await wait();
+
+  const ingresosTotales = agendaMock.reduce((acc, item) => acc + (item.precio || 0), 0);
+  const entregas = agendaMock.filter((i) => i.tipo !== "RETIRO").length;
+  const retiros = agendaMock.filter((i) => i.tipo === "RETIRO").length;
+  const viajes = 3;
+  const distanciaTotal = 126;
+
+  return {
+    ingresosTotales,
+    entregas,
+    retiros,
+    viajes,
+    distanciaPromedio: distanciaTotal / viajes,
+    ingresoPromedio: ingresosTotales / viajes,
+  };
+};

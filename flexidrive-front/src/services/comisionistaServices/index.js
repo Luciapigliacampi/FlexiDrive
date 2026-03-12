@@ -8,8 +8,9 @@ import {
   createRutaMock,
   updateRutaMock,
   deleteRutaMock,
-  confirmarFechaRetiroMock,   // ← nuevo
-  completarParadaMock,        // ← nuevo
+  confirmarFechaRetiroMock,
+  completarParadaMock,
+  getEstadisticasComisionistaMock,
 } from "./mock";
 
 import {
@@ -22,10 +23,10 @@ import {
   updateRutaApi,
   deleteRutaApi,
   toggleRutaActivaApi,
-  confirmarFechaRetiroApi,    // ← nuevo
-  completarParadaApi,         // ← nuevo
+  confirmarFechaRetiroApi,
+  completarParadaApi,
+  getEstadisticasComisionistaApi,
 } from "./real";
-
 
 const USE_MOCK = String(import.meta.env.VITE_USE_MOCK ?? "true") === "true";
 
@@ -41,15 +42,11 @@ export const generarRutaHoy = (params) =>
 export const getRutaActiva = (params) =>
   USE_MOCK ? getRutaActivaMock(params) : getRutaActivaApi(params);
 
-// ── Nuevas ────────────────────────────────────────────────────────────────────
-
 export const confirmarFechaRetiro = (params) =>
   USE_MOCK ? confirmarFechaRetiroMock(params) : confirmarFechaRetiroApi(params);
 
 export const completarParada = (params) =>
   USE_MOCK ? completarParadaMock(params) : completarParadaApi(params);
-
-// ── TripPlans ─────────────────────────────────────────────────────────────────
 
 export const listRutas = (params) =>
   USE_MOCK ? listRutasMock(params) : listRutasApi(params);
@@ -65,3 +62,8 @@ export const deleteRuta = (id) =>
 
 export const toggleRutaActiva = (id, activa) =>
   USE_MOCK ? updateRutaMock(id, { activa }) : toggleRutaActivaApi(id, activa);
+
+export const getEstadisticasComisionista = (comisionistaId) =>
+  USE_MOCK
+    ? getEstadisticasComisionistaMock(comisionistaId)
+    : getEstadisticasComisionistaApi(comisionistaId);

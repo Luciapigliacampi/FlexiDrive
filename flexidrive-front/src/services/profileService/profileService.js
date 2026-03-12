@@ -1,4 +1,5 @@
-// src/services/profileService/profileService.js
+import api from "../api";
+
 import {
   getDirecciones as _getDirecciones,
   addDireccion as _addDireccion,
@@ -11,12 +12,36 @@ import {
   deleteDestinatario as _deleteDestinatario,
 } from "../destinatariosService";
 
-// helper para soportar respuestas: array / {data:[]}/ {direcciones:[]}/{destinatarios:[]}
+const AUTH_BASE = import.meta.env.VITE_AUTH_API_URL || "http://localhost:3000";
+
 function normalizeList(data, key) {
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.[key])) return data[key];
   if (Array.isArray(data?.data)) return data.data;
   return [];
+}
+
+/* PERFIL */
+export async function getMyProfile() {
+  const res = await api.get(`${AUTH_BASE}/api/auth/me`);
+  const raw = res?.data || {};
+
+  const source = raw?.usuario
+    ? raw
+    : raw?.data?.usuario
+    ? raw.data
+    : { usuario: raw, rol: raw?.rol, comisionista: raw?.comisionista };
+
+  return {
+    ...(source?.usuario || {}),
+    rol: source?.rol || source?.usuario?.rol || "cliente",
+    comisionista: source?.comisionista ?? null,
+  };
+}
+
+export async function updateMyProfile(payload) {
+  const res = await api.put(`${AUTH_BASE}/api/auth/update`, payload);
+  return res?.data || {};
 }
 
 /* Direcciones */
