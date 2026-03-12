@@ -1,8 +1,7 @@
 //flexidrive-front\src\components\Sidebar.jsx
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { Home, Package, Route, CalendarDays, Wallet, User, Settings } from "lucide-react";
+import { Home, Package, Route, CalendarDays, Wallet, User, Settings, Car } from "lucide-react";
 import logo from "../assets/white-logo.png";
-import { useMemo } from "react";
 
 export default function SidebarComisionista() {
     const linkBase =
@@ -13,13 +12,15 @@ export default function SidebarComisionista() {
         { to: "/comisionista/dashboard", label: "Inicio", icon: Home },
         { to: "/comisionista/envios", label: "Envíos", icon: Package },
         { to: "/comisionista/rutas", label: "Gestión De Rutas", icon: Route },
+        { to: "/comisionista/vehiculos", label: "Vehículos", icon: Car },
         { to: "/comisionista/calendario", label: "Calendario", icon: CalendarDays },
         { to: "/comisionista/ganancias", label: "Ganancias", icon: Wallet },
         { to: "/comisionista/perfil", label: "Perfil", icon: User },
         { to: "/comisionista/ajustes", label: "Ajustes", icon: Settings },
     ];
     
-    const rol = useMemo(() => localStorage.getItem("rol") || "", [location.pathname]);
+ const rol = localStorage.getItem("rol") || "";
+
     
       const isLoggedIn = !!localStorage.getItem("token");
 
@@ -30,7 +31,7 @@ export default function SidebarComisionista() {
     case "cliente":
       return "/cliente/dashboard";
     case "comisionista":
-      return "/comisionista/DashboardComisionista";
+      return "/comisionista/Dashboard";
     case "admin":
       return "/admin"; 
     default:

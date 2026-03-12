@@ -18,19 +18,40 @@ export const registerUser = async (data) => {
   } = data;
 
   // 1. Validaciones
-  const existe = await Usuario.findOne({ email });
-  if (existe) throw new Error('Email ya registrado');
-
   const rolDB = await Rol.findById(rol);
   if (!rolDB) throw new Error('Rol inválido');
 
-  // 2. Hash contraseña y crear usuario
+  let usuario = await Usuario.findOne({ email });
+
+  if (usuario) {
+    // FIX: si el usuario existe pero nunca completó el TOTP (registro interrumpido),
+    // regeneramos el secreto temporal y retomamos el flujo desde el QR.
+    // Esto cubre el caso de "Volver al formulario" después de haber creado la cuenta.
+    if (usuario.totpSecret) {
+      // Ya tiene 2FA activo → es un registro duplicado real
+      throw new Error('Email ya registrado');
+    }
+
+    // Sin totpSecret → registro incompleto, regenerar QR
+    const secret = speakeasy.generateSecret({ length: 20 });
+    const secretBase32 = secret.base32;
+    const otpauthUrl = `otpauth://totp/FlexiDrive:${email}?secret=${secretBase32}&issuer=FlexiDrive`;
+
+    usuario.tempTotpSecret = secretBase32;
+    await usuario.save();
+
+    return {
+      message: 'Retomando configuración de seguridad.',
+      usuarioId: String(usuario._id),
+      otpauthUrl,
+    };
+  }
+
+  // 2. Hash contraseña y crear usuario nuevo
   const contraseña_hash = await bcrypt.hash(password, 10);
-  const usuario = await Usuario.create({
+  usuario = await Usuario.create({
     nombre, apellido, email, contraseña_hash,
     dni, fecha_nacimiento, telefono, estado: 'activo'
-    // ✅ NO se asigna totpSecret aquí → queda undefined/null
-    // El flujo de Setup 2FA lo genera cuando el usuario hace login por primera vez
   });
 
   // 3. Relación usuario - rol
@@ -44,10 +65,20 @@ export const registerUser = async (data) => {
     });
   }
 
-  // 5. Respuesta (sin otpauthUrl porque no se genera secret)
-  return { message: 'Usuario creado correctamente', usuarioId: usuario._id };
-};
+  // 5. Generar secreto TOTP
+  const secret = speakeasy.generateSecret({ length: 20 });
+  const secretBase32 = secret.base32;
+  const otpauthUrl = `otpauth://totp/FlexiDrive:${email}?secret=${secretBase32}&issuer=FlexiDrive`;
 
+  usuario.tempTotpSecret = secretBase32;
+  await usuario.save();
+
+  return {
+    message: 'Usuario creado correctamente',
+    usuarioId: String(usuario._id),
+    otpauthUrl,
+  };
+};
 
 export const checkUserProfile = async (userId) => {
   const usuario = await Usuario.findById(userId);
@@ -423,7 +454,6 @@ export const updateProfileService = async (tempToken, { dni, fecha_nacimiento, r
   // 1) Verificamos tempToken
   const decoded = verificarToken(tempToken);
 
-  // Solo permitimos completar perfil en step=setup
   if (decoded.step !== "setup") {
     throw new Error("Token inválido para completar perfil (step != setup).");
   }
@@ -431,16 +461,24 @@ export const updateProfileService = async (tempToken, { dni, fecha_nacimiento, r
   const userId = decoded.userId;
 
   // 2) Actualizamos datos básicos
-  const usuario = await Usuario.findByIdAndUpdate(
+  await Usuario.findByIdAndUpdate(
     userId,
-    { dni, fecha_nacimiento, telefono },
-    { new: true }
+    { dni, fecha_nacimiento, telefono }
   );
+
+  // ✅ Leer usuario fresco para tener totpSecret real (no el del objeto pre-update)
+  const usuario = await Usuario.findById(userId);
   if (!usuario) throw new Error("Usuario no encontrado");
 
-  // 3) Buscamos el rol por NOMBRE (porque rol viene como string)
-  const rolDB = await Rol.findOne({ nombre: rol }); // "cliente" | "comisionista"
-  if (!rolDB) throw new Error("Rol inválido");
+  console.log("✅ Usuario actualizado:", {
+    dni: usuario.dni,
+    fecha_nacimiento: usuario.fecha_nacimiento,
+    telefono: usuario.telefono,
+  });
+
+  // 3) Validar rol directamente — rolId en UsuarioRol es String
+  const rolesValidos = ["cliente", "comisionista"];
+  if (!rolesValidos.includes(rol)) throw new Error("Rol inválido");
 
   // 4) Upsert relación usuario-rol
   await UsuarioRol.findOneAndUpdate(
@@ -457,25 +495,11 @@ export const updateProfileService = async (tempToken, { dni, fecha_nacimiento, r
     }
   }
 
-  // 7) Recalcular “semáforos”
+  // 6) Recalcular estado del perfil
   const estadoPerfil = await checkUserProfile(userId);
-
-  if (rol === "comisionista") {
-    const newTemp = generarTokenTemporal({ userId, step: "setup" }); // seguimos en setup
-    return {
-      message: "Perfil básico completado. Falta completar datos de comisionista.",
-      next: "complete-comisionista",
-      requiresSetup: true,
-      tempToken: newTemp,
-      ...estadoPerfil,
-      rol,
-      usuario: { id: usuario._id, nombre: usuario.nombre, email: usuario.email }
-    };
-  }
-
-  // 8) Si es cliente, ya puede ir al paso de seguridad (2FA)
   const tiene2FA = !!usuario.totpSecret;
 
+  // 7) Respuesta según si ya tiene 2FA o no
   if (tiene2FA) {
     const newTemp = generarTokenTemporal({ userId, step: "totp" });
     return {
@@ -489,12 +513,14 @@ export const updateProfileService = async (tempToken, { dni, fecha_nacimiento, r
     };
   }
 
+  // ✅ usuarioId incluido para que CompleteProfile.jsx lo pase al modal Setup 2FA
   const newTemp = generarTokenTemporal({ userId, step: "setup" });
   return {
     message: "Perfil completado. Falta configurar 2FA.",
     next: "setup-2fa",
     requiresSetup: true,
     tempToken: newTemp,
+    usuarioId: String(usuario._id),
     ...estadoPerfil,
     rol,
     usuario: { id: usuario._id, nombre: usuario.nombre, email: usuario.email }

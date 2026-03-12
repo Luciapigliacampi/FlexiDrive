@@ -1,7 +1,6 @@
 // src/services/shipmentServices/shipmentService.js
 import api from "../api";
 
-const AUTH_BASE = import.meta.env.VITE_AUTH_API_URL || "http://localhost:3000";
 const ENVIO_BASE = import.meta.env.VITE_ENVIO_API_URL || "http://localhost:3001";
 const CAL_BASE = import.meta.env.VITE_CALIFICACIONES_API_URL || "http://localhost:3003";
 const VIAJES_BASE = import.meta.env.VITE_VIAJES_API_URL || "http://localhost:3004";
@@ -22,6 +21,12 @@ export const editarEnvio = (id, data) => api.put(`${ENVIO_BASE}/api/envios/${id}
 
 export const cancelarEnvio = (id) => api.delete(`${ENVIO_BASE}/api/envios/${id}`);
 
+export const archivarEnvio = (id) =>
+  api.patch(`${ENVIO_BASE}/api/envios/${id}/archivar`);
+
+export const eliminarEnvioLogico = (id) =>
+  api.patch(`${ENVIO_BASE}/api/envios/${id}/eliminar`);
+
 /* =========================
    COMISIONISTA (envio-service)
 ========================= */
@@ -33,35 +38,24 @@ export const aceptarEnvio = (data) => api.patch(`${ENVIO_BASE}/api/envios/acepta
 export const actualizarEstadoEnvio = (data) =>
   api.patch(`${ENVIO_BASE}/api/envios/actualizar-estado`, data);
 
+export const cancelarPorComisionista = (id) =>
+  api.patch(`${ENVIO_BASE}/api/envios/${id}/cancelar-comisionista`);
+
 /* =========================
    Buscar comisionistas (auth-service)
    GET /api/auth/comisionistas/habilitados (público)
 ========================= */
 
-export async function searchComisionistas({ fechaEntrega, origenCiudad, destinoCiudad, bultos }) {
+export async function searchComisionistas(params) {
+  const clean = Object.fromEntries(
+    Object.entries(params || {}).filter(([, v]) => v !== undefined && v !== null && v !== "")
+  );
+
   const res = await api.get(`${VIAJES_BASE}/api/search/comisionistas`, {
-    params: { fechaEntrega, origenCiudad, destinoCiudad, bultos },
+    params: clean,
   });
 
-
-  // // El back devuelve: [{ id, nombre, apellido, email, verificado }]
-  // const list = Array.isArray(res.data) ? res.data : [];
-
-  // // Adaptación para tu UI actual (precio/rating/eta todavía no vienen del back)
-  // const mapped = list.map((c, idx) => ({
-  //   id: c.id,
-  //   nombre: `${c.nombre} ${c.apellido || ""}`.trim(),
-  //   rating: 4.7, // placeholder hasta integrar reputación real
-  //   precioEstimado: 1200 + idx * 250, // placeholder hasta lógica de precios por ruta
-  //   // eta: "—",
-  //   verificado: !!c.verificado,
-  // }));
-
-  // return { data: mapped };
-
-
-  // devuelve { total, comisionistas }
-  return res.data
+  return res.data;
 }
 
 /* =========================
@@ -69,8 +63,15 @@ export async function searchComisionistas({ fechaEntrega, origenCiudad, destinoC
    POST /api/calificaciones  (requiere token + rol cliente)
 ========================= */
 
-export const mockRate = (payload) =>
-  api.post(`${CAL_BASE}/api/calificaciones`, payload);
+export async function calificarEnvio({ id, rating, comment }) {
+  const CAL_BASE = import.meta.env.VITE_CALIFICACIONES_API_URL || "http://localhost:3003";
+  const res = await api.post(`${CAL_BASE}/api/calificaciones`, {
+    envioId: id,
+    puntuacion: rating,
+    comentario: comment,
+  });
+  return res?.data ?? res;
+}
 
 /* =========================
    PAGO (todavía mock si no hay servicio pago)
@@ -80,8 +81,26 @@ export const mockPay = ({ method }) =>
     data: { ok: true, status: method === "mercadopago" ? "approved" : "registered" },
   });
 
-
-
-
 export const confirmarComisionistaEnEnvio = (envioId, data) =>
   api.patch(`${ENVIO_BASE}/api/envios/${envioId}/confirmar-comisionista`, data);
+
+export const marcarRetirado = (envioId) =>
+  api.patch(`${ENVIO_BASE}/api/envios/${envioId}/marcar-retirado`);
+
+export const marcarEntregado = (envioId) =>
+  api.patch(`${ENVIO_BASE}/api/envios/${envioId}/marcar-entregado`);
+
+export const iniciarViaje = (fecha) =>
+  api.post(`${ENVIO_BASE}/api/envios/comisionista/dashboard/iniciar-viaje`, { fecha });
+
+export const finalizarViaje = (fecha) =>
+  api.post(`${ENVIO_BASE}/api/envios/comisionista/dashboard/finalizar-viaje`, { fecha });
+
+export async function actualizarCalificacion({ id, rating, comment }) {
+  const CAL_BASE = import.meta.env.VITE_CALIFICACIONES_API_URL || "http://localhost:3003";
+  const res = await api.put(`${CAL_BASE}/api/calificaciones/envio/${id}`, {
+    puntuacion: rating,
+    comentario: comment,
+  });
+  return res?.data ?? res;
+}

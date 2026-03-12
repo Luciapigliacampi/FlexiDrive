@@ -1,24 +1,27 @@
+// microservicios/ia-route-service/src/index.js
 
-//microservicios\ia-route-service\src\index.js
+import 'dotenv/config'; 
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import routeRoutes from './routes/routeRoutes.js';
+import testRoutes from './routes/testRoutes.js';
 
-dotenv.config();
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// Conexión a DB (opcional si vas a guardar rutas, pero recomendado)
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('✅ MongoDB conectado (IA Service)'))
   .catch(err => console.error('❌ Error MongoDB:', err));
 
-// Rutas
 app.use('/api/rutas', routeRoutes);
+
+if (process.env.USE_TEST_DATE === 'true') {
+  app.use('/api/test', testRoutes);
+  console.log('⚠️  Modo TEST activo — /api/test disponible (ia-route-service)');
+}
 
 const PORT = process.env.PORT || 3002;
 app.listen(PORT, () => {

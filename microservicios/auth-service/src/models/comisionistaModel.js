@@ -10,27 +10,27 @@ const ComisionistaSchema = new mongoose.Schema({
   // Datos Bancarios del formulario
   entidadBancaria: {
     type: String,
-    required: true
+    required: false
   },
   nroCuenta: {
     type: String,
-    required: true
+    required: false
   },
   tipoCuenta: {
     type: String, // Ej: Caja de Ahorro, Cuenta Corriente
-    required: true
+    required: false
   },
   alias: {
     type: String,
-    required: true
+    required: false
   },
   cbu: {
     type: String,
-    required: true
+    required: false
   },
   cuit: { // Cambiado de cuil a cuit según diseño
     type: String,
-    required: true
+    required: false
   },
   // Verificación de Usuario (Subida de archivos)
   dniFrenteUrl: {

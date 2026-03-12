@@ -11,8 +11,14 @@ const DestinatarioSchema = new mongoose.Schema(
     telefono: { type: String, required: true, trim: true },
 
     direccion: { type: String, required: true, trim: true },
-    ciudad: { type: String, required: true, trim: true },
-    provincia: { type: String, required: true, trim: true },
+    provincia: {
+      provinciaId: { type: String, required: true, trim: true },
+      provinciaNombre: { type: String, required: true, trim: true },
+    },
+    localidad: {
+      localidadId: { type: String, required: true, trim: true },
+      localidadNombre: { type: String, required: true, trim: true },
+    },
     cp: { type: String, required: true, trim: true },
 
     // geo (nuevo)

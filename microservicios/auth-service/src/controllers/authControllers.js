@@ -216,16 +216,22 @@ export const updateProfile = async (req, res, next) => {
     const auth = req.headers.authorization || "";
     const tempToken = auth.startsWith("Bearer ") ? auth.slice(7) : "";
 
+    console.log("📥 Body recibido:", req.body);
+    console.log("🔑 TempToken recibido:", tempToken ? "SÍ" : "NO");
+
     if (!tempToken) throw new Error("Falta Authorization Bearer tempToken");
 
     // 2) Zod valida dni, fecha_nacimiento, rol ("cliente"|"comisionista")
     const parsed = updateProfileSchema.parse(req.body);
+
+     console.log("✅ Zod parsed:", parsed);
 
     // 3) Delegamos lógica al service
     const result = await updateProfileService(tempToken, parsed);
 
     return res.status(200).json(result);
   } catch (err) {
+    console.log("❌ Error en updateProfile:", err.message, err.issues || "");
     return next(err);
   }
 };
@@ -511,7 +517,7 @@ export const updateFullProfile = async (req, res, next) => {
     // 4. LÓGICA DE COMISIONISTA
     const relacion = await UsuarioRol.findOne({ usuarioId: userId });
 
-    if (relacion && relacion.rolId === 'admin') { // O 'comisionista', según tu ID
+    if (relacion && relacion.rolId === 'comisionista') { // O 'comisionista', según tu ID
       // Si mandó datos bancarios, los actualizamos
       if (datosBancarios) {
         await Comisionista.findOneAndUpdate(
@@ -734,10 +740,36 @@ export const updateReputacionComisionista = async (req, res, next) => {
 // ===============================
 // Direcciones frecuentes (ORIGEN)
 // ===============================
+
+// Helpers: normalizar provincia/localidad desde body (acepta 2 formatos)
+function pickProvincia(body) {
+  const p = body?.provincia && typeof body.provincia === "object" ? body.provincia : null;
+  const provinciaId = (p?.provinciaId ?? body?.provinciaId ?? "").toString().trim();
+  const provinciaNombre = (p?.provinciaNombre ?? body?.provinciaNombre ?? "").toString().trim();
+  return { provinciaId, provinciaNombre };
+}
+
+function pickLocalidad(body) {
+  const l = body?.localidad && typeof body.localidad === "object" ? body.localidad : null;
+  const localidadId = (l?.localidadId ?? body?.localidadId ?? "").toString().trim();
+  const localidadNombre = (l?.localidadNombre ?? body?.localidadNombre ?? "").toString().trim();
+  return { localidadId, localidadNombre };
+}
+
+// Para responder “compatible” con el front (strings) sin guardar legacy
+function addLegacyStrings(doc) {
+  const o = doc?.toObject ? doc.toObject() : doc;
+  return {
+    ...o,
+    ciudad: o?.localidad?.localidadNombre ?? "",      // legacy para UI vieja
+    provincia: o?.provincia?.provinciaNombre ?? "",   // legacy para UI vieja
+  };
+}
+
 export const getMisDirecciones = async (req, res) => {
   try {
     const list = await DireccionFrecuente.find({ userId: req.userId }).sort({ createdAt: -1 });
-    return res.status(200).json(list);
+    return res.status(200).json(list.map(addLegacyStrings));
   } catch (e) {
     return res.status(500).json({ error: "Error al obtener direcciones." });
   }
@@ -745,25 +777,54 @@ export const getMisDirecciones = async (req, res) => {
 
 export const addMiDireccion = async (req, res) => {
   try {
-    const { alias, direccion, ciudad, provincia, cp, placeId, lat, lng } = req.body;
+    const { alias, direccion, cp, placeId, lat, lng } = req.body;
 
-    if (!alias || !direccion || !ciudad || !provincia || !cp || !placeId || lat == null || lng == null) {
+    // ✅ NUEVO: provincia/localidad estructurados
+    const provincia = pickProvincia(req.body);
+    const localidad = pickLocalidad(req.body);
+
+    // Validaciones base
+    if (!alias || !direccion || !cp || !placeId || lat == null || lng == null) {
       return res.status(400).json({ error: "Faltan campos obligatorios." });
+    }
+
+    // Validaciones de provincia/localidad
+    if (!provincia.provinciaId || !provincia.provinciaNombre) {
+      return res.status(400).json({
+        error: "Error de validación",
+        detalles: [{ campo: "provincia", mensaje: "provinciaId y provinciaNombre son obligatorios." }],
+      });
+    }
+
+    if (!localidad.localidadId || !localidad.localidadNombre) {
+      return res.status(400).json({
+        error: "Error de validación",
+        detalles: [{ campo: "localidad", mensaje: "localidadId y localidadNombre son obligatorios." }],
+      });
     }
 
     const created = await DireccionFrecuente.create({
       userId: req.userId,
       alias: String(alias).trim(),
       direccion: String(direccion).trim(),
-      ciudad: String(ciudad).trim(),
-      provincia: String(provincia).trim(),
+
+      // ✅ lo nuevo
+      provincia: {
+        provinciaId: provincia.provinciaId,
+        provinciaNombre: provincia.provinciaNombre,
+      },
+      localidad: {
+        localidadId: localidad.localidadId,
+        localidadNombre: localidad.localidadNombre,
+      },
+
       cp: String(cp).trim(),
       placeId: String(placeId).trim(),
       lat: Number(lat),
       lng: Number(lng),
     });
 
-    return res.status(201).json(created);
+    return res.status(201).json(addLegacyStrings(created));
   } catch (e) {
     return res.status(500).json({ error: "Error al guardar dirección." });
   }
@@ -785,10 +846,11 @@ export const deleteMiDireccion = async (req, res) => {
 // ===============================
 // Destinatarios (DESTINO)
 // ===============================
+
 export const getMisDestinatarios = async (req, res) => {
   try {
     const list = await Destinatario.find({ userId: req.userId }).sort({ createdAt: -1 });
-    return res.status(200).json(list);
+    return res.status(200).json(list.map(addLegacyStrings));
   } catch (e) {
     return res.status(500).json({ error: "Error al obtener destinatarios." });
   }
@@ -798,14 +860,30 @@ export const addMiDestinatario = async (req, res) => {
   try {
     const {
       apellido, nombre, dni, telefono,
-      direccion, ciudad, provincia, cp,
+      direccion, cp,
       placeId, lat, lng,
     } = req.body;
 
+    const provincia = pickProvincia(req.body);
+    const localidad = pickLocalidad(req.body);
+
     // ✅ Validación completa
-    if (!apellido || !nombre || !dni || !telefono || !direccion ||
-      !ciudad || !provincia || !cp || !placeId || lat == null || lng == null) {
+    if (!apellido || !nombre || !dni || !telefono || !direccion || !cp || !placeId || lat == null || lng == null) {
       return res.status(400).json({ error: "Faltan campos obligatorios." });
+    }
+
+    if (!provincia.provinciaId || !provincia.provinciaNombre) {
+      return res.status(400).json({
+        error: "Error de validación",
+        detalles: [{ campo: "provincia", mensaje: "provinciaId y provinciaNombre son obligatorios." }],
+      });
+    }
+
+    if (!localidad.localidadId || !localidad.localidadNombre) {
+      return res.status(400).json({
+        error: "Error de validación",
+        detalles: [{ campo: "localidad", mensaje: "localidadId y localidadNombre son obligatorios." }],
+      });
     }
 
     const dniStr = String(dni).trim();
@@ -815,21 +893,29 @@ export const addMiDestinatario = async (req, res) => {
 
     const created = await Destinatario.create({
       userId: req.userId,
-      // ✅ "alias" eliminado: no existe en el modelo DestinatarioSchema
       apellido: String(apellido).trim(),
       nombre: String(nombre).trim(),
       dni: dniStr,
       telefono: String(telefono).trim(),
       direccion: String(direccion).trim(),
-      ciudad: String(ciudad).trim(),
-      provincia: String(provincia).trim(),
+
+      // ✅ lo nuevo
+      provincia: {
+        provinciaId: provincia.provinciaId,
+        provinciaNombre: provincia.provinciaNombre,
+      },
+      localidad: {
+        localidadId: localidad.localidadId,
+        localidadNombre: localidad.localidadNombre,
+      },
+
       cp: String(cp).trim(),
       placeId: String(placeId).trim(),
       lat: Number(lat),
       lng: Number(lng),
     });
 
-    return res.status(201).json(created);
+    return res.status(201).json(addLegacyStrings(created));
   } catch (e) {
     return res.status(500).json({ error: "Error al guardar destinatario." });
   }
@@ -845,5 +931,64 @@ export const deleteMiDestinatario = async (req, res) => {
     return res.status(200).json({ ok: true });
   } catch (e) {
     return res.status(500).json({ error: "Error al eliminar destinatario." });
+  }
+};
+
+export const updateVehiculo = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId; // del authMiddleware
+
+    // Solo campos editables — nunca tocamos comisionistaId ni verificado
+    const { nombre, tipo, marca, modelo, patente, adicionales, capacidad } = req.body;
+
+    const actualizado = await Vehiculo.findOneAndUpdate(
+      { _id: id, comisionistaId: userId }, // seguridad: solo su propio vehículo
+      { $set: { nombre, tipo, marca, modelo, patente: patente?.toUpperCase(), adicionales, capacidad } },
+      { new: true, runValidators: true }
+    );
+
+    if (!actualizado) {
+      return res.status(404).json({ message: "Vehículo no encontrado o no autorizado." });
+    }
+
+    return res.status(200).json({
+      message: "Vehículo actualizado con éxito.",
+      vehiculo: actualizado,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /api/auth/vehicles/:id
+export const deleteVehiculo = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    const eliminado = await Vehiculo.findOneAndDelete({
+      _id: id,
+      comisionistaId: userId, // seguridad: solo su propio vehículo
+    });
+
+    if (!eliminado) {
+      return res.status(404).json({ message: "Vehículo no encontrado o no autorizado." });
+    }
+
+    return res.status(200).json({ ok: true, message: "Vehículo eliminado." });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getDestinatarioById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dest = await Destinatario.findById(id).select("apellido nombre dni telefono");
+    if (!dest) return res.status(404).json({ error: "Destinatario no encontrado." });
+    res.status(200).json(dest);
+  } catch (e) {
+    res.status(500).json({ error: "Error al obtener destinatario." });
   }
 };

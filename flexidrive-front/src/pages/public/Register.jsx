@@ -4,7 +4,6 @@ import heroImg from "../../assets/hero.svg";
 import { registerUser } from "../../services/authService";
 import { Eye, EyeOff } from "lucide-react";
 
-// Helper para leer errores de axios
 function getApiErrorMessage(err, fallback = "Ocurrió un error.") {
   const data = err?.response?.data;
 
@@ -15,10 +14,18 @@ function getApiErrorMessage(err, fallback = "Ocurrió un error.") {
   return data?.error || data?.message || err?.message || fallback;
 }
 
+function formatDNIInput(value) {
+  const clean = String(value || "").replace(/\D/g, "").slice(0, 8);
+  return clean.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+function unformatDNI(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
 export default function Register() {
   const navigate = useNavigate();
 
-  // form
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
   const [email, setEmail] = useState("");
@@ -29,12 +36,10 @@ export default function Register() {
   const [fechaNacimiento, setFechaNacimiento] = useState("");
   const [rol, setRol] = useState("cliente");
 
-  // ui
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // show/hide password
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -49,7 +54,7 @@ export default function Register() {
       apellido: apellido.trim(),
       email: email.trim(),
       password,
-      dni: Number(dni),
+      dni: Number(unformatDNI(dni)),
       telefono: String(telefono).trim(),
       fecha_nacimiento: fechaNacimiento,
       rol,
@@ -63,7 +68,6 @@ export default function Register() {
     setSuccess("");
     setLoading(true);
 
-    // validaciones mínimas front
     if (!/^\d+$/.test(String(telefono))) {
       setLoading(false);
       setError("El teléfono debe tener solo números.");
@@ -82,7 +86,7 @@ export default function Register() {
       return;
     }
 
-    if (!/^\d+$/.test(String(dni))) {
+    if (!/^\d+$/.test(unformatDNI(dni))) {
       setLoading(false);
       setError("El DNI debe tener solo números.");
       return;
@@ -91,16 +95,11 @@ export default function Register() {
     try {
       const data = await registerUser(payload);
 
-      // ✅ CORRECCIÓN:
-      // Tu backend actual NO devuelve otpauthUrl en el registro.
-      // Devuelve algo como:
-      // { message: "Usuario creado correctamente", usuarioId: "..." }
       if (data?.message || data?.usuarioId) {
         setSuccess(
           "Cuenta creada correctamente. Ahora iniciá sesión para configurar tu verificación TOTP."
         );
 
-        // Redirigimos al login después de un instante
         setTimeout(() => {
           navigate("/auth/login", {
             replace: true,
@@ -129,7 +128,6 @@ export default function Register() {
       <section className="bg-slate-100">
         <div className="mx-auto max-w-7xl px-6 sm:px-10 lg:px-4 py-16">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 xl:gap-12 items-start">
-            {/* IZQUIERDA */}
             <div className="lg:col-span-5">
               <h1 className="font-organetto text-xl sm:text-2xl font-extrabold tracking-tight text-blue-700 leading-10">
                 CREÁ TU CUENTA <br /> EN FLEXIDRIVE
@@ -149,7 +147,6 @@ export default function Register() {
               </div>
             </div>
 
-            {/* DERECHA - CARD */}
             <div className="lg:col-span-7">
               <div className="bg-slate-100/80 border border-slate-300 rounded-2xl p-7">
                 {error ? (
@@ -196,7 +193,6 @@ export default function Register() {
                     />
                   </div>
 
-                  {/* Password + toggle */}
                   <div className="sm:col-span-2">
                     <label className="block text-sm text-slate-700 mb-2">Contraseña</label>
                     <div className="relative">
@@ -218,7 +214,6 @@ export default function Register() {
                     </div>
                   </div>
 
-                  {/* Confirm Password */}
                   <div className="sm:col-span-2">
                     <label className="block text-sm text-slate-700 mb-2">
                       Confirmar contraseña
@@ -238,9 +233,7 @@ export default function Register() {
                         onClick={() => setShowConfirmPassword((v) => !v)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center rounded-md p-2 text-slate-600 hover:text-blue-700 hover:bg-slate-100 transition"
                         aria-label={
-                          showConfirmPassword
-                            ? "Ocultar contraseña"
-                            : "Mostrar contraseña"
+                          showConfirmPassword ? "Ocultar contraseña" : "Mostrar contraseña"
                         }
                       >
                         {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -248,9 +241,7 @@ export default function Register() {
                     </div>
 
                     {!passwordsMatch ? (
-                      <p className="mt-1 text-xs text-red-600">
-                        Las contraseñas no coinciden.
-                      </p>
+                      <p className="mt-1 text-xs text-red-600">Las contraseñas no coinciden.</p>
                     ) : null}
                   </div>
 
@@ -258,8 +249,9 @@ export default function Register() {
                     <label className="block text-sm text-slate-700 mb-2">DNI</label>
                     <input
                       value={dni}
-                      onChange={(e) => setDni(e.target.value.replace(/\D/g, ""))}
+                      onChange={(e) => setDni(formatDNIInput(e.target.value))}
                       inputMode="numeric"
+                      placeholder="11.111.111"
                       required
                       className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
                     />
@@ -281,9 +273,7 @@ export default function Register() {
                       required
                       className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
                     />
-                    <p className="mt-1 text-xs text-slate-500">
-                      Código de área + número.
-                    </p>
+                    <p className="mt-1 text-xs text-slate-500">Código de área + número.</p>
                   </div>
 
                   <div>

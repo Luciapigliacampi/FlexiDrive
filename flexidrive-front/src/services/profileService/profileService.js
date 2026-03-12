@@ -14,7 +14,6 @@ import {
 
 const AUTH_BASE = import.meta.env.VITE_AUTH_API_URL || "http://localhost:3000";
 
-// helper para soportar respuestas: array / {data:[]}/ {direcciones:[]}/{destinatarios:[]}
 function normalizeList(data, key) {
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.[key])) return data[key];
@@ -27,10 +26,6 @@ export async function getMyProfile() {
   const res = await api.get(`${AUTH_BASE}/api/auth/me`);
   const raw = res?.data || {};
 
-  // Soporta varias formas de respuesta del backend
-  // 1) { usuario: {...}, rol, comisionista }
-  // 2) { ...usuario, rol }
-  // 3) { data: { usuario: {...}, rol } }
   const source = raw?.usuario
     ? raw
     : raw?.data?.usuario
@@ -44,6 +39,11 @@ export async function getMyProfile() {
   };
 }
 
+export async function updateMyProfile(payload) {
+  const res = await api.put(`${AUTH_BASE}/api/auth/update`, payload);
+  return res?.data || {};
+}
+
 /* Direcciones */
 export async function getDirecciones() {
   const data = await _getDirecciones();
@@ -51,7 +51,8 @@ export async function getDirecciones() {
 }
 
 export async function addDireccion(payload) {
-  const data = await _addDireccion(payload);
+  const res = await _addDireccion(payload);
+  const data = res?.data ?? res;
   return data?.direccion ?? data?.data ?? data;
 }
 
@@ -66,7 +67,8 @@ export async function getDestinatarios() {
 }
 
 export async function addDestinatario(payload) {
-  const data = await _addDestinatario(payload);
+  const res = await _addDestinatario(payload);
+  const data = res?.data ?? res;
   return data?.destinatario ?? data?.data ?? data;
 }
 

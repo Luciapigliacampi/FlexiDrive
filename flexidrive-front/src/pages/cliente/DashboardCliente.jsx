@@ -6,8 +6,8 @@ import bgImg from "../../assets/background-dashboard-cliente.png";
 
 import helpIcon from "../../assets/help-icon.png";
 import mapIcon from "../../assets/direcciones-mapa.png";
-import cardIcon from "../../assets/card.png";
-import cardIdIcon from "../../assets/card-id.png";
+import statsIcon from "../../assets/stats-icon.svg";
+import destinatariosIcon from "../../assets/destinatarios-icon.svg";
 
 import { getMyShipments } from "../../services/shipmentServices";
 
@@ -33,10 +33,10 @@ export default function DashboardCliente() {
         const list = Array.isArray(data)
           ? data
           : Array.isArray(data?.envios)
-          ? data.envios
-          : Array.isArray(data?.historial)
-          ? data.historial
-          : [];
+            ? data.envios
+            : Array.isArray(data?.historial)
+              ? data.historial
+              : [];
 
         if (alive) {
           setEnvios(list);
@@ -105,7 +105,7 @@ export default function DashboardCliente() {
           <div className="relative z-10 mx-auto max-w-7xl px-6 sm:px-10 lg:px-4 pt-4">
             <div>
               <h1 className="text-4xl font-bold tracking-tight text-slate-700">
-                Hola, {username}
+                ¡Hola, {username}!
               </h1>
               <p className="mt-2 text-lg font-semibold text-slate-600">
                 ¿Qué querés hacer hoy?
@@ -201,15 +201,19 @@ export default function DashboardCliente() {
               </div>
 
               <div className="grid grid-cols-1 lg:col-span-1 h-full place-content-between ml-4">
-                <QuickLink to="/cliente/datos" label="Mis Datos" icon={cardIdIcon} />
                 <QuickLink
-                  to="/cliente/metodos-pago"
-                  label="Métodos de pago"
-                  icon={cardIcon}
+                  to="/cliente/estadisticas"
+                  label="Estadísticas"
+                  icon={statsIcon}
+                />
+                <QuickLink
+                  to="/cliente/destinatarios"
+                  label="Destinatarios frecuentes"
+                  icon={destinatariosIcon}
                 />
                 <QuickLink
                   to="/cliente/direcciones"
-                  label="Direcciones frecuentes"
+                  label="Mis direcciones"
                   icon={mapIcon}
                 />
                 <QuickLink
@@ -272,7 +276,6 @@ function normalizeEstado(value) {
 
   if (!raw) return "";
 
-  // completados
   if (
     raw === "ENTREGADO" ||
     raw === "COMPLETADO" ||
@@ -283,7 +286,6 @@ function normalizeEstado(value) {
     return "ENTREGADO";
   }
 
-  // activos
   if (
     raw === "PENDIENTE" ||
     raw === "CREADO" ||
@@ -309,7 +311,6 @@ function normalizeEstado(value) {
     return "EN_CAMINO";
   }
 
-  // cancelados / archivados
   if (
     raw === "CANCELADO" ||
     raw === "CANCELADA" ||
@@ -362,7 +363,7 @@ function QuickLink({ to, label, icon, className = "", big = false }) {
       className={`
         flex items-center gap-4 rounded-xl border border-slate-200 bg-white
         ${big ? "px-4 py-4" : "p-3"}
-        shadow-sm hover:bg-slate-80 transition
+        shadow-sm hover:bg-slate-50 transition
         ${className}
       `}
     >
@@ -388,8 +389,8 @@ function EnvioRow({ id, estado, variant }) {
     variant === "warning"
       ? "bg-yellow-100 text-yellow-800"
       : variant === "info"
-      ? "bg-blue-100 text-blue-800"
-      : "bg-green-100 text-green-800";
+        ? "bg-blue-100 text-blue-800"
+        : "bg-green-100 text-green-800";
 
   return (
     <div className="flex items-center justify-between border-b border-slate-200 py-2">

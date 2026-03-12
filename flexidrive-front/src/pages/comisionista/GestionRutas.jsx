@@ -1,7 +1,6 @@
-//flexidrive-front\src\pages\comisionista\GestionRutas.jsx
+// flexidrive-front/src/pages/comisionista/GestionRutas.jsx
 import { useEffect, useMemo, useState } from "react";
 import {
-  MoreVertical,
   Pencil,
   Trash2,
   Plus,
@@ -16,13 +15,29 @@ import {
   createRuta,
   updateRuta,
   deleteRuta,
+  toggleRutaActiva,
 } from "../../services/comisionistaServices";
+import { rutaToTripPlanPayload } from "../../services/tripPlanMappers";
+import { useSearchParams } from "react-router-dom";
+
+// FIX #2: helper para obtener el id de una ruta de forma consistente,
+// ya que el backend puede devolver ._id o .id según el contexto.
+function getRutaId(ruta) {
+  return ruta?._id ?? ruta?.id ?? "";
+}
 
 export default function GestionRutas() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [q, setQ] = useState("");
+  const [searchParams] = useSearchParams();
+
+  // FIX #4: sincronizar q con searchParams cuando cambian
+  const [q, setQ] = useState(searchParams.get("q") || "");
+  useEffect(() => {
+    setQ(searchParams.get("q") || "");
+  }, [searchParams]);
+
   const [rutas, setRutas] = useState([]);
 
   const [openModal, setOpenModal] = useState(false);
@@ -64,10 +79,13 @@ export default function GestionRutas() {
 
   async function onSave(payloadRutaUI) {
     try {
-      if (editRuta?.id) {
-        await updateRuta(editRuta.id, payloadRutaUI);
+      const payload = rutaToTripPlanPayload(payloadRutaUI);
+      // FIX #2: usar getRutaId en lugar de editRuta?.id para ser consistente
+      const id = getRutaId(editRuta);
+      if (id) {
+        await updateRuta(id, payload);
       } else {
-        await createRuta(payloadRutaUI);
+        await createRuta(payload);
       }
       setOpenModal(false);
       await load();
@@ -90,7 +108,8 @@ export default function GestionRutas() {
 
   async function toggleActiva(r) {
     try {
-      await updateRuta(r.id, { activa: !r.activa });
+      // FIX #2: usar getRutaId para consistencia
+      await toggleRutaActiva(getRutaId(r), !r.activa);
       await load();
     } catch (e) {
       alert(e?.message || "No se pudo actualizar el estado de la ruta.");
@@ -104,9 +123,7 @@ export default function GestionRutas() {
       {/* Header */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-800">
-            Gestión de rutas
-          </h1>
+          <h1 className="text-3xl font-extrabold text-slate-800">Gestión de rutas</h1>
           <p className="text-slate-600 font-semibold">
             Administrá las rutas que realizás ({count})
           </p>
@@ -146,23 +163,25 @@ export default function GestionRutas() {
       {/* List */}
       <div className="grid grid-cols-1 gap-4">
         {loading ? (
-          <div className="rounded-xl border bg-white p-6 text-slate-500">
-            Cargando rutas...
-          </div>
+          <div className="rounded-xl border bg-white p-6 text-slate-500">Cargando rutas...</div>
         ) : rutas.length === 0 ? (
           <div className="rounded-xl border bg-white p-6 text-slate-500">
-            No tenés rutas cargadas. Creá una con “Nueva ruta”.
+            No tenés rutas cargadas. Creá una con "Nueva ruta".
           </div>
         ) : (
-          rutas.map((r) => (
-            <RutaCard
-              key={r.id}
-              ruta={r}
-              onEdit={() => openEdit(r)}
-              onDelete={() => onDelete(r.id)}
-              onToggle={() => toggleActiva(r)}
-            />
-          ))
+          rutas.map((r) => {
+            // FIX #2: key y callbacks usan getRutaId
+            const id = getRutaId(r);
+            return (
+              <RutaCard
+                key={id}
+                ruta={r}
+                onEdit={() => openEdit(r)}
+                onDelete={() => onDelete(id)}
+                onToggle={() => toggleActiva(r)}
+              />
+            );
+          })
         )}
       </div>
 
@@ -180,113 +199,155 @@ export default function GestionRutas() {
 /* ----------------- Card ----------------- */
 
 function RutaCard({ ruta, onEdit, onDelete, onToggle }) {
+  const [expanded, setExpanded] = useState(false);
+
   const origen = ruta?.origen?.localidadNombre || "—";
   const destino = ruta?.destino?.localidadNombre || "—";
   const intermedias = Array.isArray(ruta?.intermedias) ? ruta.intermedias : [];
   const dias = Array.isArray(ruta?.dias) ? ruta.dias : [];
   const activa = ruta?.activa ?? true;
-
-  const precios = Array.isArray(ruta?.preciosPorLocalidad)
-    ? ruta.preciosPorLocalidad
-    : [];
+  const precios = Array.isArray(ruta?.preciosPorLocalidad) ? ruta.preciosPorLocalidad : [];
   const preciosCount = precios.length;
+  const descuento = ruta?.descuentoPorBultos;
+  const tieneDescuento =
+    descuento && Number(descuento.valor) > 0 && Number(descuento.minBultos) > 0;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="text-lg font-extrabold text-slate-800">
-              {origen} <span className="text-slate-400">→</span> {destino}
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm transition-all">
+      {/* Cabecera clickeable */}
+      <div
+        className="p-4 cursor-pointer select-none"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-2 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="text-lg font-extrabold text-slate-800">
+                {origen} <span className="text-slate-400">→</span> {destino}
+              </div>
+              <span
+                className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                  activa
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-slate-100 text-slate-600"
+                }`}
+              >
+                {activa ? "Activa" : "Pausada"}
+              </span>
+              {preciosCount > 0 ? (
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700">
+                  {preciosCount} localidades con precio
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700">
+                  Sin precios
+                </span>
+              )}
+              {tieneDescuento && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700">
+                  Descuento desde {descuento.minBultos} bultos
+                </span>
+              )}
             </div>
 
-            <span
-              className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                activa
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "bg-slate-100 text-slate-600"
-              }`}
-            >
-              {activa ? "Activa" : "Pausada"}
-            </span>
-
-            {preciosCount > 0 ? (
-              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700">
-                Precios cargados: {preciosCount} localidades
-              </span>
-            ) : (
-              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700">
-                Sin precios
-              </span>
-            )}
-          </div>
-
-          {/* Días */}
-          <div className="flex flex-wrap gap-2">
-            {dias.map((d) => (
-              <span
-                key={d}
-                className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold"
-              >
-                {d}
-              </span>
-            ))}
-          </div>
-
-          {/* Intermedias */}
-          {intermedias.length > 0 ? (
+            {/* Días */}
             <div className="flex flex-wrap gap-2">
-              {intermedias.map((x, idx) => (
+              {dias.map((d) => (
                 <span
-                  key={`${x.localidadNombre}-${idx}`}
-                  className="px-3 py-1 rounded-full bg-blue-50 text-blue-800 text-xs font-bold"
+                  key={d}
+                  className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold"
                 >
-                  {x.localidadNombre}
+                  {d}
                 </span>
               ))}
             </div>
-          ) : (
-            <div className="text-xs text-slate-500 font-semibold">
-              Sin localidades intermedias
-            </div>
-          )}
 
-          {/* Preview precios */}
-          {preciosCount > 0 ? (
-            <div className="text-xs text-slate-600 font-semibold">
-              Ej:{" "}
-              {precios
-                .slice(0, 2)
-                .map((p) => `${p.localidadNombre}: $${p.precioPorBulto}/bulto`)
-                .join(" · ")}
-              {preciosCount > 2 ? " · ..." : ""}
-            </div>
-          ) : null}
+            {/* Intermedias (resumen) */}
+            {intermedias.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {intermedias.map((x, idx) => (
+                  <span
+                    key={`${x.localidadNombre}-${idx}`}
+                    className="px-3 py-1 rounded-full bg-blue-50 text-blue-800 text-xs font-bold"
+                  >
+                    {x.localidadNombre}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-slate-500 font-semibold">
+                Sin localidades intermedias
+              </div>
+            )}
+          </div>
+
+          {/* Acciones */}
+          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <IconBtn title="Editar" onClick={onEdit}>
+              <Pencil className="h-4 w-4 text-blue-700" />
+            </IconBtn>
+            <IconBtn title="Eliminar" onClick={onDelete}>
+              <Trash2 className="h-4 w-4 text-blue-700" />
+            </IconBtn>
+            <IconBtn title={activa ? "Pausar" : "Activar"} onClick={onToggle}>
+              {activa ? (
+                <PauseCircle className="h-4 w-4 text-blue-700" />
+              ) : (
+                <PlayCircle className="h-4 w-4 text-blue-700" />
+              )}
+            </IconBtn>
+          </div>
         </div>
 
-        {/* Acciones */}
-        <div className="flex items-center gap-2">
-          <IconBtn title="Editar" onClick={onEdit}>
-            <Pencil className="h-4 w-4 text-blue-700" />
-          </IconBtn>
-
-          <IconBtn title="Eliminar" onClick={onDelete}>
-            <Trash2 className="h-4 w-4 text-blue-700" />
-          </IconBtn>
-
-          <IconBtn title={activa ? "Pausar" : "Activar"} onClick={onToggle}>
-            {activa ? (
-              <PauseCircle className="h-4 w-4 text-blue-700" />
-            ) : (
-              <PlayCircle className="h-4 w-4 text-blue-700" />
-            )}
-          </IconBtn>
-
-          <IconBtn title="Más opciones" onClick={() => console.log("más")}>
-            <MoreVertical className="h-4 w-4 text-blue-700" />
-          </IconBtn>
+        {/* Indicador expandir */}
+        <div className="mt-2 flex items-center gap-1 text-xs text-slate-400 font-semibold">
+          <span>{expanded ? "▲ Ocultar detalle" : "▼ Ver precios y detalle"}</span>
         </div>
       </div>
+
+      {/* Panel expandido */}
+      {expanded && (
+        <div className="border-t border-slate-100 px-4 pb-4 pt-3 space-y-4">
+          {/* Tabla de precios */}
+          <div>
+            <div className="text-sm font-bold text-slate-700 mb-2">Precios por localidad</div>
+            {precios.length === 0 ? (
+              <div className="text-sm text-slate-500">Sin precios cargados.</div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {precios.map((p) => (
+                  <div
+                    key={p.localidadNombre}
+                    className="flex items-center justify-between rounded-lg border bg-slate-50 px-3 py-2"
+                  >
+                    <span className="text-sm font-semibold text-slate-700">
+                      {p.localidadNombre}
+                    </span>
+                    <span className="text-sm font-extrabold text-blue-700">
+                      ${p.precioPorBulto}/bulto
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Descuento */}
+          <div>
+            <div className="text-sm font-bold text-slate-700 mb-2">Descuento por cantidad</div>
+            {tieneDescuento ? (
+              <div className="rounded-lg border bg-purple-50 px-3 py-2 text-sm text-purple-800 font-semibold">
+                Desde <strong>{descuento.minBultos}</strong> bultos:{" "}
+                {descuento.tipo === "porcentaje"
+                  ? `${descuento.valor}% de descuento`
+                  : `$${descuento.valor} de descuento por bulto`}
+              </div>
+            ) : (
+              <div className="text-sm text-slate-500">Sin descuento configurado.</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import heroImg from "../../assets/hero.svg";
 
 export default function Home() {
   return (
-    <main className="bg-slate-80">
+    <main className="bg-slate-50">
       <section className="bg-slate-100">
         <div className="mx-auto max-w-7xl px-6 sm:px-10 lg:px-4 py-20">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-6 items-center">

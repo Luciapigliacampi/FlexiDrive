@@ -1,7 +1,7 @@
 //microservicios\auth-service\src\routes\authRoutes.js
 import { Router } from 'express';
 import { register, login, verifyTotp, enableTotp, confirmTotp, resetTotp, googleLogin, updateProfile, updateComisionistaData, updateComisionistaDataTemp, approveComisionista, getMyFullProfile, updateFullProfile, disableAccount, adminDisableUser, registerVehiculo, getMyVehicles, approveVehiculo, getComisionistasHabilitados, getUserPublicInfo, getMyStatus, getPublicComisionistaProfile, updateReputacionComisionista, getMisDirecciones, addMiDireccion, deleteMiDireccion,
-  getMisDestinatarios, addMiDestinatario, deleteMiDestinatario} from '../controllers/authControllers.js';
+  getMisDestinatarios, addMiDestinatario, deleteMiDestinatario, updateVehiculo, deleteVehiculo, getDestinatarioById } from '../controllers/authControllers.js';
 import { authMiddleware, isAdmin } from '../middlewares/authMiddleware.js'; // <-- Importalo acá
 import { upload } from '../middlewares/uploadMiddleware.js'; // <-- 1. Importá el middleware de subida
 const router = Router();
@@ -42,6 +42,8 @@ router.patch('/admin/disable-user', authMiddleware, isAdmin, adminDisableUser);
 
 // Registro de vehículo para comisionistas
 router.post('/register-vehiculo', authMiddleware, registerVehiculo);
+router.put('/vehicles/:id',    authMiddleware, updateVehiculo);
+router.delete('/vehicles/:id', authMiddleware, deleteVehiculo);
 
 // Listado de vehículos propios
 router.get('/my-vehicles', authMiddleware, getMyVehicles);
@@ -73,6 +75,7 @@ router.delete("/direcciones/:id", authMiddleware, deleteMiDireccion);
 router.get("/destinatarios", authMiddleware, getMisDestinatarios);
 router.post("/destinatarios", authMiddleware, addMiDestinatario);
 router.delete("/destinatarios/:id", authMiddleware, deleteMiDestinatario);
+router.get("/destinatarios/:id", authMiddleware, getDestinatarioById);
 
 //obtener datos para micro envio
 router.get('/:id', authMiddleware, getUserPublicInfo);

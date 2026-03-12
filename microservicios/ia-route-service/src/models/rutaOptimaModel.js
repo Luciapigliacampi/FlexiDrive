@@ -1,23 +1,33 @@
-//microservicios\ia-route-service\src\models\rutaOptimaModel.js
+// microservicios/ia-route-service/src/models/rutaOptimaModel.js
 import mongoose from 'mongoose';
 
+const paradaSchema = new mongoose.Schema({
+  envioId:                 { type: mongoose.Schema.Types.ObjectId, ref: 'Envio', required: true },
+  nro_envio:               { type: String },
+  orden:                   { type: Number, required: true },
+  tipo:                    { type: String, enum: ['RETIRO', 'ENTREGA', 'RETORNO'], required: true },
+  lat:                     { type: Number, required: true },
+  lng:                     { type: Number, required: true },
+  texto:                   { type: String },
+  franja_horaria:          { type: String },
+  fecha_retiro_confirmada: { type: Date, default: null },
+  completada:              { type: Boolean, default: false },
+  completada_at:           { type: Date, default: null },
+}, { _id: false });
 
 const rutaOptimaSchema = new mongoose.Schema({
-  comisionistaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario', required: true },
-  fecha_generada: { type: Date, default: Date.now },
-  
-  // Lista ordenada de los envíos
-  orden_entregas: [{
-    envioId: { type: mongoose.Schema.Types.ObjectId, ref: 'Envio' },
-    orden: Number,
-    lat: Number, // Guardamos la lat/lng acá también para acceso rápido
-    lng: Number
-  }],
-
-  polyline: String, // El "dibujo" de la ruta para el mapa
-  distancia_total_km: Number,
-  tiempo_estimado_min: Number,
-  activo: { type: Boolean, default: true }
+  comisionistaId:      { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario', required: true },
+  fecha_generada:      { type: Date, default: Date.now },
+  fecha_viaje:         { type: Date, required: true },
+  orden_entregas:      [paradaSchema],
+  polyline:            { type: String },
+  distancia_total_km:  { type: Number },
+  tiempo_estimado_min: { type: Number },
+  activo:              { type: Boolean, default: true },
+  // ✅ NUEVO: distingue "ruta generada" de "viaje explícitamente iniciado"
+  viaje_iniciado:      { type: Boolean, default: false },
 }, { timestamps: true });
+
+rutaOptimaSchema.index({ comisionistaId: 1, activo: 1, fecha_viaje: -1 });
 
 export default mongoose.model('RutaOptima', rutaOptimaSchema, 'rutasOptimas');

@@ -1,52 +1,69 @@
-//flexidrive-front\src\services\comisionistaServices\real.js
+// flexidrive-front/src/services/comisionistaServices/real.js
 import api from "../api";
+import axios from "axios";
 
-// Elegí UN base según tu arquitectura.
-// Si tu dashboard sale del envio-service:
-const ENVIO_BASE = import.meta.env.VITE_ENVIO_API_URL || "http://localhost:3001";
-const VIAJES_BASE = import.meta.env.VITE_VIAJES_API_URL || "http://localhost:3004";
+const BASE = "/api/comisionista";
+const ENVIO_BASE =
+  import.meta.env.VITE_ENVIO_API_URL || "http://localhost:3001";
 
-
-export async function getDashboardResumenApi({ date } = {}) {
-  const res = await api.get(`${ENVIO_BASE}/api/comisionista/dashboard/resumen`, {
-    params: { date },
-  });
-  return res.data;
-}
-
-export async function getAgendaHoyApi({ date } = {}) {
-  const res = await api.get(`${ENVIO_BASE}/api/comisionista/dashboard/agenda`, {
-    params: { date },
-  });
-  return res.data?.items || res.data; // flexible
-}
-
-export async function getRutaSugeridaApi({ date } = {}) {
-  const res = await api.get(`${ENVIO_BASE}/api/comisionista/dashboard/ruta-sugerida`, {
-    params: { date },
-  });
-  return res.data;
-}
-
-// Si esto lo vas a guardar en viajes-service, cambiás esta base.
-// Por ahora lo dejo configurable.
-
-export const listRutasApi = async ({ q } = {}) => {
-  const res = await api.get(`${VIAJES_BASE}/api/rutas/mias`, { params: { q } });
-  return res.data;
+export const getDashboardResumenApi = async (params = {}) => {
+  const { data } = await api.get(`${BASE}/dashboard/resumen`, { params });
+  return data;
 };
 
-export const createRutaApi = async (data) => {
-  const res = await api.post(`${VIAJES_BASE}/api/rutas`, data);
-  return res.data;
+export const getAgendaHoyApi = async (params = {}) => {
+  const { data } = await api.get(`${BASE}/dashboard/agenda`, { params });
+  return data;
 };
 
-export const updateRutaApi = async (id, data) => {
-  const res = await api.put(`${VIAJES_BASE}/api/rutas/${id}`, data);
-  return res.data;
+export const generarRutaHoyApi = async (params = {}) => {
+  const { data } = await api.post(`${BASE}/ruta/generar`, params);
+  return data;
+};
+
+export const getRutaActivaApi = async (params = {}) => {
+  const { data } = await api.get(`${BASE}/ruta/activa`, { params });
+  return data;
+};
+
+export const listRutasApi = async (params = {}) => {
+  const { data } = await api.get(`${BASE}/rutas`, { params });
+  return data;
+};
+
+export const createRutaApi = async (payload) => {
+  const { data } = await api.post(`${BASE}/rutas`, payload);
+  return data;
+};
+
+export const updateRutaApi = async (id, payload) => {
+  const { data } = await api.put(`${BASE}/rutas/${id}`, payload);
+  return data;
 };
 
 export const deleteRutaApi = async (id) => {
-  const res = await api.delete(`${VIAJES_BASE}/api/rutas/${id}`);
-  return res.data;
+  const { data } = await api.delete(`${BASE}/rutas/${id}`);
+  return data;
+};
+
+export const toggleRutaActivaApi = async (id, activa) => {
+  const { data } = await api.patch(`${BASE}/rutas/${id}/activa`, { activa });
+  return data;
+};
+
+export const confirmarFechaRetiroApi = async (params = {}) => {
+  const { data } = await api.post(`${BASE}/confirmar-fecha-retiro`, params);
+  return data;
+};
+
+export const completarParadaApi = async (params = {}) => {
+  const { data } = await api.post(`${BASE}/completar-parada`, params);
+  return data;
+};
+
+export const getEstadisticasComisionistaApi = async (comisionistaId) => {
+  const { data } = await axios.get(
+    `${ENVIO_BASE}/api/estadisticas/comisionista/${comisionistaId}`
+  );
+  return data;
 };

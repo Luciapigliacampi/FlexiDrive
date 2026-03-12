@@ -1,7 +1,6 @@
 //flexidrive-front\src\pages\public\Totp.jsx
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
-import heroImg from "../../assets/hero.svg";
 
 export default function Totp() {
   const LENGTH = 6;
@@ -123,7 +122,7 @@ export default function Totp() {
   };
 
   return (
-    <main className="bg-slate-80">
+    <main className="bg-slate-50">
       <section className="bg-slate-100">
         <div className="mx-auto max-w-7xl px-6 sm:px-10 lg:px-12 py-20">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 xl:gap-14 items-center">

@@ -24,7 +24,7 @@ export function calcularTotalConDescuento({
   if (tipo === "porcentaje") {
     descuentoAplicado = base * (valor / 100);
   } else if (tipo === "monto") {
-    descuentoAplicado = valor;
+    descuentoAplicado = valor * bultos;
   }
 
   const final = Math.max(0, base - descuentoAplicado);

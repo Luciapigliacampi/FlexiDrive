@@ -47,6 +47,13 @@ export async function cancelarEnvio(id) {
   return unwrap(svc.cancelarEnvio(id));
 }
 
+export async function archivarEnvio(id) {
+  return unwrap(svc.archivarEnvio(id));
+}
+
+export async function eliminarEnvioLogico(id) {
+  return unwrap(svc.eliminarEnvioLogico(id));
+}
 /* ===== Comisionista (envio-service) ===== */
 
 export async function getEnviosDisponibles() {
@@ -74,12 +81,36 @@ export async function mockPay(payload) {
 }
 
 // En real lo conectamos a calificaciones-service (abajo)
-export async function mockRate(payload) {
-  return unwrap((svc.mockRate ?? real.mockRate)(payload));
+export async function calificarEnvio(payload) {
+  return unwrap(real.calificarEnvio(payload));
 }
 
 export async function confirmarComisionistaEnEnvio(envioId, payload) {
   return unwrap(svc.confirmarComisionistaEnEnvio(envioId, payload));
+}
+
+export async function marcarEntregado(envioId) {
+  return unwrap(svc.marcarEntregado(envioId));
+}
+
+export async function marcarRetirado(envioId) {
+  return unwrap(svc.marcarRetirado(envioId));
+}
+
+export async function iniciarViaje(fecha) {
+  return unwrap(svc.iniciarViaje(fecha));
+}
+
+export async function finalizarViaje(fecha) {
+  return unwrap(svc.finalizarViaje(fecha));
+}
+
+export async function cancelarPorComisionista(id) {
+  return unwrap(svc.cancelarPorComisionista(id));
+}
+
+export async function actualizarCalificacion(payload) {
+  return unwrap(real.actualizarCalificacion(payload));
 }
 
 export const __USE_MOCK__ = USE_MOCK;
