@@ -14,5 +14,9 @@
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^10.3.0",
+    "mongodb": "^7.1.0"
   }
 }
