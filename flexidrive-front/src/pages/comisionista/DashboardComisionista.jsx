@@ -2,57 +2,65 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
-  Package, ClipboardList, Route, CheckCircle2, XCircle,
+  Package, ClipboardList, Route, CheckCircle2,
   PackageCheck, PlayCircle, StopCircle, AlertCircle, X,
 } from "lucide-react";
 import { toEstadoKey, estadoLabel } from "../../utils/estadoUtils";
 import { Card } from "../../components/UI";
+import { useToast } from "../../components/toast/useToast";
 import StatusBadge from "../../components/StatusBadge";
 import MapaRutaOptimizada from "../../components/MapaRutaOptimizada";
 import { getTodayString } from "../../utils/testDate";
 
 import {
-  getDashboardResumen, getAgendaHoy,
-  generarRutaHoy, getRutaActiva,
-  confirmarFechaRetiro, completarParada,
+  getDashboardResumen,
+  getAgendaHoy,
+  generarRutaHoy,
+  getRutaActiva,
+  confirmarFechaRetiro,
+  completarParada,
 } from "../../services/comisionistaServices";
 
 import {
-  marcarRetirado, marcarEntregado, iniciarViaje, finalizarViaje,
+  marcarRetirado,
+  marcarEntregado,
+  iniciarViaje,
+  finalizarViaje,
 } from "../../services/shipmentServices";
 
 import api from "../../services/api";
 
 const IA_ROUTE_BASE = import.meta.env.VITE_IA_API_URL || "http://localhost:3002";
 
-const PUEDE_RETIRAR  = ["ASIGNADO", "EN_RETIRO"];
-const PUEDE_ENTREGAR = ["RETIRADO", "EN_CAMINO", "DEMORADO"];
-
 export default function DashboardComisionista() {
-  const username = localStorage.getItem("username") || "Usuario";
-  const userRaw  = localStorage.getItem("user");
-  const userId   = userRaw ? JSON.parse(userRaw)?.id : null;
+  const { toast } = useToast();
 
-  const [loading,       setLoading]       = useState(true);
-  const [loadingRuta,   setLoadingRuta]   = useState(true);
+  const username = localStorage.getItem("username") || "Usuario";
+  const userRaw = localStorage.getItem("user");
+  const userId = userRaw ? JSON.parse(userRaw)?.id : null;
+
+  const [loading, setLoading] = useState(true);
+  const [loadingRuta, setLoadingRuta] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
-  const [error,         setError]         = useState("");
-  const [actionError,   setActionError]   = useState("");
-  const [rutaError,     setRutaError]     = useState("");
+  const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [rutaError, setRutaError] = useState("");
 
   const [resumen, setResumen] = useState(null);
-  const [agenda,  setAgenda]  = useState([]);
-  const [ruta,    setRuta]    = useState(null);
+  const [agenda, setAgenda] = useState([]);
+  const [ruta, setRuta] = useState(null);
   const [viajeIniciado, setViajeIniciado] = useState(false);
 
   const [fechaHoy, setFechaHoy] = useState(() => getTodayString());
 
-  /* ─── Carga agenda ─────────────────────────────────────────────────────── */
   const cargarAgenda = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [r1, r2] = await Promise.all([getDashboardResumen({ date: fechaHoy }), getAgendaHoy({ date: fechaHoy })]);
+      const [r1, r2] = await Promise.all([
+        getDashboardResumen({ date: fechaHoy }),
+        getAgendaHoy({ date: fechaHoy }),
+      ]);
       setResumen(r1);
       setAgenda(Array.isArray(r2?.items ?? r2) ? (r2?.items ?? r2) : []);
     } catch (e) {
@@ -62,44 +70,40 @@ export default function DashboardComisionista() {
     }
   }, [fechaHoy]);
 
-  useEffect(() => { cargarAgenda(); }, [cargarAgenda]);
+  useEffect(() => {
+    cargarAgenda();
+  }, [cargarAgenda]);
 
-  /* ─── Ruta optimizada ──────────────────────────────────────────────────── */
   const cargarOGenerarRuta = useCallback(async (forceRegenerate = false) => {
     if (!userId) return;
     setLoadingRuta(true);
     setRutaError("");
+
     try {
-      if (!forceRegenerate) {
-        // Sin forzar: leer la ruta activa desde el servidor (fuente de verdad)
-        try {
-          const rutaActiva = await getRutaActiva({ comisionistaId: userId });
-          // Si el viaje ya está iniciado Y la ruta es de hoy, regenerar
-          // para incluir envíos nuevos aceptados desde otras páginas.
-          // Si no está iniciado, solo leer la ruta guardada.
-          if (rutaActiva?.viaje_iniciado === true) {
-            // continuar hacia regeneración (no hacer return)
-          } else {
-            setRuta(rutaActiva);
-            setViajeIniciado(false);
-            return;
-          }
-        } catch (e) {
-          if (e?.response?.status !== 404) throw e;
-          // No hay ruta activa → sin envíos hoy
-          setRuta(null);
-          setViajeIniciado(false);
-          return;
-        }
+  if (!forceRegenerate) {
+    try {
+      const rutaActiva = await getRutaActiva({ comisionistaId: userId });
+
+      if (rutaActiva?.viaje_iniciado !== true) {
+        setRuta(rutaActiva);
+        setViajeIniciado(false);
+        return;
       }
 
-      // Al forzar regeneración (después de acción): leer viaje_iniciado actual
-      // ANTES de regenerar, para no pisarlo con el valor que devuelve generarRutaHoy.
+      // Si viaje_iniciado === true, sigue y regenera
+    } catch (e) {
+      if (e?.response?.status !== 404) throw e;
+      setRuta(null);
+      setViajeIniciado(false);
+      return;
+    }
+  }
+
       let viajeYaIniciado = false;
       try {
         const rutaActiva = await getRutaActiva({ comisionistaId: userId });
         viajeYaIniciado = rutaActiva?.viaje_iniciado === true;
-      } catch { /* si no existe ruta, viaje no iniciado */ }
+      } catch {}
 
       let posActual = null;
       if (navigator.geolocation) {
@@ -118,83 +122,121 @@ export default function DashboardComisionista() {
         latActual: posActual?.lat,
         lngActual: posActual?.lng,
       });
+
       setRuta(nuevaRuta);
-      // Usar viaje_iniciado del servidor, no el que devuelve generarRutaHoy
-      // (generarRutaHoy puede devolver false por defecto aunque el viaje ya esté iniciado)
       setViajeIniciado(nuevaRuta?.viaje_iniciado === true || viajeYaIniciado);
     } catch (e) {
       if (e?.response?.status === 404 || e?.response?.status === 500) {
         setRuta(null);
         setViajeIniciado(false);
-      } else setRutaError(e?.message || "No se pudo generar la ruta.");
+      } else {
+        setRutaError(e?.message || "No se pudo generar la ruta.");
+      }
     } finally {
       setLoadingRuta(false);
     }
   }, [userId, fechaHoy]);
 
-  useEffect(() => { cargarOGenerarRuta(); }, [cargarOGenerarRuta]);
+  useEffect(() => {
+    cargarOGenerarRuta();
+  }, [cargarOGenerarRuta]);
 
-  /* ─── Listener panel de pruebas ────────────────────────────────────────── */
   useEffect(() => {
     function onTestDateChanged(e) {
       const nuevaFecha = e?.detail?.TEST_DATE;
       if (nuevaFecha) setFechaHoy(nuevaFecha);
+      else setFechaHoy(getTodayString());
       cargarAgenda();
       cargarOGenerarRuta(true);
     }
+
     window.addEventListener("test-date-changed", onTestDateChanged);
     return () => window.removeEventListener("test-date-changed", onTestDateChanged);
   }, [cargarAgenda, cargarOGenerarRuta]);
 
-  /* ─── Acciones ─────────────────────────────────────────────────────────── */
   const withLoading = useCallback(async (key, fn) => {
     setActionLoading(key);
     setActionError("");
     try {
       await fn();
-      // Primero cargar agenda (dispara lazyUpdateEstados en el backend),
-      // luego regenerar ruta para que tome los estados ya actualizados.
       await cargarAgenda();
       await cargarOGenerarRuta(true);
     } catch (e) {
-      setActionError(e?.response?.data?.message || e?.message || "Error al actualizar.");
+      const msg = e?.response?.data?.message || e?.message || "Error al actualizar.";
+      setActionError(msg);
+      toast.error(msg);
     } finally {
       setActionLoading(null);
     }
-  }, [cargarAgenda, cargarOGenerarRuta]);
+  }, [cargarAgenda, cargarOGenerarRuta, toast]);
 
-  const handleRetirar  = useCallback((id) => withLoading(`${id}_retirar`,  () => marcarRetirado(id)), [withLoading]);
-  const handleEntregar = useCallback((id) => {
-    if (!confirm("¿Confirmar entrega de este paquete?")) return;
-    withLoading(`${id}_entregar`, () => marcarEntregado(id));
-  }, [withLoading]);
+  const handleRetirar = useCallback(
+    (id) => withLoading(`${id}_retirar`, async () => {
+      await marcarRetirado(id);
+      toast.success("Paquete marcado como retirado.");
+    }),
+    [withLoading, toast]
+  );
+
+  const handleEntregar = useCallback(
+    (id) => {
+      toast.confirm("¿Confirmar entrega de este paquete?", {
+        label: "Entregar",
+        onConfirm: async () => {
+          await withLoading(`${id}_entregar`, async () => {
+            await marcarEntregado(id);
+            toast.success("Paquete marcado como entregado.");
+          });
+        },
+      });
+    },
+    [withLoading, toast]
+  );
 
   const handleIniciarViaje = useCallback(() => {
-    if (!confirm("¿Iniciar el viaje del día? Esto actualizará el estado de todos los envíos.")) return;
-    withLoading("iniciar_viaje", async () => {
-      await iniciarViaje(fechaHoy);
-      // ✅ Marcar viaje_iniciado: true en la RutaOptima
-      await api.patch(`${IA_ROUTE_BASE}/api/rutas/iniciar/${userId}`).catch(() => {});
-      setViajeIniciado(true);
+    toast.confirm("¿Iniciar el viaje del día? Esto actualizará el estado de todos los envíos.", {
+      label: "Iniciar",
+      onConfirm: async () => {
+        await withLoading("iniciar_viaje", async () => {
+          await iniciarViaje(fechaHoy);
+          await api.patch(`${IA_ROUTE_BASE}/api/rutas/iniciar/${userId}`).catch(() => {});
+          setViajeIniciado(true);
+          toast.success("Viaje iniciado correctamente.");
+        });
+      },
     });
-  }, [withLoading, fechaHoy, userId]);
+  }, [withLoading, fechaHoy, userId, toast]);
 
   const handleFinalizarViaje = useCallback(() => {
-    if (!confirm("¿Finalizar el viaje del día? Esto cerrará la ruta activa.")) return;
-    withLoading("finalizar_viaje", async () => {
-      await finalizarViaje(fechaHoy);
-      setViajeIniciado(false);
-      setRuta(null);
+    toast.confirm("¿Finalizar el viaje del día? Esto cerrará la ruta activa.", {
+      label: "Finalizar",
+      onConfirm: async () => {
+        await withLoading("finalizar_viaje", async () => {
+          await finalizarViaje(fechaHoy);
+          setViajeIniciado(false);
+          setRuta(null);
+          toast.success("Viaje finalizado correctamente.");
+        });
+      },
     });
-  }, [withLoading, fechaHoy]);
+  }, [withLoading, fechaHoy, toast]);
 
   const handleCompletar = useCallback(async (envioId, tipo, posActual) => {
-    await completarParada({ envioId, tipo, comisionistaId: userId, fecha: fechaHoy, latActual: posActual?.lat, lngActual: posActual?.lng });
+    await completarParada({
+      envioId,
+      tipo,
+      comisionistaId: userId,
+      fecha: fechaHoy,
+      latActual: posActual?.lat,
+      lngActual: posActual?.lng,
+    });
+    toast.success("Parada completada correctamente.");
     setTimeout(() => cargarOGenerarRuta(false), 1500);
-  }, [userId, fechaHoy, cargarOGenerarRuta]);
+  }, [userId, fechaHoy, cargarOGenerarRuta, toast]);
 
   const handleConfirmarRetiro = useCallback(async (envioId, fecha) => {
     await confirmarFechaRetiro({ envioId, fecha, comisionistaId: userId });
+    toast.success("Fecha de retiro confirmada.");
     setRuta((prev) => {
       if (!prev) return prev;
       return {
@@ -206,22 +248,20 @@ export default function DashboardComisionista() {
         ),
       };
     });
-  }, [userId]);
+  }, [userId, toast]);
 
-  /* ─── Métricas ─────────────────────────────────────────────────────────── */
   const metrics = useMemo(() => {
     const r = resumen || {};
     return [
-      { value: loading ? "—" : String(r.enviosHoy        ?? 0), label: "Envíos hoy" },
-      { value: loading ? "—" : String(r.enRuta           ?? 0), label: "En ruta" },
+      { value: loading ? "—" : String(r.enviosHoy ?? 0), label: "Envíos hoy" },
+      { value: loading ? "—" : String(r.enRuta ?? 0), label: "En ruta" },
       { value: loading ? "—" : String(r.pendientesRetiro ?? 0), label: "Pendientes de retiro" },
-      { value: loading ? "—" : String(r.calificacion     ?? "—"), label: "Calificación" },
+      { value: loading ? "—" : String(r.calificacion ?? "—"), label: "Calificación" },
     ];
   }, [resumen, loading]);
 
   const hayEnviosHoy = agenda.length > 0;
 
-  /* ─── Render ───────────────────────────────────────────────────────────── */
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between flex-wrap gap-3">
@@ -268,9 +308,9 @@ export default function DashboardComisionista() {
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <QuickAction to="/comisionista/crear-envio" icon={<Package       className="h-6 w-6" />} title="Crear envío" />
-        <QuickAction to="/comisionista/envios"       icon={<ClipboardList className="h-6 w-6" />} title="Ver envíos" />
-        <QuickAction to="/comisionista/rutas"        icon={<Route         className="h-6 w-6" />} title="Gestionar rutas" />
+        <QuickAction to="/comisionista/crear-envio" icon={<Package className="h-6 w-6" />} title="Crear envío" />
+        <QuickAction to="/comisionista/envios" icon={<ClipboardList className="h-6 w-6" />} title="Ver envíos" />
+        <QuickAction to="/comisionista/rutas" icon={<Route className="h-6 w-6" />} title="Gestionar rutas" />
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -350,7 +390,7 @@ export default function DashboardComisionista() {
 function AgendaRow({ row, actionLoading, onRetirar, onEntregar }) {
   const estadoKey = toEstadoKey(row.estado);
   const isLoading = (k) => actionLoading === `${row.id}_${k}`;
-  const puedeRetirar  = ["ASIGNADO", "EN_RETIRO"].includes(row.estado);
+  const puedeRetirar = ["ASIGNADO", "EN_RETIRO"].includes(row.estado);
   const puedeEntregar = ["RETIRADO", "EN_CAMINO", "DEMORADO"].includes(row.estado);
 
   return (
@@ -380,12 +420,24 @@ function AgendaRow({ row, actionLoading, onRetirar, onEntregar }) {
       <td className="px-3 py-3">
         <div className="flex items-center justify-center gap-1.5">
           {puedeRetirar && (
-            <ActionBtn title="Marcar como retirado" loading={isLoading("retirar")} onClick={() => onRetirar(row.id)}
-              colorCls="bg-violet-600 hover:bg-violet-700" icon={<PackageCheck className="h-3.5 w-3.5" />} label="Retirado" />
+            <ActionBtn
+              title="Marcar como retirado"
+              loading={isLoading("retirar")}
+              onClick={() => onRetirar(row.id)}
+              colorCls="bg-violet-600 hover:bg-violet-700"
+              icon={<PackageCheck className="h-3.5 w-3.5" />}
+              label="Retirado"
+            />
           )}
           {puedeEntregar && (
-            <ActionBtn title="Marcar como entregado" loading={isLoading("entregar")} onClick={() => onEntregar(row.id)}
-              colorCls="bg-emerald-600 hover:bg-emerald-700" icon={<CheckCircle2 className="h-3.5 w-3.5" />} label="Entregado" />
+            <ActionBtn
+              title="Marcar como entregado"
+              loading={isLoading("entregar")}
+              onClick={() => onEntregar(row.id)}
+              colorCls="bg-emerald-600 hover:bg-emerald-700"
+              icon={<CheckCircle2 className="h-3.5 w-3.5" />}
+              label="Entregado"
+            />
           )}
           {["ENTREGADO", "DEVUELTO", "CANCELADO"].includes(row.estado) && (
             <span className="text-xs text-slate-400 italic">—</span>
@@ -398,8 +450,13 @@ function AgendaRow({ row, actionLoading, onRetirar, onEntregar }) {
 
 function ActionBtn({ title, loading, onClick, colorCls, icon, label }) {
   return (
-    <button type="button" title={title} onClick={onClick} disabled={loading}
-      className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-white ${colorCls} disabled:opacity-40 transition`}>
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      disabled={loading}
+      className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-white ${colorCls} disabled:opacity-40 transition`}
+    >
       {loading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : icon}
       {label}
     </button>

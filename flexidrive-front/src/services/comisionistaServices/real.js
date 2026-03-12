@@ -47,11 +47,10 @@ export async function getRutaActivaApi({ comisionistaId }) {
 }
 
 export async function confirmarFechaRetiroApi({ envioId, fecha, comisionistaId }) {
-  const fechaFinal = getTodayString(fecha);
 
   const res = await api.patch(
     `${IA_ROUTE_BASE}/api/rutas/parada/${envioId}/confirmar-retiro`,
-    { fecha: fechaFinal, comisionistaId }
+    { fecha, comisionistaId }
   );
   return res.data;
 }
@@ -64,11 +63,10 @@ export async function completarParadaApi({
   latActual,
   lngActual,
 }) {
-  const fechaFinal = getTodayString(fecha);
 
   const res = await api.patch(
     `${IA_ROUTE_BASE}/api/rutas/parada/${envioId}/completar`,
-    { tipo, comisionistaId, fecha: fechaFinal, latActual, lngActual }
+    { tipo, comisionistaId, fecha, latActual, lngActual }
   );
   return res.data;
 }

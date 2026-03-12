@@ -63,13 +63,19 @@ router.patch('/config', (req, res) => {
 // Los envíos de HOY todavía tienen todo el día para ser aceptados.
 router.post('/cancelar-vencidos', async (req, res) => {
   try {
-    const ahora = getNow();
-    const inicioDiaHoy = new Date(
-      ahora.getFullYear(),
-      ahora.getMonth(),
-      ahora.getDate(),
-      0, 0, 0, 0
-    );
+    // const ahora = getNow();
+    // const inicioDiaHoy = new Date(
+    //   ahora.getFullYear(),
+    //   ahora.getMonth(),
+    //   ahora.getDate(),
+    //   0, 0, 0, 0
+    // );
+
+const ahora = getNow();
+const yyyy  = String(ahora.getUTCFullYear());
+const mm    = String(ahora.getUTCMonth() + 1).padStart(2, '0');
+const dd    = String(ahora.getUTCDate()).padStart(2, '0');
+const inicioDiaHoy = new Date(`${yyyy}-${mm}-${dd}T00:00:00.000Z`);
 
     const resultado = await Envio.updateMany(
       {

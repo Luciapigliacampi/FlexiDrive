@@ -2,22 +2,21 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { GoogleOAuthProvider } from "@react-oauth/google"; // ✅ NUEVO
+import { GoogleOAuthProvider } from "@react-oauth/google";
+import { ToastProvider } from "./components/toast/useToast";
 import "./index.css";
 import App from "./App.jsx";
 
-// El Client ID viene de Google Cloud Console → APIs & Services → Credentials
-// Tiene que ser el MISMO que está en el backend como GOOGLE_CLIENT_ID
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
-console.log("CLIENT ID:", GOOGLE_CLIENT_ID); // ← agregá esto
+console.log("CLIENT ID:", GOOGLE_CLIENT_ID);
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    {/* ✅ GoogleOAuthProvider envuelve toda la app para que GoogleLogin
-        pueda funcionar en cualquier componente */}
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <BrowserRouter>
-        <App />
+        <ToastProvider>
+          <App />
+        </ToastProvider>
       </BrowserRouter>
     </GoogleOAuthProvider>
   </StrictMode>

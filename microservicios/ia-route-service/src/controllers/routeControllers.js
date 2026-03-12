@@ -153,9 +153,16 @@ export const getRutaActiva = async (req, res) => {
       return res.status(403).json({ message: 'No tenés permiso para ver esta ruta.' });
     }
 
+    // const hoy = getNow();
+    // const inicioDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 0, 0, 0, 0);
+    // const finDia    = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59, 999);
+
     const hoy = getNow();
-    const inicioDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 0, 0, 0, 0);
-    const finDia    = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59, 999);
+    const yyyy = String(hoy.getFullYear());
+    const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+    const dd = String(hoy.getDate()).padStart(2, '0');
+    const inicioDia = new Date(`${yyyy}-${mm}-${dd}T00:00:00.000Z`);
+    const finDia = new Date(`${yyyy}-${mm}-${dd}T23:59:59.999Z`);
 
     const ruta = await RutaOptima.findOne({
       comisionistaId,
@@ -502,9 +509,9 @@ export const getSeguimientoEnvio = async (req, res) => {
             `${ENVIO_BASE}/api/envios/${envioId}`,
             { polyline_especifica: polyline },
             { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY } }
-          ).catch(() => {});
+          ).catch(() => { });
         }
-      } catch {}
+      } catch { }
     }
 
     let datosComisionista = null;
@@ -519,22 +526,22 @@ export const getSeguimientoEnvio = async (req, res) => {
           telefono: u.telefono,
           foto: u.foto || null,
         };
-      } catch {}
+      } catch { }
     }
 
-   let calificado = false;
-let calificacion = null;
-try {
-  const CAL_BASE = process.env.CALIFICACIONES_SERVICE_URL || 'http://localhost:3003';
-  const calRes = await axios.get(`${CAL_BASE}/api/calificaciones/envio/${envioId}`);
-  calificado = true;
-  calificacion = {
-    puntuacion: calRes.data.puntuacion,
-    comentario: calRes.data.comentario ?? null,
-  };
-} catch (e) {
-  calificado = e?.response?.status !== 404;
-}
+    let calificado = false;
+    let calificacion = null;
+    try {
+      const CAL_BASE = process.env.CALIFICACIONES_SERVICE_URL || 'http://localhost:3003';
+      const calRes = await axios.get(`${CAL_BASE}/api/calificaciones/envio/${envioId}`);
+      calificado = true;
+      calificacion = {
+        puntuacion: calRes.data.puntuacion,
+        comentario: calRes.data.comentario ?? null,
+      };
+    } catch (e) {
+      calificado = e?.response?.status !== 404;
+    }
 
     res.json({
       nro_envio: envio.nro_envio,
@@ -562,7 +569,7 @@ try {
         polyline,
       },
       calificado,
-calificacion,
+      calificacion,
     });
   } catch (err) {
     res.status(500).json({ message: getApiErrorMessage(err, 'Error al obtener el seguimiento.') });
@@ -590,8 +597,11 @@ export const marcarViajeIniciado = async (req, res) => {
     }
 
     const hoy = getNow();
-    const inicioDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 0, 0, 0, 0);
-    const finDia    = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59, 999);
+    const yyyy = String(hoy.getFullYear());
+    const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+    const dd = String(hoy.getDate()).padStart(2, '0');
+    const inicioDia = new Date(`${yyyy}-${mm}-${dd}T00:00:00.000Z`);
+    const finDia = new Date(`${yyyy}-${mm}-${dd}T23:59:59.999Z`);
 
     const result = await RutaOptima.updateMany(
       { comisionistaId, activo: true, fecha_viaje: { $gte: inicioDia, $lte: finDia } },

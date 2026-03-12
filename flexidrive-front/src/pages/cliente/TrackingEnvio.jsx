@@ -232,11 +232,11 @@ export default function TrackingEnvio() {
       <div className="space-y-3">
         {/* Mostrar calificación existente */}
         <div className="flex flex-wrap items-center gap-1">
-          {[1,2,3,4,5,6,7,8,9,10].map((n) => (
+          {[1,2,3,4,5].map((n) => (
             <span key={n} className={`text-xl ${n <= (data.calificacion?.puntuacion ?? 0) ? "text-yellow-500" : "text-slate-200"}`}>★</span>
           ))}
           <span className="ml-1 font-bold text-slate-700">
-            {data.calificacion?.puntuacion}/10
+            {data.calificacion?.puntuacion}
           </span>
         </div>
         {data.calificacion?.comentario && (

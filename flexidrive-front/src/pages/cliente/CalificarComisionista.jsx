@@ -88,7 +88,7 @@ export default function CalificarComisionista() {
 
         <div className="mt-4">
           <RatingStars value={rating} onChange={setRating} />
-          <p className="mt-1 text-xs text-slate-400">Puntuación seleccionada: <strong>{rating}</strong> / 10</p>
+          <p className="mt-1 text-xs text-slate-400">Puntuación seleccionada: <strong>{rating}</strong> / 5</p>
         </div>
 
         <textarea

@@ -65,9 +65,10 @@ export default function EnviosDisponibles() {
   // Reaccionar al panel de pruebas
   useEffect(() => {
     function onTestDateChanged(e) {
-      const nuevaFecha = e?.detail?.TEST_DATE;
-      if (nuevaFecha) setFechaHoySimulada(nuevaFecha);
-    }
+  const nuevaFecha = e?.detail?.TEST_DATE;
+  if (nuevaFecha) setFechaHoySimulada(nuevaFecha);
+  else setFechaHoySimulada(getTodayString()); // ← fallback
+}
     window.addEventListener("test-date-changed", onTestDateChanged);
     return () => window.removeEventListener("test-date-changed", onTestDateChanged);
   }, []);

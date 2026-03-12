@@ -26,7 +26,6 @@ import SolicitarEnvio from "./pages/cliente/SolicitarEnvio";
 import HistorialEnvios from "./pages/cliente/HistorialEnvios";
 import TrackingEnvio from "./pages/cliente/TrackingEnvio";
 import SeleccionComisionista from "./pages/cliente/SeleccionComisionista";
-import DatosCliente from "./pages/cliente/DatosCliente";
 import MetodosPago from "./pages/cliente/MetodosPago";
 import DireccionesFrecuentes from "./pages/cliente/DireccionesFrecuentes";
 import AyudaSoporte from "./pages/cliente/AyudaSoporte";
@@ -86,7 +85,6 @@ export default function App() {
           <Route path="/cliente/envios" element={<HistorialEnvios />} />
           <Route path="/cliente/envios/:id" element={<TrackingEnvio />} />
           <Route path="/cliente/seleccionar-comisionista" element={<SeleccionComisionista />} />
-          <Route path="/cliente/datos" element={<DatosCliente />} />
           <Route path="/cliente/metodos-pago" element={<MetodosPago />} />
           <Route path="/cliente/direcciones" element={<DireccionesFrecuentes />} />
           <Route path="/cliente/soporte" element={<AyudaSoporte />} />

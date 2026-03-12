@@ -7,41 +7,38 @@ import {
   aceptarEnvio,
   marcarRetirado,
   marcarEntregado,
+  cancelarPorComisionista,
 } from "../services/shipmentServices";
 import { getMyVehicles } from "../services/authService";
 import { getTodayString } from "../utils/testDate";
-import { cancelarPorComisionista } from "../services/shipmentServices"
+import { useToast } from "../components/toast/useToast";
 
-/* ─── helpers de estadogetTodayISO
-
-─────────────────────────────────────────────────── */
 function getTodayISO() {
   return getTodayString();
 }
 
-// Máquina de estados — transiciones permitidas por rol
 const TRANSICIONES = {
-  CANCELAR_SIN_RETORNO:  ["ASIGNADO", "EN_RETIRO"],
-  CANCELAR_CON_RETORNO:  ["RETIRADO", "EN_CAMINO", "DEMORADO"],
-  CANCELAR_CLIENTE:      ["PENDIENTE", "ASIGNADO", "EN_RETIRO", "RETIRADO", "EN_CAMINO", "DEMORADO"],
-  PUEDE_RETIRAR:         ["ASIGNADO", "EN_RETIRO"],
-  PUEDE_ENTREGAR:        ["RETIRADO", "EN_CAMINO", "DEMORADO"],
-  PUEDE_ACEPTAR:         ["PENDIENTE"],
-  PUEDE_ARCHIVAR:        ["ENTREGADO", "CANCELADO", "CANCELADO_RETORNO", "DEVUELTO"],
-  PUEDE_ELIMINAR:        ["ENTREGADO", "CANCELADO", "CANCELADO_RETORNO", "DEVUELTO"],
+  CANCELAR_SIN_RETORNO: ["ASIGNADO", "EN_RETIRO"],
+  CANCELAR_CON_RETORNO: ["RETIRADO", "EN_CAMINO", "DEMORADO"],
+  CANCELAR_CLIENTE: ["PENDIENTE", "ASIGNADO", "EN_RETIRO", "RETIRADO", "EN_CAMINO", "DEMORADO"],
+  PUEDE_RETIRAR: ["ASIGNADO", "EN_RETIRO"],
+  PUEDE_ENTREGAR: ["RETIRADO", "EN_CAMINO", "DEMORADO"],
+  PUEDE_ACEPTAR: ["PENDIENTE"],
+  PUEDE_ARCHIVAR: ["ENTREGADO", "CANCELADO", "CANCELADO_RETORNO", "DEVUELTO"],
+  PUEDE_ELIMINAR: ["ENTREGADO", "CANCELADO", "CANCELADO_RETORNO", "DEVUELTO"],
 };
 
-export function puedeAceptar(estado)  { return TRANSICIONES.PUEDE_ACEPTAR.includes((estado||"").toUpperCase()); }
-export function puedeCancel(estado)   { return TRANSICIONES.CANCELAR_CLIENTE.includes((estado||"").toUpperCase()); }
-export function puedeArchivar(estado) { return TRANSICIONES.PUEDE_ARCHIVAR.includes((estado||"").toUpperCase()); }
-export function puedeEliminar(estado) { return TRANSICIONES.PUEDE_ELIMINAR.includes((estado||"").toUpperCase()); }
-export function puedeRetirar(estado)  { return TRANSICIONES.PUEDE_RETIRAR.includes((estado||"").toUpperCase()); }
-export function puedeEntregar(estado) { return TRANSICIONES.PUEDE_ENTREGAR.includes((estado||"").toUpperCase()); }
+export function puedeAceptar(estado) { return TRANSICIONES.PUEDE_ACEPTAR.includes((estado || "").toUpperCase()); }
+export function puedeCancel(estado) { return TRANSICIONES.CANCELAR_CLIENTE.includes((estado || "").toUpperCase()); }
+export function puedeArchivar(estado) { return TRANSICIONES.PUEDE_ARCHIVAR.includes((estado || "").toUpperCase()); }
+export function puedeEliminar(estado) { return TRANSICIONES.PUEDE_ELIMINAR.includes((estado || "").toUpperCase()); }
+export function puedeRetirar(estado) { return TRANSICIONES.PUEDE_RETIRAR.includes((estado || "").toUpperCase()); }
+export function puedeEntregar(estado) { return TRANSICIONES.PUEDE_ENTREGAR.includes((estado || "").toUpperCase()); }
 
 export function mensajeBloqueo(accion, estado) {
   const e = (estado || "").toUpperCase();
-  if (accion === "aceptar")  return e !== "PENDIENTE" ? "Solo podés aceptar envíos pendientes." : "";
-  if (accion === "retirar")  return !TRANSICIONES.PUEDE_RETIRAR.includes(e)  ? `No se puede retirar en estado ${e}.`  : "";
+  if (accion === "aceptar") return e !== "PENDIENTE" ? "Solo podés aceptar envíos pendientes." : "";
+  if (accion === "retirar") return !TRANSICIONES.PUEDE_RETIRAR.includes(e) ? `No se puede retirar en estado ${e}.` : "";
   if (accion === "entregar") return !TRANSICIONES.PUEDE_ENTREGAR.includes(e) ? `No se puede entregar en estado ${e}.` : "";
   if (accion === "cancelar") {
     if (["ENTREGADO", "DEVUELTO"].includes(e)) return "El envío ya finalizó.";
@@ -51,146 +48,296 @@ export function mensajeBloqueo(accion, estado) {
   return "Acción no disponible.";
 }
 
-/* ─── hook principal ────────────────────────────────────────────────────── */
 export function useEnvioAcciones({ onSuccess, modo = "cliente" } = {}) {
-  const [actionLoading, setActionLoading] = useState(null);
-  const [actionError,   setActionError]   = useState("");
-  const [waLink,        setWaLink]        = useState(null);
+  const { toast } = useToast();
 
-  // Modal aceptar
-  const [vehiculos,     setVehiculos]     = useState([]);
-  const [vehiculoId,    setVehiculoId]    = useState("");
-  const [fechaRetiro,   setFechaRetiro]   = useState(getTodayISO());
-  const [franjaRetiro,  setFranjaRetiro]  = useState("08:00-13:00");
-  const [openAceptar,   setOpenAceptar]   = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
+  const [actionError, setActionError] = useState("");
+  const [waLink, setWaLink] = useState(null);
+
+  const [vehiculos, setVehiculos] = useState([]);
+  const [vehiculoId, setVehiculoId] = useState("");
+  const [fechaRetiro, setFechaRetiro] = useState(getTodayISO());
+  const [franjaRetiro, setFranjaRetiro] = useState("08:00-13:00");
+  const [openAceptar, setOpenAceptar] = useState(false);
   const [aceptarTarget, setAceptarTarget] = useState(null);
 
   useEffect(() => {
     if (modo !== "comisionista") return;
     let alive = true;
+
     (async () => {
       try {
-        const res  = await getMyVehicles();
+        const res = await getMyVehicles();
         const data = res?.data ?? res;
-        const arr  = Array.isArray(data) ? data : Array.isArray(data?.vehiculos) ? data.vehiculos : [];
+        const arr = Array.isArray(data) ? data : Array.isArray(data?.vehiculos) ? data.vehiculos : [];
         if (!alive) return;
         setVehiculos(arr);
         if (!vehiculoId && arr.length === 1) setVehiculoId(arr[0]._id || arr[0].id || "");
-      } catch { /* no bloquea */ }
+      } catch {}
     })();
-    return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    return () => {
+      alive = false;
+    };
   }, [modo]);
 
-  /* ── modal aceptar ────────────────────────────────────────────────────── */
   function abrirAceptar(id, estado) {
-    if (!puedeAceptar(estado)) { setActionError(mensajeBloqueo("aceptar", estado)); return; }
+    if (!puedeAceptar(estado)) {
+      const msg = mensajeBloqueo("aceptar", estado);
+      setActionError(msg);
+      toast.warning(msg);
+      return;
+    }
     setActionError("");
     setFechaRetiro(getTodayISO());
     setFranjaRetiro("08:00-13:00");
     setAceptarTarget({ id, estado });
     setOpenAceptar(true);
   }
-  function cerrarAceptar() { setOpenAceptar(false); setAceptarTarget(null); }
+
+  function cerrarAceptar() {
+    setOpenAceptar(false);
+    setAceptarTarget(null);
+  }
 
   async function confirmarAceptar() {
     const id = aceptarTarget?.id;
     if (!id) return;
-    if (!vehiculoId)   { setActionError("Seleccioná un vehículo."); return; }
-    if (!fechaRetiro)  { setActionError("Indicá la fecha de retiro."); return; }
-    if (!franjaRetiro) { setActionError("Indicá la franja horaria."); return; }
+
+    if (!vehiculoId) {
+      const msg = "Seleccioná un vehículo.";
+      setActionError(msg);
+      toast.warning(msg);
+      return;
+    }
+    if (!fechaRetiro) {
+      const msg = "Indicá la fecha de retiro.";
+      setActionError(msg);
+      toast.warning(msg);
+      return;
+    }
+    if (!franjaRetiro) {
+      const msg = "Indicá la franja horaria.";
+      setActionError(msg);
+      toast.warning(msg);
+      return;
+    }
 
     setActionLoading(id + "_aceptar");
     setActionError("");
+
     try {
-      await aceptarEnvio({ envioId: id, vehiculoId, fecha_retiro: fechaRetiro, franja_horaria_retiro: franjaRetiro });
+      await aceptarEnvio({
+        envioId: id,
+        vehiculoId,
+        fecha_retiro: fechaRetiro,
+        franja_horaria_retiro: franjaRetiro,
+      });
+      toast.success("Envío aceptado correctamente.");
       cerrarAceptar();
       onSuccess?.();
     } catch (e) {
-      setActionError(e?.response?.data?.message || "No se pudo aceptar el envío.");
+      const msg = e?.response?.data?.message || "No se pudo aceptar el envío.";
+      setActionError(msg);
+      toast.error(msg);
     } finally {
       setActionLoading(null);
     }
   }
 
-  /* ── acciones directas ────────────────────────────────────────────────── */
   async function handleRetirar(id, estado) {
-    if (!puedeRetirar(estado)) { setActionError(mensajeBloqueo("retirar", estado)); return; }
-    setActionLoading(id + "_retirar"); setActionError("");
-    try { await marcarRetirado(id); onSuccess?.(); }
-    catch (e) { setActionError(e?.response?.data?.message || "No se pudo marcar como retirado."); }
-    finally { setActionLoading(null); }
-  }
+    if (!puedeRetirar(estado)) {
+      const msg = mensajeBloqueo("retirar", estado);
+      setActionError(msg);
+      toast.warning(msg);
+      return;
+    }
 
-  async function handleEntregar(id, estado) {
-    if (!puedeEntregar(estado)) { setActionError(mensajeBloqueo("entregar", estado)); return; }
-    if (!confirm("¿Confirmar entrega?")) return;
-    setActionLoading(id + "_entregar"); setActionError("");
-    try { await marcarEntregado(id); onSuccess?.(); }
-    catch (e) { setActionError(e?.response?.data?.message || "No se pudo marcar como entregado."); }
-    finally { setActionLoading(null); }
-  }
+    setActionLoading(id + "_retirar");
+    setActionError("");
 
-  // Cliente cancela
-  async function handleCancelar(id, estado) {
-    if (!puedeCancel(estado)) { setActionError(mensajeBloqueo("cancelar", estado)); return; }
-    if (!confirm("¿Cancelar este envío?")) return;
-    setActionLoading(id + "_cancelar"); setActionError("");
     try {
-      const res  = await cancelarEnvio(id);
-      const data = res?.data ?? res;
-      if (data?.waLink) setWaLink(data.waLink);
+      await marcarRetirado(id);
+      toast.success("Envío marcado como retirado.");
       onSuccess?.();
-    } catch (e) { setActionError(e?.response?.data?.message || "No se pudo cancelar."); }
-    finally { setActionLoading(null); }
+    } catch (e) {
+      const msg = e?.response?.data?.message || "No se pudo marcar como retirado.";
+      setActionError(msg);
+      toast.error(msg);
+    } finally {
+      setActionLoading(null);
+    }
   }
 
-  // Comisionista cancela/rechaza
-  async function handleRechazarOCancelarComisionista(id, estadoActual) {
+  function handleEntregar(id, estado) {
+    if (!puedeEntregar(estado)) {
+      const msg = mensajeBloqueo("entregar", estado);
+      setActionError(msg);
+      toast.warning(msg);
+      return;
+    }
+
+    toast.confirm("¿Confirmar entrega?", {
+      label: "Entregar",
+      onConfirm: async () => {
+        setActionLoading(id + "_entregar");
+        setActionError("");
+        try {
+          await marcarEntregado(id);
+          toast.success("Envío marcado como entregado.");
+          onSuccess?.();
+        } catch (e) {
+          const msg = e?.response?.data?.message || "No se pudo marcar como entregado.";
+          setActionError(msg);
+          toast.error(msg);
+        } finally {
+          setActionLoading(null);
+        }
+      },
+    });
+  }
+
+  function handleCancelar(id, estado) {
+    if (!puedeCancel(estado)) {
+      const msg = mensajeBloqueo("cancelar", estado);
+      setActionError(msg);
+      toast.warning(msg);
+      return;
+    }
+
+    toast.confirm("¿Cancelar este envío?", {
+      label: "Cancelar",
+      onConfirm: async () => {
+        setActionLoading(id + "_cancelar");
+        setActionError("");
+        try {
+          const res = await cancelarEnvio(id);
+          const data = res?.data ?? res;
+          if (data?.waLink) setWaLink(data.waLink);
+          toast.success("Envío cancelado correctamente.");
+          onSuccess?.();
+        } catch (e) {
+          const msg = e?.response?.data?.message || "No se pudo cancelar.";
+          setActionError(msg);
+          toast.error(msg);
+        } finally {
+          setActionLoading(null);
+        }
+      },
+    });
+  }
+
+  function handleRechazarOCancelarComisionista(id, estadoActual) {
     const e = (estadoActual || "").toUpperCase();
     const esCancelable = [...TRANSICIONES.CANCELAR_SIN_RETORNO, ...TRANSICIONES.CANCELAR_CON_RETORNO, "PENDIENTE"].includes(e);
-    if (!esCancelable) { setActionError(mensajeBloqueo("cancelar", estadoActual)); return; }
+
+    if (!esCancelable) {
+      const msg = mensajeBloqueo("cancelar", estadoActual);
+      setActionError(msg);
+      toast.warning(msg);
+      return;
+    }
 
     const esRetorno = TRANSICIONES.CANCELAR_CON_RETORNO.includes(e);
-    const texto = e === "PENDIENTE" ? "¿Rechazar este envío?"
-                : esRetorno ? "¿Cancelar? El paquete ya fue retirado — se marcará como en devolución."
-                : "¿Cancelar este envío?";
-    if (!confirm(texto)) return;
+    const texto =
+      e === "PENDIENTE"
+        ? "¿Rechazar este envío?"
+        : esRetorno
+        ? "¿Cancelar? El paquete ya fue retirado y se marcará como en devolución."
+        : "¿Cancelar este envío?";
 
-    setActionLoading(id + "_cancelar"); setActionError("");
-    try {
-      // Usar el endpoint de cancelar por comisionista
-      const res = await cancelarPorComisionista(id); // el backend detecta el rol
-      const data = res?.data ?? res;
-      if (data?.waLink) setWaLink(data.waLink);
-      onSuccess?.();
-    } catch (e) { setActionError(e?.response?.data?.message || "No se pudo cancelar."); }
-    finally { setActionLoading(null); }
+    toast.confirm(texto, {
+      label: e === "PENDIENTE" ? "Rechazar" : "Cancelar",
+      onConfirm: async () => {
+        setActionLoading(id + "_cancelar");
+        setActionError("");
+        try {
+          const res = await cancelarPorComisionista(id);
+          const data = res?.data ?? res;
+          if (data?.waLink) setWaLink(data.waLink);
+          toast.success("Operación realizada correctamente.");
+          onSuccess?.();
+        } catch (err) {
+          const msg = err?.response?.data?.message || "No se pudo cancelar.";
+          setActionError(msg);
+          toast.error(msg);
+        } finally {
+          setActionLoading(null);
+        }
+      },
+    });
   }
 
   async function handleArchivar(id, estado) {
-    if (!puedeArchivar(estado)) { setActionError(mensajeBloqueo("archivar", estado)); return; }
-    setActionLoading(id + "_archivar"); setActionError("");
-    try { await archivarEnvio(id); onSuccess?.(); }
-    catch (e) { setActionError(e?.response?.data?.message || "No se pudo archivar."); }
-    finally { setActionLoading(null); }
+    if (!puedeArchivar(estado)) {
+      const msg = mensajeBloqueo("archivar", estado);
+      setActionError(msg);
+      toast.warning(msg);
+      return;
+    }
+
+    setActionLoading(id + "_archivar");
+    setActionError("");
+
+    try {
+      await archivarEnvio(id);
+      toast.success("Envío archivado correctamente.");
+      onSuccess?.();
+    } catch (e) {
+      const msg = e?.response?.data?.message || "No se pudo archivar.";
+      setActionError(msg);
+      toast.error(msg);
+    } finally {
+      setActionLoading(null);
+    }
   }
 
-  async function handleEliminar(id, estado) {
-    if (!puedeEliminar(estado)) { setActionError(mensajeBloqueo("eliminar", estado)); return; }
-    if (!confirm("¿Eliminar del historial? No se puede deshacer.")) return;
-    setActionLoading(id + "_eliminar"); setActionError("");
-    try { await eliminarEnvioLogico(id); onSuccess?.(); }
-    catch (e) { setActionError(e?.response?.data?.message || "No se pudo eliminar."); }
-    finally { setActionLoading(null); }
+  function handleEliminar(id, estado) {
+    if (!puedeEliminar(estado)) {
+      const msg = mensajeBloqueo("eliminar", estado);
+      setActionError(msg);
+      toast.warning(msg);
+      return;
+    }
+
+    toast.confirm("¿Eliminar del historial? No se puede deshacer.", {
+      label: "Eliminar",
+      onConfirm: async () => {
+        setActionLoading(id + "_eliminar");
+        setActionError("");
+        try {
+          await eliminarEnvioLogico(id);
+          toast.success("Envío eliminado del historial.");
+          onSuccess?.();
+        } catch (e) {
+          const msg = e?.response?.data?.message || "No se pudo eliminar.";
+          setActionError(msg);
+          toast.error(msg);
+        } finally {
+          setActionLoading(null);
+        }
+      },
+    });
   }
 
   return {
-    actionLoading, actionError, setActionError, waLink, setWaLink,
-    vehiculos, vehiculoId, setVehiculoId,
-    fechaRetiro, setFechaRetiro,
-    franjaRetiro, setFranjaRetiro,
-    openAceptar, abrirAceptar, cerrarAceptar, confirmarAceptar,
+    actionLoading,
+    actionError,
+    setActionError,
+    waLink,
+    setWaLink,
+    vehiculos,
+    vehiculoId,
+    setVehiculoId,
+    fechaRetiro,
+    setFechaRetiro,
+    franjaRetiro,
+    setFranjaRetiro,
+    openAceptar,
+    abrirAceptar,
+    cerrarAceptar,
+    confirmarAceptar,
     handleCancelar,
     handleRechazarOCancelarComisionista,
     handleRetirar,

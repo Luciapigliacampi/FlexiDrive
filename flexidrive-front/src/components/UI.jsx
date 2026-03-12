@@ -1,4 +1,3 @@
-//flexidrive-front\src\components\UI.jsx
 export function Card({ title, children, className = "" }) {
   return (
     <div className={`rounded-2xl border bg-white p-6 ${className}`}>
@@ -28,4 +27,3 @@ export function Button({ variant = "primary", className = "", ...props }) {
 
   return <button {...props} className={`${base} ${styles} ${className}`} />;
 }
-

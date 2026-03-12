@@ -228,10 +228,10 @@ export default function TrackingEnvioComisionista() {
     {calificacion ? (
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          {[1,2,3,4,5,6,7,8,9,10].map((n) => (
+          {[1,2,3,4,5].map((n) => (
             <span key={n} className={`text-xl ${n <= calificacion.puntuacion ? "text-yellow-500" : "text-slate-200"}`}>★</span>
           ))}
-          <span className="ml-1 font-bold text-slate-700">{calificacion.puntuacion}/10</span>
+          <span className="ml-1 font-bold text-slate-700">{calificacion.puntuacion}/5</span>
         </div>
         {calificacion.comentario && (
           <p className="text-sm text-slate-600 italic">"{calificacion.comentario}"</p>

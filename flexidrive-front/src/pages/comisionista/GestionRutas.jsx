@@ -8,6 +8,7 @@ import {
   PauseCircle,
   PlayCircle,
 } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 
 import RutaModal from "./RutaModal";
 import {
@@ -18,10 +19,8 @@ import {
   toggleRutaActiva,
 } from "../../services/comisionistaServices";
 import { rutaToTripPlanPayload } from "../../services/tripPlanMappers";
-import { useSearchParams } from "react-router-dom";
+import { useToast } from "../../components/toast/useToast";
 
-// FIX #2: helper para obtener el id de una ruta de forma consistente,
-// ya que el backend puede devolver ._id o .id según el contexto.
 function getRutaId(ruta) {
   return ruta?._id ?? ruta?.id ?? "";
 }
@@ -29,24 +28,21 @@ function getRutaId(ruta) {
 export default function GestionRutas() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
   const [searchParams] = useSearchParams();
+  const { toast } = useToast();
 
-  // FIX #4: sincronizar q con searchParams cuando cambian
   const [q, setQ] = useState(searchParams.get("q") || "");
   useEffect(() => {
     setQ(searchParams.get("q") || "");
   }, [searchParams]);
 
   const [rutas, setRutas] = useState([]);
-
   const [openModal, setOpenModal] = useState(false);
   const [editRuta, setEditRuta] = useState(null);
 
   async function load() {
     setLoading(true);
     setError("");
-
     try {
       const data = await listRutas({ q });
       setRutas(Array.isArray(data) ? data : []);
@@ -59,7 +55,6 @@ export default function GestionRutas() {
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function onSearch(e) {
@@ -80,39 +75,46 @@ export default function GestionRutas() {
   async function onSave(payloadRutaUI) {
     try {
       const payload = rutaToTripPlanPayload(payloadRutaUI);
-      // FIX #2: usar getRutaId en lugar de editRuta?.id para ser consistente
       const id = getRutaId(editRuta);
+
       if (id) {
         await updateRuta(id, payload);
+        toast.success("Ruta actualizada correctamente.");
       } else {
         await createRuta(payload);
+        toast.success("Ruta creada correctamente.");
       }
+
       setOpenModal(false);
       await load();
     } catch (e) {
-      alert(e?.message || "No se pudo guardar la ruta.");
+      toast.error(e?.message || "No se pudo guardar la ruta.");
     }
   }
 
-  async function onDelete(id) {
-    const ok = confirm("¿Eliminar esta ruta?");
-    if (!ok) return;
-
-    try {
-      await deleteRuta(id);
-      await load();
-    } catch (e) {
-      alert(e?.message || "No se pudo eliminar la ruta.");
-    }
+  function onDelete(id) {
+    toast.confirm("¿Eliminar esta ruta?", {
+      label: "Eliminar",
+      onConfirm: async () => {
+        try {
+          await deleteRuta(id);
+          toast.success("Ruta eliminada correctamente.");
+          await load();
+        } catch (e) {
+          toast.error(e?.message || "No se pudo eliminar la ruta.");
+        }
+      },
+    });
   }
 
   async function toggleActiva(r) {
     try {
-      // FIX #2: usar getRutaId para consistencia
-      await toggleRutaActiva(getRutaId(r), !r.activa);
+      const nextActiva = !r.activa;
+      await toggleRutaActiva(getRutaId(r), nextActiva);
+      toast.success(nextActiva ? "Ruta activada correctamente." : "Ruta pausada correctamente.");
       await load();
     } catch (e) {
-      alert(e?.message || "No se pudo actualizar el estado de la ruta.");
+      toast.error(e?.message || "No se pudo actualizar el estado de la ruta.");
     }
   }
 
@@ -120,7 +122,6 @@ export default function GestionRutas() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-800">Gestión de rutas</h1>
@@ -138,7 +139,6 @@ export default function GestionRutas() {
         </button>
       </div>
 
-      {/* Search */}
       <form onSubmit={onSearch} className="flex gap-2">
         <div className="flex items-center gap-2 flex-1 rounded-md border bg-white px-3 py-2">
           <Search className="h-4 w-4 text-slate-500" />
@@ -160,7 +160,6 @@ export default function GestionRutas() {
         </div>
       ) : null}
 
-      {/* List */}
       <div className="grid grid-cols-1 gap-4">
         {loading ? (
           <div className="rounded-xl border bg-white p-6 text-slate-500">Cargando rutas...</div>
@@ -170,7 +169,6 @@ export default function GestionRutas() {
           </div>
         ) : (
           rutas.map((r) => {
-            // FIX #2: key y callbacks usan getRutaId
             const id = getRutaId(r);
             return (
               <RutaCard
@@ -185,7 +183,6 @@ export default function GestionRutas() {
         )}
       </div>
 
-      {/* Modal */}
       <RutaModal
         open={openModal}
         initial={editRuta}
@@ -195,8 +192,6 @@ export default function GestionRutas() {
     </div>
   );
 }
-
-/* ----------------- Card ----------------- */
 
 function RutaCard({ ruta, onEdit, onDelete, onToggle }) {
   const [expanded, setExpanded] = useState(false);
@@ -214,7 +209,6 @@ function RutaCard({ ruta, onEdit, onDelete, onToggle }) {
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm transition-all">
-      {/* Cabecera clickeable */}
       <div
         className="p-4 cursor-pointer select-none"
         onClick={() => setExpanded((v) => !v)}
@@ -250,7 +244,6 @@ function RutaCard({ ruta, onEdit, onDelete, onToggle }) {
               )}
             </div>
 
-            {/* Días */}
             <div className="flex flex-wrap gap-2">
               {dias.map((d) => (
                 <span
@@ -262,7 +255,6 @@ function RutaCard({ ruta, onEdit, onDelete, onToggle }) {
               ))}
             </div>
 
-            {/* Intermedias (resumen) */}
             {intermedias.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {intermedias.map((x, idx) => (
@@ -281,7 +273,6 @@ function RutaCard({ ruta, onEdit, onDelete, onToggle }) {
             )}
           </div>
 
-          {/* Acciones */}
           <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
             <IconBtn title="Editar" onClick={onEdit}>
               <Pencil className="h-4 w-4 text-blue-700" />
@@ -299,16 +290,13 @@ function RutaCard({ ruta, onEdit, onDelete, onToggle }) {
           </div>
         </div>
 
-        {/* Indicador expandir */}
         <div className="mt-2 flex items-center gap-1 text-xs text-slate-400 font-semibold">
           <span>{expanded ? "▲ Ocultar detalle" : "▼ Ver precios y detalle"}</span>
         </div>
       </div>
 
-      {/* Panel expandido */}
       {expanded && (
         <div className="border-t border-slate-100 px-4 pb-4 pt-3 space-y-4">
-          {/* Tabla de precios */}
           <div>
             <div className="text-sm font-bold text-slate-700 mb-2">Precios por localidad</div>
             {precios.length === 0 ? (
@@ -332,7 +320,6 @@ function RutaCard({ ruta, onEdit, onDelete, onToggle }) {
             )}
           </div>
 
-          {/* Descuento */}
           <div>
             <div className="text-sm font-bold text-slate-700 mb-2">Descuento por cantidad</div>
             {tieneDescuento ? (

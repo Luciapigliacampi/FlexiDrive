@@ -71,7 +71,7 @@ export default function MapaRutaOptimizada({ ruta, onCompletar, onConfirmarRetir
   const [loadingAccion, setLoadingAccion] = useState(null);
   const [errorAccion,   setErrorAccion]   = useState("");
   const [modalRetiro,      setModalRetiro]      = useState(null);
-  const [fechaRetiroInput, setFechaRetiroInput] = useState(getTodayISO());
+const [fechaRetiroInput, setFechaRetiroInput] = useState("");
   const [loadingRetiro,    setLoadingRetiro]    = useState(false);
 
   const paradas     = ruta?.orden_entregas || [];
