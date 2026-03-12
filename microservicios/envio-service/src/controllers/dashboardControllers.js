@@ -207,6 +207,7 @@ export const getAgendaHoy = async (req, res, next) => {
           ? (e.origenCiudad?.localidadNombre  || '—')
           : (e.destinoCiudad?.localidadNombre || '—'),
         estado:        e.estadoId,
+        estadoPrevio:  e.estadoId_previo || null,
         franja:        e.franja_horaria_retiro || null,
         fecha_retiro:  e.fecha_retiro  || null,
         fecha_entrega: e.fecha_entrega || null,
@@ -267,15 +268,16 @@ export const finalizarViaje = async (req, res, next) => {
     // 1. Marcar envíos pendientes con estados diferenciados según qué falta hacer:
     //    - Falta retirar  → DEMORADO_RETIRO   (buildParadas lo incluye como parada RETIRO)
     //    - Falta entregar → DEMORADO_ENTREGA  (buildParadas lo incluye como parada ENTREGA)
+    //    Guardamos estadoId_previo para referencia histórica
     const [resRetiro, resCamino] = await Promise.all([
       // Pendientes de retiro → DEMORADO_RETIRO
-      // Sin restricción de fecha: EN_RETIRO/ASIGNADO activos de CUALQUIER día se demoران
+      // Sin restricción de fecha: EN_RETIRO/ASIGNADO activos de CUALQUIER día se demoran
       Envio.updateMany(
         {
           comisionistaId,
           estadoId: { $in: ['EN_RETIRO', 'ASIGNADO'] },
         },
-        { $set: { estadoId: 'DEMORADO_RETIRO' } }
+        [{ $set: { estadoId_previo: '$estadoId', estadoId: 'DEMORADO_RETIRO' } }]
       ),
       // Pendientes de entrega → DEMORADO_ENTREGA
       // Sin restricción de fecha: EN_CAMINO/RETIRADO activos de CUALQUIER día se demoran
@@ -284,7 +286,7 @@ export const finalizarViaje = async (req, res, next) => {
           comisionistaId,
           estadoId: { $in: ['EN_CAMINO', 'RETIRADO'] },
         },
-        { $set: { estadoId: 'DEMORADO_ENTREGA' } }
+        [{ $set: { estadoId_previo: '$estadoId', estadoId: 'DEMORADO_ENTREGA' } }]
       ),
     ]);
 

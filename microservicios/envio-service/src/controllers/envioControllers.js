@@ -599,18 +599,11 @@ export const marcarEntregado = async (req, res, next) => {
     envio.estadoId = 'ENTREGADO';
     await envio.save();
 
-   const { distanciaKm } = req.body ?? {};
+    await EnvioXComisionista.findOneAndUpdate(
+      { envioId: id, comisionistaId },
+      { $set: { estado_id: 'ENTREGADO', fecha_fin: getNow() } }
+    );
 
-await EnvioXComisionista.findOneAndUpdate(
-  { envioId: id, comisionistaId },
-  {
-    $set: {
-      estado_id:   'ENTREGADO',
-      fecha_fin:   getNow(),
-      ...(distanciaKm != null ? { distanciaKm: Number(distanciaKm) } : {}),
-    },
-  }
-);
     return res.status(200).json({ message: 'Envío entregado.', estado: 'ENTREGADO' });
   } catch (err) {
     next(err);
@@ -622,6 +615,7 @@ export const iniciarViaje = async (req, res, next) => {
     const comisionistaId = req.userId;
     const { inicioDia, finDia } = getDayRange(req.body.fecha);
 
+    // Envíos ASIGNADOS de hoy con franja mañana → EN_RETIRO
     const resManana = await Envio.updateMany(
       {
         comisionistaId,
@@ -638,6 +632,7 @@ export const iniciarViaje = async (req, res, next) => {
       { $set: { estadoId: 'EN_RETIRO' } }
     );
 
+    // Envíos RETIRADOS de hoy → EN_CAMINO
     const resRetirados = await Envio.updateMany(
       {
         comisionistaId,
@@ -647,10 +642,25 @@ export const iniciarViaje = async (req, res, next) => {
       { $set: { estadoId: 'EN_CAMINO' } }
     );
 
+    // Envíos DEMORADOS de cualquier día → reactivar para el nuevo viaje
+    // DEMORADO_RETIRO → EN_RETIRO (aún no fueron retirados)
+    const resDemoradosRetiro = await Envio.updateMany(
+      { comisionistaId, estadoId: 'DEMORADO_RETIRO' },
+      { $set: { estadoId: 'EN_RETIRO' } }
+    );
+
+    // DEMORADO_ENTREGA → EN_CAMINO (ya fueron retirados, falta entregar)
+    const resDemoradosEntrega = await Envio.updateMany(
+      { comisionistaId, estadoId: 'DEMORADO_ENTREGA' },
+      { $set: { estadoId: 'EN_CAMINO' } }
+    );
+
     return res.status(200).json({
-      message:  '¡Buen viaje!',
-      enRetiro: resManana.modifiedCount,
-      enCamino: resRetirados.modifiedCount,
+      message:         '¡Buen viaje!',
+      enRetiro:        resManana.modifiedCount,
+      enCamino:        resRetirados.modifiedCount,
+      demoradosRetiro: resDemoradosRetiro.modifiedCount,
+      demoradosEntrega: resDemoradosEntrega.modifiedCount,
     });
   } catch (err) {
     next(err);
@@ -716,7 +726,6 @@ export const cancelarPorComisionista = async (req, res, next) => {
       return res.status(200).json({ message: 'Envío cancelado.' });
     }
 
-    
     if (CON_RETORNO.includes(envio.estadoId)) {
       await Envio.updateOne({ _id: id }, { $set: { estadoId: 'CANCELADO_RETORNO' } });
       await EnvioXComisionista.findOneAndUpdate(
