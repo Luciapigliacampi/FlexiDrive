@@ -56,7 +56,18 @@ export default function TestDatePanel() {
   useEffect(() => {
     if (!USE_TEST) return;
     fetchConfig()
-      .then(c => { setConfig(c); setFecha(c.TEST_DATE || "2026-03-06"); setHora(c.TEST_HOUR ?? "8"); })
+      .then(c => {
+        setConfig(c);
+        setFecha(c.TEST_DATE || "2026-03-06");
+        setHora(c.TEST_HOUR ?? "8");
+
+        // ── FIX: al montar, sincronizar el frontend con la config actual del backend.
+        // El dashboard y otros componentes leen getTodayString() sincrónicamente en
+        // useState antes de que este useEffect corra — quedan con la fecha real del
+        // sistema. Disparar el evento los fuerza a actualizarse con la fecha simulada.
+        setTestConfig({ fecha: c.TEST_DATE, hora: c.TEST_HOUR });
+        window.dispatchEvent(new CustomEvent("test-date-changed", { detail: c }));
+      })
       .catch(() => {});
   }, []);
 
@@ -69,34 +80,34 @@ export default function TestDatePanel() {
   }
 
   async function apply(body) {
-  setLoading(true);
-  try {
-    const c = await patchBoth(body);
+    setLoading(true);
+    try {
+      const c = await patchBoth(body);
 
-    // Desactivar ruta vieja antes de notificar al dashboard
-    const comisionistaId = localStorage.getItem("user")
-      ? JSON.parse(localStorage.getItem("user")).id
-      : null;
+      // Desactivar ruta vieja antes de notificar al dashboard
+      const comisionistaId = localStorage.getItem("user")
+        ? JSON.parse(localStorage.getItem("user")).id
+        : null;
 
-    if (comisionistaId) {
-      await api.patch(`${IA_ROUTE_BASE}/api/rutas/desactivar/${comisionistaId}`)
-        .catch(() => {}); // si falla no bloqueamos
+      if (comisionistaId) {
+        await api.patch(`${IA_ROUTE_BASE}/api/rutas/desactivar/${comisionistaId}`)
+          .catch(() => {}); // si falla no bloqueamos
+      }
+
+      setConfig(c);
+      setFecha(c.TEST_DATE);
+      setHora(String(c.TEST_HOUR));
+      setTestConfig({ fecha: c.TEST_DATE, hora: c.TEST_HOUR });
+
+      const serv = [c._envioOk && "envio", c._iaOk && "ia-route"].filter(Boolean).join(" + ");
+      showMsg(`✅ ${new Date(c.nowSimulado).toLocaleString("es-AR")}  [${serv}]`);
+      window.dispatchEvent(new CustomEvent("test-date-changed", { detail: c }));
+    } catch (e) {
+      showMsg(`❌ ${e.message}`);
+    } finally {
+      setLoading(false);
     }
-
-    setConfig(c);
-    setFecha(c.TEST_DATE);
-    setHora(String(c.TEST_HOUR));
-    setTestConfig({ fecha: c.TEST_DATE, hora: c.TEST_HOUR });
-
-    const serv = [c._envioOk && "envio", c._iaOk && "ia-route"].filter(Boolean).join(" + ");
-    showMsg(`✅ ${new Date(c.nowSimulado).toLocaleString("es-AR")}  [${serv}]`);
-    window.dispatchEvent(new CustomEvent("test-date-changed", { detail: c }));
-  } catch (e) {
-    showMsg(`❌ ${e.message}`);
-  } finally {
-    setLoading(false);
   }
-}
 
   async function handleCancelar() {
     setLoading(true);

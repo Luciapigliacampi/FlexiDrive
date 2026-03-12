@@ -20,6 +20,18 @@ function franjaToMinutos(franja = '') {
   return h * 60 + (m || 0);
 }
 
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 /* ─── buildParadas ──────────────────────────────────────────────────────── */
 function buildParadas(envios, viajeIniciado = false) {
   const paradas = [];
@@ -498,8 +510,31 @@ export const completarParada = async (req, res) => {
     }
 
     parada.completada    = true;
-    parada.completada_at = getNow();
+parada.completada_at = getNow();
 
+// ── Calcular distancia recorrida para esta parada ──────────────────────────
+// Para ENTREGA: distancia desde el retiro del mismo envío hasta acá.
+// Para RETIRO o RETORNO: distancia desde la última parada completada hasta acá.
+if (tipo === 'ENTREGA') {
+  const retiroDelEnvio = ruta.orden_entregas.find(
+    p => String(p.envioId) === String(envioId) && p.tipo === 'RETIRO' && p.completada
+  );
+  const origenLat = retiroDelEnvio?.lat ?? ruta.lat_inicio;
+  const origenLng = retiroDelEnvio?.lng ?? ruta.lng_inicio;
+
+  if (origenLat != null && origenLng != null) {
+    parada.distancia_km = parseFloat(
+      haversineKm(origenLat, origenLng, parada.lat, parada.lng).toFixed(2)
+    );
+  }
+} else {
+  // RETIRO o RETORNO: distancia desde el punto de partida actual
+  if (ruta.lat_inicio != null && ruta.lng_inicio != null) {
+    parada.distancia_km = parseFloat(
+      haversineKm(ruta.lat_inicio, ruta.lng_inicio, parada.lat, parada.lng).toFixed(2)
+    );
+  }
+}
     // Mover el punto de partida a la parada recién completada
     ruta.lat_inicio = parada.lat;
     ruta.lng_inicio = parada.lng;
@@ -513,11 +548,19 @@ export const completarParada = async (req, res) => {
         ? 'ENTREGADO'
         : 'DEVUELTO';
 
-    await axios.patch(
-      `${ENVIO_BASE}/api/envios/${envioId}/actualizar-estado`,
-      { envioId, nuevoEstado },
-      { headers: { Authorization: token } }
-    ).catch(e => console.warn('⚠️ No se pudo actualizar estado:', e.message));
+    if (tipo === 'RETIRO') {
+  await axios.patch(
+    `${ENVIO_BASE}/api/envios/${envioId}/marcar-retirado`,
+    {},
+    { headers: { Authorization: token } }
+  ).catch(e => console.warn('⚠️ No se pudo marcar retirado:', e.message));
+} else if (tipo === 'ENTREGA') {
+  await axios.patch(
+    `${ENVIO_BASE}/api/envios/${envioId}/marcar-entregado`,
+    { distanciaKm: parada.distancia_km ?? null },
+    { headers: { Authorization: token } }
+  ).catch(e => console.warn('⚠️ No se pudo marcar entregado:', e.message));
+}
 
     const pendientes = ruta.orden_entregas.filter(p => !p.completada);
 

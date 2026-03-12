@@ -506,13 +506,13 @@ export default function DashboardComisionista() {
   const hayEnviosHoy = agenda.length > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-5xl font-extrabold tracking-tight text-slate-700">
             Hola, {username}
           </h1>
-          <p className="mt-2 text-xl font-semibold text-slate-600">
+          <p className="mt-1 text-xl font-semibold text-slate-600">
             ¿Qué querés hacer hoy?
           </p>
         </div>
@@ -523,7 +523,7 @@ export default function DashboardComisionista() {
               type="button"
               onClick={handleFinalizarViaje}
               disabled={actionLoading === "finalizar_viaje"}
-              className="flex items-center gap-2 rounded-xl bg-slate-700 px-5 py-3 text-sm font-extrabold text-white hover:bg-slate-800 disabled:opacity-50 shadow"
+              className="flex items-center gap-2 rounded-xl bg-slate-700 px-5 py-1 text-sm font-extrabold text-white hover:bg-slate-800 disabled:opacity-50 shadow"
             >
               <StopCircle className="h-5 w-5" />
               {actionLoading === "finalizar_viaje"
@@ -546,7 +546,7 @@ export default function DashboardComisionista() {
       </div>
 
       {(error || actionError) && (
-        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-1 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{error || actionError}</span>
           <button
@@ -561,7 +561,7 @@ export default function DashboardComisionista() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
         <QuickAction
           to="/comisionista/crear-envio"
           icon={<Package className="h-6 w-6" />}
@@ -580,7 +580,7 @@ export default function DashboardComisionista() {
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid grid-cols-2 gap-y-4 md:grid-cols-4 md:divide-x md:divide-slate-200 p-4">
+        <div className="grid grid-cols-2 gap-y-4 md:grid-cols-4 md:divide-x md:divide-slate-200 p-2">
           {metrics.map((m) => (
             <Metric key={m.label} value={m.value} label={m.label} />
           ))}
@@ -588,9 +588,9 @@ export default function DashboardComisionista() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-2">
           <div>
-            <h2 className="text-2xl font-bold text-blue-800 mb-3">
+            <h2 className="text-2xl font-bold text-blue-800 mb-2">
               Entregas y retiros programados para hoy
             </h2>
 
@@ -599,13 +599,13 @@ export default function DashboardComisionista() {
                 <table className="w-full text-left">
                   <thead className="bg-slate-50 text-slate-600 sticky top-0 z-10">
                     <tr className="text-xs font-bold uppercase tracking-wide">
-                      <th className="px-3 py-3 w-10">#</th>
-                      <th className="px-3 py-3">Nro. envío</th>
-                      <th className="px-3 py-3">Cliente</th>
-                      <th className="px-3 py-3">Dirección</th>
-                      <th className="px-3 py-3">Localidad</th>
-                      <th className="px-3 py-3">Estado</th>
-                      <th className="px-3 py-3 text-center">Acción</th>
+                      <th className="px-3 py-2 w-10">#</th>
+                      <th className="px-3 py-2">Nro. envío</th>
+                      <th className="px-3 py-2">Cliente</th>
+                      <th className="px-3 py-2">Dirección</th>
+                      <th className="px-3 py-2">Localidad</th>
+                      <th className="px-3 py-2">Estado</th>
+                      <th className="px-3 py-2 text-center">Acción</th>
                     </tr>
                   </thead>
 
@@ -614,7 +614,7 @@ export default function DashboardComisionista() {
                       <tr>
                         <td
                           colSpan={7}
-                          className="px-4 py-8 text-center text-slate-500"
+                          className="px-4 py-2 text-center text-slate-500"
                         >
                           Cargando agenda...
                         </td>
@@ -623,7 +623,7 @@ export default function DashboardComisionista() {
                       <tr>
                         <td
                           colSpan={7}
-                          className="px-4 py-8 text-center text-slate-500"
+                          className="px-4 py-2 text-center text-slate-500"
                         >
                           No hay entregas/retiros para hoy.
                         </td>
@@ -645,7 +645,7 @@ export default function DashboardComisionista() {
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-2">
             <h2 className="text-2xl font-bold text-blue-800">
               Estadísticas de actividad
             </h2>
@@ -744,17 +744,26 @@ export default function DashboardComisionista() {
   );
 }
 
+function extraerSoloDireccion(destino) {
+  const destinoStr = String(destino || "").trim();
+  if (!destinoStr) return "—";
+
+  return destinoStr.split(",")[0].trim() || "—";
+}
+
 function AgendaRow({ row, actionLoading, onRetirar, onEntregar }) {
   const estadoKey = toEstadoKey(row.estado);
   const isLoading = (k) => actionLoading === `${row.id}_${k}`;
   const puedeRetirar = PUEDE_RETIRAR.includes(row.estado);
   const puedeEntregar = PUEDE_ENTREGAR.includes(row.estado);
 
+  const direccion = extraerSoloDireccion(row.destino);
+
   return (
     <tr className="border-t border-slate-100 text-sm hover:bg-slate-50">
-      <td className="px-3 py-3 text-slate-500 font-semibold">{row.orden}</td>
+      <td className="px-3 py-2 text-slate-500 font-semibold">{row.orden}</td>
 
-      <td className="px-3 py-3">
+      <td className="px-3 py-2">
         <div className="flex flex-col gap-0.5">
           <Link
             to={`/comisionista/envios/${row.id}/tracking`}
@@ -780,7 +789,7 @@ function AgendaRow({ row, actionLoading, onRetirar, onEntregar }) {
       </td>
 
       <td className="px-3 py-3 text-slate-700 max-w-[160px]">
-        <span className="line-clamp-2 text-xs">{row.destino}</span>
+        <span className="line-clamp-2 text-xs">{direccion}</span>
         {row.franja && (
           <span className="text-[10px] text-slate-400 block mt-0.5">
             🕐 {row.franja}
@@ -788,7 +797,9 @@ function AgendaRow({ row, actionLoading, onRetirar, onEntregar }) {
         )}
       </td>
 
-      <td className="px-3 py-3 text-slate-700 text-xs">{row.localidad}</td>
+      <td className="px-3 py-3 text-slate-700 text-xs">
+        {row.localidad || "—"}
+      </td>
 
       <td className="px-3 py-3">
         <StatusBadge estado={estadoKey} label={estadoLabel(row.estado)} />
@@ -850,7 +861,7 @@ function QuickAction({ to, icon, title }) {
   return (
     <Link
       to={to}
-      className="rounded-lg border border-slate-200 bg-white shadow-sm hover:bg-slate-50 transition p-4 flex items-center gap-3"
+      className="rounded-lg border border-slate-200 bg-white shadow-sm hover:bg-slate-50 transition p-2 flex items-center gap-3"
     >
       <div className="h-10 w-10 rounded-lg bg-slate-100 grid place-items-center text-slate-700">
         {icon}
@@ -873,7 +884,7 @@ function Metric({ value, label }) {
 
 function StatCard({ icon, label, value }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
       <div className="mb-2 flex items-center gap-2 text-slate-500">
         <span className="text-blue-700">{icon}</span>
         <span className="text-sm font-semibold">{label}</span>

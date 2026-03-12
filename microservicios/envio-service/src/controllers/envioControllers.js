@@ -599,11 +599,18 @@ export const marcarEntregado = async (req, res, next) => {
     envio.estadoId = 'ENTREGADO';
     await envio.save();
 
-    await EnvioXComisionista.findOneAndUpdate(
-      { envioId: id, comisionistaId },
-      { $set: { estado_id: 'ENTREGADO', fecha_fin: getNow() } }
-    );
+   const { distanciaKm } = req.body;
 
+await EnvioXComisionista.findOneAndUpdate(
+  { envioId: id, comisionistaId },
+  {
+    $set: {
+      estado_id:   'ENTREGADO',
+      fecha_fin:   getNow(),
+      ...(distanciaKm != null ? { distanciaKm: Number(distanciaKm) } : {}),
+    },
+  }
+);
     return res.status(200).json({ message: 'Envío entregado.', estado: 'ENTREGADO' });
   } catch (err) {
     next(err);
@@ -709,6 +716,7 @@ export const cancelarPorComisionista = async (req, res, next) => {
       return res.status(200).json({ message: 'Envío cancelado.' });
     }
 
+    
     if (CON_RETORNO.includes(envio.estadoId)) {
       await Envio.updateOne({ _id: id }, { $set: { estadoId: 'CANCELADO_RETORNO' } });
       await EnvioXComisionista.findOneAndUpdate(

@@ -1,12 +1,11 @@
+// microservicios/envio-service/src/index.js
 import express from "express";
-import dotenv from "dotenv";
 import cors from "cors";
 import conectarDB from "./config/db.js";
 import envioRoutes from "./routes/envioRoutes.js";
 import estadisticasRoutes from "./routes/estadisticasRoutes.js";
+import testRoutes from "./routes/testRoutes.js";
 import { iniciarJobCancelacionVencidos } from "./jobs/cancelarEnviosVencidos.js";
-
-dotenv.config();
 
 conectarDB();
 iniciarJobCancelacionVencidos();
@@ -18,6 +17,7 @@ app.use(express.json());
 
 app.use("/api/envios", envioRoutes);
 app.use("/api/estadisticas", estadisticasRoutes);
+app.use("/api/test", testRoutes);
 
 const PORT = process.env.PORT || 3001;
 

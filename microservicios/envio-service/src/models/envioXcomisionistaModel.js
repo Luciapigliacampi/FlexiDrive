@@ -15,6 +15,7 @@ const envioXComisionistaSchema = new mongoose.Schema({
   fecha_demora:         { type: Date },
   fecha_inicio:         { type: Date },
   fecha_fin:            { type: Date },
+  distanciaKm: { type: Number, default: 0 },
 
   estado_id: {
     type: String,

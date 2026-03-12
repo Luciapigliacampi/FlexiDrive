@@ -13,6 +13,7 @@ const paradaSchema = new mongoose.Schema({
   fecha_retiro_confirmada: { type: Date, default: null },
   completada:              { type: Boolean, default: false },
   completada_at:           { type: Date, default: null },
+  distancia_km:  { type: Number, default: null },
 }, { _id: false });
 
 const rutaOptimaSchema = new mongoose.Schema({
