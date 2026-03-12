@@ -6,8 +6,8 @@ export default function StatusBadge({ estado, label, showIcon = false }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold ${s.cls}`}
-    >
+  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold whitespace-nowrap ${s.cls}`}
+>
       {showIcon && Icon ? <Icon className="h-4 w-4" /> : null}
       {label || s.label || estado}
     </span>

@@ -1,3 +1,4 @@
+//microservicios\calificaciones-service\src\models\calificacionModel.js
 import mongoose from 'mongoose';
 
 const calificacionSchema = new mongoose.Schema({

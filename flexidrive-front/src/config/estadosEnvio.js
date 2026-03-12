@@ -1,4 +1,4 @@
-// flexidrive-front\src\config\estadosEnvio.js
+// flexidrive-front/src/config/estadosEnvio.js
 import {
   Clock, PackageCheck, PackageSearch, Truck, CheckCircle2,
   XCircle, AlertTriangle, Archive, UserCheck, PackageOpen,
@@ -13,7 +13,7 @@ export const ESTADOS_ENVIO = {
     key: "asignado", label: "Aceptado",
     cls: "bg-blue-100 text-blue-700", Icon: UserCheck, order: 20,
   },
-  retirado: {                                           // ← NUEVO
+  retirado: {
     key: "retirado", label: "Retirado",
     cls: "bg-violet-100 text-violet-700", Icon: PackageOpen, order: 25,
   },
@@ -25,10 +25,18 @@ export const ESTADOS_ENVIO = {
     key: "en_camino", label: "En camino",
     cls: "bg-blue-600 text-white", Icon: Truck, order: 40,
   },
-  demorado: {
-    key: "demorado", label: "Demorado",
+  // ── Estados demorados ────────────────────────────────────────────────────────
+  // El viaje anterior terminó sin completar esta parada.
+  // Aparecen en la grilla y en la ruta del día siguiente hasta que se completen.
+  demorado_retiro: {
+    key: "demorado_retiro", label: "Demorado",
     cls: "bg-orange-500 text-white", Icon: AlertTriangle, order: 45,
   },
+  demorado_entrega: {
+    key: "demorado_entrega", label: "Demorado",
+    cls: "bg-orange-500 text-white", Icon: AlertTriangle, order: 46,
+  },
+  // ── Estados finales ──────────────────────────────────────────────────────────
   entregado: {
     key: "entregado", label: "Entregado",
     cls: "bg-emerald-600 text-white", Icon: CheckCircle2, order: 50, isFinal: true,

@@ -1,3 +1,4 @@
+//microservicios\calificaciones-service\src\middlewares\authMiddleware.js
 import jwt from 'jsonwebtoken';
 
 export const authMiddleware = (req, res, next) => {

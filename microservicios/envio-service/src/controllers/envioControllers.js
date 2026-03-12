@@ -6,7 +6,7 @@ import {
   getNow,
   getDayRange,
   sameDayLocal,
-} from '../utils/testDate.js';  // ← getNowAt eliminado del import
+} from '../utils/testDate.js';
 import {
   notifEnvioAceptado,
   notifEstadoActualizado,
@@ -18,11 +18,7 @@ import {
 
 function franjaIniciada(franja, horaActual) {
   if (!franja) return true;
-  // Franja mañana: siempre iniciada desde el inicio del día
   if (franja === '00:00-12:00' || franja === '08:00-13:00') return true;
-  // Todas las franjas de tarde/noche inician a las 13hs —
-  // el comisionista puede retirar desde las 13 sin importar si la franja es
-  // 13-17, 17-20 o 12-23:59.
   return horaActual >= 13;
 }
 
@@ -118,7 +114,6 @@ export const aceptarEnvio = async (req, res, next) => {
     if (!envio || envio.estadoId !== 'PENDIENTE')
       return res.status(400).json({ message: 'El envío ya no está disponible o no existe.' });
 
-    // ─── ¿Hay viaje activo hoy? ───────────────────────────────────────────
     let viajeYaIniciado = false;
     try {
       const RUTA_BASE = process.env.IA_ROUTE_SERVICE_URL || 'http://localhost:3002';
@@ -130,15 +125,12 @@ export const aceptarEnvio = async (req, res, next) => {
         viajeYaIniciado = sameDayLocal(new Date(data.fecha_viaje), getNow());
       }
     } catch {
-      // ia-route-service no disponible o no hay ruta → consideramos que no inició
       viajeYaIniciado = false;
     }
 
     function franjaYaInicio(franja) {
       if (!franja) return true;
-      // Mañana: siempre iniciada
       if (franja === '00:00-12:00' || franja === '08:00-13:00') return true;
-      // Tarde/noche: todas inician a las 13hs
       return getNow().getHours() >= 13;
     }
 
@@ -146,8 +138,6 @@ export const aceptarEnvio = async (req, res, next) => {
       ? sameDayLocal(new Date(fecha_retiro + 'T12:00:00'), getNow())
       : false;
 
-    // ─── Estado inicial según reglas de negocio ───────────────────────────
-    // EN_RETIRO solo si: viaje ya iniciado + retiro es hoy + la franja ya empezó
     const estadoInicial =
       viajeYaIniciado && fechaRetiroEsHoy && franjaYaInicio(franja_horaria_retiro)
         ? 'EN_RETIRO'
@@ -168,10 +158,6 @@ export const aceptarEnvio = async (req, res, next) => {
     if (franja_horaria_retiro) envio.franja_horaria_retiro = franja_horaria_retiro;
     await envio.save();
 
-    // Notificar al cliente que fue aceptado
-    notifEnvioAceptado({ userId: String(envio.usuarioId), envioId: String(envio._id), nroEnvio: envio.nro_envio, comisionistaNombre: 'un comisionista' });
-
-    // Notificar al cliente
     notifEnvioAceptado({ userId: String(envio.usuarioId), envioId: String(envio._id), nroEnvio: envio.nro_envio, comisionistaNombre: 'un comisionista' });
 
     res.status(200).json({
@@ -191,13 +177,17 @@ export const actualizarEstadoEnvio = async (req, res, next) => {
     const { envioId, nuevoEstado } = req.body;
     const comisionistaId = req.userId;
 
+    // ── Transiciones válidas por estado ───────────────────────────────────────
+    // DEMORADO_RETIRO  = viaje anterior terminó antes de retirar → al día sig. retira normal
+    // DEMORADO_ENTREGA = viaje anterior terminó antes de entregar → al día sig. entrega normal
     const TRANSICIONES_VALIDAS = {
-      ASIGNADO:         ['EN_RETIRO', 'CANCELADO'],
-      EN_RETIRO:        ['RETIRADO', 'EN_CAMINO', 'CANCELADO'],
-      RETIRADO:         ['EN_CAMINO', 'CANCELADO_RETORNO'],
-      EN_CAMINO:        ['ENTREGADO', 'DEMORADO', 'CANCELADO_RETORNO'],
-      DEMORADO:         ['EN_CAMINO', 'ENTREGADO', 'CANCELADO_RETORNO'],
-      CANCELADO_RETORNO:['DEVUELTO'],
+      ASIGNADO:          ['EN_RETIRO', 'CANCELADO'],
+      EN_RETIRO:         ['RETIRADO', 'EN_CAMINO', 'CANCELADO'],
+      RETIRADO:          ['EN_CAMINO', 'CANCELADO_RETORNO'],
+      EN_CAMINO:         ['ENTREGADO', 'CANCELADO_RETORNO'],
+      DEMORADO_RETIRO:   ['EN_CAMINO', 'CANCELADO'],
+      DEMORADO_ENTREGA:  ['ENTREGADO', 'CANCELADO_RETORNO'],
+      CANCELADO_RETORNO: ['DEVUELTO'],
     };
 
     const envio = await Envio.findById(envioId);
@@ -215,20 +205,15 @@ export const actualizarEstadoEnvio = async (req, res, next) => {
     await envio.save();
 
     const datosUpdate = { estado_id: nuevoEstado };
-    if (nuevoEstado === 'EN_RETIRO')                          datosUpdate.fecha_inicio_retiro = getNow();
-    if (nuevoEstado === 'EN_CAMINO')                          datosUpdate.fecha_inicio        = getNow();
-    if (nuevoEstado === 'DEMORADO')                           datosUpdate.fecha_demora        = getNow();
-    if (['ENTREGADO', 'DEVUELTO'].includes(nuevoEstado))      datosUpdate.fecha_fin           = getNow();
+    if (nuevoEstado === 'EN_RETIRO')                     datosUpdate.fecha_inicio_retiro = getNow();
+    if (nuevoEstado === 'EN_CAMINO')                     datosUpdate.fecha_inicio        = getNow();
+    if (['ENTREGADO', 'DEVUELTO'].includes(nuevoEstado)) datosUpdate.fecha_fin           = getNow();
 
     await EnvioXComisionista.findOneAndUpdate(
       { envioId, comisionistaId },
       { $set: datosUpdate }
     );
 
-    // Notificar al cliente sobre el cambio de estado
-    notifEstadoActualizado({ userId: String(envio.usuarioId), envioId: String(envio._id), nroEnvio: envio.nro_envio, nuevoEstado });
-
-    // Notificar al cliente
     notifEstadoActualizado({ userId: String(envio.usuarioId), envioId: String(envio._id), nroEnvio: envio.nro_envio, nuevoEstado });
 
     return res.status(200).json({ message: `Estado actualizado a ${nuevoEstado}.`, estado: nuevoEstado });
@@ -243,7 +228,7 @@ export const getHistorial = async (req, res, next) => {
     const userRol = req.userRol;
     let query = {};
 
-    if (userRol === 'cliente')       query = { usuarioId:       userId };
+    if (userRol === 'cliente')           query = { usuarioId:       userId };
     else if (userRol === 'comisionista') query = { comisionistaId: userId };
 
     const mostrarArchivados = req.query.archivado === 'true';
@@ -347,13 +332,14 @@ export const cancelarEnvio = async (req, res, next) => {
     if (envio.usuarioId.toString() !== req.userId)
       return res.status(403).json({ message: 'No tenés permiso.' });
 
-    const CANCELABLE_SIN_RETORNO = ['PENDIENTE', 'ASIGNADO', 'EN_RETIRO'];
-    const CANCELABLE_CON_RETORNO = ['RETIRADO', 'EN_CAMINO', 'DEMORADO'];
+    // DEMORADO_RETIRO: nunca fue retirado → cancelar sin retorno
+    // DEMORADO_ENTREGA: ya fue retirado → necesita retorno al origen
+    const CANCELABLE_SIN_RETORNO = ['PENDIENTE', 'ASIGNADO', 'EN_RETIRO', 'DEMORADO_RETIRO'];
+    const CANCELABLE_CON_RETORNO = ['RETIRADO', 'EN_CAMINO', 'DEMORADO_ENTREGA'];
 
     if (CANCELABLE_SIN_RETORNO.includes(envio.estadoId)) {
       await Envio.updateOne({ _id: id }, { $set: { estadoId: 'CANCELADO' } });
       await EnvioXComisionista.findOneAndUpdate({ envioId: id }, { $set: { estado_id: 'CANCELADO' } });
-      // Notificar al comisionista si había uno asignado
       if (envio.comisionistaId) {
         notifCanceladoPorCliente({ userId: String(envio.comisionistaId), envioId: String(envio._id), nroEnvio: envio.nro_envio });
       }
@@ -379,7 +365,6 @@ export const cancelarEnvio = async (req, res, next) => {
         { $set: { estadoId: 'CANCELADO_RETORNO' }, ...(notasExtra ? { $push: { notas_adicionales: notasExtra } } : {}) }
       );
       await EnvioXComisionista.findOneAndUpdate({ envioId: id }, { $set: { estado_id: 'CANCELADO_RETORNO' } });
-      // Notificar al comisionista
       if (envio.comisionistaId) {
         notifCanceladoPorCliente({ userId: String(envio.comisionistaId), envioId: String(envio._id), nroEnvio: envio.nro_envio });
       }
@@ -403,7 +388,7 @@ export const getEnviosPorFecha = async (req, res, next) => {
       Envio.find({
         comisionistaId,
         $or: [
-          { estadoId: { $in: ['EN_RETIRO', 'EN_CAMINO', 'DEMORADO', 'CANCELADO_RETORNO'] } },
+          { estadoId: { $in: ['EN_RETIRO', 'EN_CAMINO', 'DEMORADO_RETIRO', 'DEMORADO_ENTREGA', 'CANCELADO_RETORNO'] } },
           { estadoId: 'RETIRADO', fecha_entrega: { $gte: inicioDia, $lte: finDia } },
         ],
       }).lean(),
@@ -510,7 +495,9 @@ export const getEnviosParaRuta = async (req, res, next) => {
       Envio.find({
         comisionistaId,
         $or: [
-          { estadoId: { $in: ['EN_RETIRO', 'EN_CAMINO', 'DEMORADO', 'CANCELADO_RETORNO'] } },
+          // Activos + demorados de días anteriores (sin restricción de fecha)
+          { estadoId: { $in: ['EN_RETIRO', 'EN_CAMINO', 'DEMORADO_RETIRO', 'DEMORADO_ENTREGA', 'CANCELADO_RETORNO'] } },
+          // Retirados con entrega hoy
           { estadoId: 'RETIRADO', fecha_entrega: { $gte: inicioDia, $lte: finDia } },
         ],
       }).lean(),
@@ -552,12 +539,10 @@ export const marcarRetirado = async (req, res, next) => {
     if (!envio) return res.status(404).json({ message: 'Envío no encontrado.' });
     if (String(envio.comisionistaId) !== comisionistaId)
       return res.status(403).json({ message: 'No tenés permiso.' });
-    if (!['ASIGNADO', 'EN_RETIRO'].includes(envio.estadoId))
+    // DEMORADO_RETIRO: el viaje anterior terminó antes de poder retirar
+    if (!['ASIGNADO', 'EN_RETIRO', 'DEMORADO_RETIRO'].includes(envio.estadoId))
       return res.status(400).json({ message: `No se puede marcar como retirado desde estado ${envio.estadoId}.` });
 
-    // Determinar nuevo estado:
-    // Si el viaje ya está iniciado y fecha_entrega es hoy → EN_CAMINO
-    // En cualquier otro caso → RETIRADO
     let nuevoEstado = 'RETIRADO';
     try {
       const RUTA_BASE = process.env.IA_ROUTE_SERVICE_URL || 'http://localhost:3002';
@@ -582,13 +567,6 @@ export const marcarRetirado = async (req, res, next) => {
       { $set: { estado_id: nuevoEstado, fecha_retiro_efectiva: getNow() } }
     );
 
-    // Notificar al cliente
-    notifRetiroConfirmado({ userId: String(envio.usuarioId), envioId: String(envio._id), nroEnvio: envio.nro_envio });
-    if (nuevoEstado === 'EN_CAMINO') {
-      notifEstadoActualizado({ userId: String(envio.usuarioId), envioId: String(envio._id), nroEnvio: envio.nro_envio, nuevoEstado: 'EN_CAMINO' });
-    }
-
-    // Notificar al cliente
     notifRetiroConfirmado({ userId: String(envio.usuarioId), envioId: String(envio._id), nroEnvio: envio.nro_envio });
     if (nuevoEstado === 'EN_CAMINO') {
       notifEstadoActualizado({ userId: String(envio.usuarioId), envioId: String(envio._id), nroEnvio: envio.nro_envio, nuevoEstado: 'EN_CAMINO' });
@@ -614,7 +592,8 @@ export const marcarEntregado = async (req, res, next) => {
     if (!envio) return res.status(404).json({ message: 'Envío no encontrado.' });
     if (String(envio.comisionistaId) !== comisionistaId)
       return res.status(403).json({ message: 'No tenés permiso.' });
-    if (!['EN_CAMINO', 'RETIRADO', 'DEMORADO'].includes(envio.estadoId))
+    // DEMORADO_ENTREGA: el viaje anterior terminó antes de poder entregar
+    if (!['EN_CAMINO', 'RETIRADO', 'DEMORADO_ENTREGA'].includes(envio.estadoId))
       return res.status(400).json({ message: `No se puede marcar como entregado desde estado ${envio.estadoId}.` });
 
     envio.estadoId = 'ENTREGADO';
@@ -636,7 +615,6 @@ export const iniciarViaje = async (req, res, next) => {
     const comisionistaId = req.userId;
     const { inicioDia, finDia } = getDayRange(req.body.fecha);
 
-    // Envíos ASIGNADO con franja mañana (o sin franja) → EN_RETIRO
     const resManana = await Envio.updateMany(
       {
         comisionistaId,
@@ -653,7 +631,6 @@ export const iniciarViaje = async (req, res, next) => {
       { $set: { estadoId: 'EN_RETIRO' } }
     );
 
-    // Envíos RETIRADO con fecha_entrega hoy → EN_CAMINO
     const resRetirados = await Envio.updateMany(
       {
         comisionistaId,
@@ -676,8 +653,6 @@ export const iniciarViaje = async (req, res, next) => {
 export const lazyUpdateEstados = async (req, res, next) => {
   try {
     const comisionistaId = req.userId;
-
-    // ✅ CORREGIDO: getNow() lee TEST_HOUR dinámicamente, no fuerza hora 9
     const ahora      = getNow();
     const horaActual = ahora.getHours();
 
@@ -720,15 +695,16 @@ export const cancelarPorComisionista = async (req, res, next) => {
     if (String(envio.comisionistaId) !== comisionistaId)
       return res.status(403).json({ message: 'No tenés permiso.' });
 
-    const SIN_RETORNO = ['PENDIENTE', 'ASIGNADO', 'EN_RETIRO'];
-    const CON_RETORNO = ['RETIRADO', 'EN_CAMINO', 'DEMORADO'];
+    // DEMORADO_RETIRO: nunca fue retirado → cancelar sin retorno
+    // DEMORADO_ENTREGA: ya fue retirado → necesita retorno al origen
+    const SIN_RETORNO = ['PENDIENTE', 'ASIGNADO', 'EN_RETIRO', 'DEMORADO_RETIRO'];
+    const CON_RETORNO = ['RETIRADO', 'EN_CAMINO', 'DEMORADO_ENTREGA'];
 
     if (SIN_RETORNO.includes(envio.estadoId)) {
       await Envio.updateOne({ _id: id }, { $set: { estadoId: 'CANCELADO' } });
       await EnvioXComisionista.findOneAndUpdate(
         { envioId: id, comisionistaId }, { $set: { estado_id: 'CANCELADO' } }
       );
-      // Notificar al cliente
       notifCanceladoPorComisionista({ userId: String(envio.usuarioId), envioId: String(envio._id), nroEnvio: envio.nro_envio });
       return res.status(200).json({ message: 'Envío cancelado.' });
     }
@@ -738,7 +714,6 @@ export const cancelarPorComisionista = async (req, res, next) => {
       await EnvioXComisionista.findOneAndUpdate(
         { envioId: id, comisionistaId }, { $set: { estado_id: 'CANCELADO_RETORNO' } }
       );
-      // Notificar al cliente
       notifCanceladoPorComisionista({ userId: String(envio.usuarioId), envioId: String(envio._id), nroEnvio: envio.nro_envio });
       return res.status(200).json({ message: 'Paquete marcado como en devolución (rumbo origen).' });
     }

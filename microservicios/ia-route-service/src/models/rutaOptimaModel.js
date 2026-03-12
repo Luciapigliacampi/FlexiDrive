@@ -24,8 +24,10 @@ const rutaOptimaSchema = new mongoose.Schema({
   distancia_total_km:  { type: Number },
   tiempo_estimado_min: { type: Number },
   activo:              { type: Boolean, default: true },
-  // ✅ NUEVO: distingue "ruta generada" de "viaje explícitamente iniciado"
   viaje_iniciado:      { type: Boolean, default: false },
+  // ✅ Punto de partida persistido al iniciar viaje
+  lat_inicio:          { type: Number, default: null },
+  lng_inicio:          { type: Number, default: null },
 }, { timestamps: true });
 
 rutaOptimaSchema.index({ comisionistaId: 1, activo: 1, fecha_viaje: -1 });

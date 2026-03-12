@@ -39,20 +39,39 @@ export default function DashboardComisionista() {
   const userRaw = localStorage.getItem("user");
   const userId = userRaw ? JSON.parse(userRaw)?.id : null;
 
-  const [loading, setLoading] = useState(true);
-  const [loadingRuta, setLoadingRuta] = useState(true);
-  const [actionLoading, setActionLoading] = useState(null);
-  const [error, setError] = useState("");
-  const [actionError, setActionError] = useState("");
-  const [rutaError, setRutaError] = useState("");
+  const [loading,        setLoading]        = useState(true);
+  const [loadingRuta,    setLoadingRuta]     = useState(true);
+  const [actionLoading,  setActionLoading]   = useState(null);
+  const [error,          setError]           = useState("");
+  const [actionError,    setActionError]     = useState("");
+  const [rutaError,      setRutaError]       = useState("");
 
-  const [resumen, setResumen] = useState(null);
-  const [agenda, setAgenda] = useState([]);
-  const [ruta, setRuta] = useState(null);
-  const [viajeIniciado, setViajeIniciado] = useState(false);
+  const [resumen,        setResumen]         = useState(null);
+  const [agenda,         setAgenda]          = useState([]);
+  const [ruta,           setRuta]            = useState(null);
+  const [viajeIniciado,  setViajeIniciado]   = useState(() => {
+    // Persistir entre recargas y cambios de fecha simulada
+    const uid = (() => { try { return JSON.parse(localStorage.getItem("user"))?.id || ""; } catch { return ""; } })();
+    return sessionStorage.getItem(`viaje_iniciado_${uid}`) === "true";
+  });
+
+  // Sincronizar viajeIniciado con sessionStorage para sobrevivir recargas
+  const setViajeIniciadoPersist = useCallback((val) => {
+    const uid = (() => { try { return JSON.parse(localStorage.getItem("user"))?.id || ""; } catch { return ""; } })();
+    if (val) sessionStorage.setItem(`viaje_iniciado_${uid}`, "true");
+    else sessionStorage.removeItem(`viaje_iniciado_${uid}`);
+    setViajeIniciado(val);
+  }, []);
+  const [ubicacionPartida, setUbicacionPartida] = useState(null); // { lat, lng }
 
   const [fechaHoy, setFechaHoy] = useState(() => getTodayString());
 
+  // ── Callback estable para el mapa ──────────────────────────────────────────
+  const handleUbicacionChange = useCallback((coords) => {
+    setUbicacionPartida(coords);
+  }, []);
+
+  // ── Agenda ─────────────────────────────────────────────────────────────────
   const cargarAgenda = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -74,39 +93,39 @@ export default function DashboardComisionista() {
     cargarAgenda();
   }, [cargarAgenda]);
 
-  const cargarOGenerarRuta = useCallback(async (forceRegenerate = false) => {
+  // ── Ruta ───────────────────────────────────────────────────────────────────
+  const cargarOGenerarRuta = useCallback(async (forceRegenerate = false, coordenadas = null) => {
     if (!userId) return;
     setLoadingRuta(true);
     setRutaError("");
 
-    try {
-  if (!forceRegenerate) {
-    try {
-      const rutaActiva = await getRutaActiva({ comisionistaId: userId });
+    // Leer estado de viaje ANTES del try para tenerlo disponible en catch
+    let viajeYaIniciado = false;
+    let rutaActivaExistente = null;
 
-      if (rutaActiva?.viaje_iniciado !== true) {
-        setRuta(rutaActiva);
-        setViajeIniciado(false);
+    try {
+      // Consultar estado real de la ruta activa
+      try {
+        rutaActivaExistente = await getRutaActiva({ comisionistaId: userId });
+        viajeYaIniciado = rutaActivaExistente?.viaje_iniciado === true;
+      } catch (e) {
+        if (e?.response?.status !== 404) throw e;
+        // 404: no hay ruta activa, pero puede haber envíos demorados pendientes
+      }
+
+      // Si no forzamos regenerar y el viaje no está iniciado → mostrar ruta tal cual
+      if (!forceRegenerate && !viajeYaIniciado) {
+        setRuta(rutaActivaExistente ?? null);
+        setViajeIniciadoPersist(false);
         return;
       }
 
-      // Si viaje_iniciado === true, sigue y regenera
-    } catch (e) {
-      if (e?.response?.status !== 404) throw e;
-      setRuta(null);
-      setViajeIniciado(false);
-      return;
-    }
-  }
+      // Si hay viaje iniciado o forceRegenerate → regenerar
 
-      let viajeYaIniciado = false;
-      try {
-        const rutaActiva = await getRutaActiva({ comisionistaId: userId });
-        viajeYaIniciado = rutaActiva?.viaje_iniciado === true;
-      } catch {}
-
-      let posActual = null;
-      if (navigator.geolocation) {
+      // Si vienen coordenadas desde el mapa, usarlas directo.
+      // Si no, intentar GPS como fallback.
+      let posActual = coordenadas;
+      if (!posActual && navigator.geolocation) {
         posActual = await new Promise((resolve) => {
           navigator.geolocation.getCurrentPosition(
             (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
@@ -124,11 +143,12 @@ export default function DashboardComisionista() {
       });
 
       setRuta(nuevaRuta);
-      setViajeIniciado(nuevaRuta?.viaje_iniciado === true || viajeYaIniciado);
+      setViajeIniciadoPersist(nuevaRuta?.viaje_iniciado === true || viajeYaIniciado);
     } catch (e) {
       if (e?.response?.status === 404 || e?.response?.status === 500) {
         setRuta(null);
-        setViajeIniciado(false);
+        // Preservar viajeIniciado si ya estaba activo (ej: viaje con solo demorados)
+        if (!viajeYaIniciado) setViajeIniciadoPersist(false);
       } else {
         setRutaError(e?.message || "No se pudo generar la ruta.");
       }
@@ -141,6 +161,19 @@ export default function DashboardComisionista() {
     cargarOGenerarRuta();
   }, [cargarOGenerarRuta]);
 
+  // ── Re-optimizar automáticamente cuando se hidrata viajeIniciado ───────────
+  // El GPS del mapa corre antes de que la ruta cargue, entonces cuando
+  // viajeIniciado pasa a true ya tenemos ubicacionPartida disponible.
+  useEffect(() => {
+    if (!viajeIniciado) return;
+    if (!ubicacionPartida) return;
+    if (!ruta) return;
+    cargarOGenerarRuta(true, ubicacionPartida);
+  // Solo disparar cuando viajeIniciado cambia a true, no en cada render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viajeIniciado]);
+
+  // ── Test date ──────────────────────────────────────────────────────────────
   useEffect(() => {
     function onTestDateChanged(e) {
       const nuevaFecha = e?.detail?.TEST_DATE;
@@ -149,18 +182,40 @@ export default function DashboardComisionista() {
       cargarAgenda();
       cargarOGenerarRuta(true);
     }
-
     window.addEventListener("test-date-changed", onTestDateChanged);
     return () => window.removeEventListener("test-date-changed", onTestDateChanged);
   }, [cargarAgenda, cargarOGenerarRuta]);
 
+  // ── Recargar ruta sin regenerar ────────────────────────────────────────────
+  const recargarRuta = useCallback(async () => {
+    try {
+      const rutaActiva = await getRutaActiva({ comisionistaId: userId });
+      setRuta(rutaActiva);
+      setViajeIniciadoPersist(rutaActiva?.viaje_iniciado === true);
+    } catch (e) {
+      if (e?.response?.status === 404) {
+        setRuta(null);
+        setViajeIniciadoPersist(false);
+      }
+    }
+  }, [userId]);
+
+  // ── Auto-finalizar cuando se completan todas las paradas ───────────────────
+  const handleViajeCompletado = useCallback(async () => {
+    setRuta(null);
+    setViajeIniciadoPersist(false);
+    await cargarAgenda();
+    toast.success("¡Todas las paradas completadas! Viaje finalizado.");
+  }, [cargarAgenda, toast]);
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
   const withLoading = useCallback(async (key, fn) => {
     setActionLoading(key);
     setActionError("");
     try {
       await fn();
       await cargarAgenda();
-      await cargarOGenerarRuta(true);
+      await recargarRuta();
     } catch (e) {
       const msg = e?.response?.data?.message || e?.message || "Error al actualizar.";
       setActionError(msg);
@@ -168,14 +223,24 @@ export default function DashboardComisionista() {
     } finally {
       setActionLoading(null);
     }
-  }, [cargarAgenda, cargarOGenerarRuta, toast]);
+  }, [cargarAgenda, recargarRuta, toast]);
 
+  // ── Acciones ───────────────────────────────────────────────────────────────
   const handleRetirar = useCallback(
     (id) => withLoading(`${id}_retirar`, async () => {
       await marcarRetirado(id);
+      const result = await completarParada({
+        envioId: id,
+        tipo: "RETIRO",
+        comisionistaId: userId,
+        fecha: fechaHoy,
+      }).catch(() => null);
+      if (result?.viajeCompletado) {
+        await handleViajeCompletado();
+      }
       toast.success("Paquete marcado como retirado.");
     }),
-    [withLoading, toast]
+    [withLoading, userId, fechaHoy, toast, handleViajeCompletado]
   );
 
   const handleEntregar = useCallback(
@@ -185,12 +250,21 @@ export default function DashboardComisionista() {
         onConfirm: async () => {
           await withLoading(`${id}_entregar`, async () => {
             await marcarEntregado(id);
+            const result = await completarParada({
+              envioId: id,
+              tipo: "ENTREGA",
+              comisionistaId: userId,
+              fecha: fechaHoy,
+            }).catch(() => null);
+            if (result?.viajeCompletado) {
+              await handleViajeCompletado();
+            }
             toast.success("Paquete marcado como entregado.");
           });
         },
       });
     },
-    [withLoading, toast]
+    [withLoading, userId, fechaHoy, toast, handleViajeCompletado]
   );
 
   const handleIniciarViaje = useCallback(() => {
@@ -198,41 +272,42 @@ export default function DashboardComisionista() {
       label: "Iniciar",
       onConfirm: async () => {
         await withLoading("iniciar_viaje", async () => {
+          // 1. Cambiar estados de envíos a EN_RETIRO
           await iniciarViaje(fechaHoy);
-          await api.patch(`${IA_ROUTE_BASE}/api/rutas/iniciar/${userId}`).catch(() => {});
-          setViajeIniciado(true);
+          // 2. Generar ruta AHORA que los envíos están en EN_RETIRO,
+          //    usando el punto de partida seleccionado por el comisionista
+          const nuevaRuta = await generarRutaHoy({
+            comisionistaId: userId,
+            fecha: fechaHoy,
+            latActual: ubicacionPartida?.lat ?? null,
+            lngActual: ubicacionPartida?.lng ?? null,
+          });
+          // 3. Marcar la ruta como viaje_iniciado en MongoDB
+          await api.patch(`${IA_ROUTE_BASE}/api/rutas/iniciar/${userId}`, {
+            latInicio: ubicacionPartida?.lat ?? null,
+            lngInicio: ubicacionPartida?.lng ?? null,
+          }).catch(() => {});
+          setRuta(nuevaRuta);
+          setViajeIniciadoPersist(true);
           toast.success("Viaje iniciado correctamente.");
         });
       },
     });
-  }, [withLoading, fechaHoy, userId, toast]);
+  }, [withLoading, fechaHoy, userId, ubicacionPartida, toast]);
 
   const handleFinalizarViaje = useCallback(() => {
-    toast.confirm("¿Finalizar el viaje del día? Esto cerrará la ruta activa.", {
+    toast.confirm("¿Finalizar el viaje del día? Los envíos pendientes quedarán como demorados.", {
       label: "Finalizar",
       onConfirm: async () => {
         await withLoading("finalizar_viaje", async () => {
           await finalizarViaje(fechaHoy);
-          setViajeIniciado(false);
+          setViajeIniciadoPersist(false);
           setRuta(null);
-          toast.success("Viaje finalizado correctamente.");
+          toast.success("Viaje finalizado. Los envíos pendientes quedaron como demorados.");
         });
       },
     });
   }, [withLoading, fechaHoy, toast]);
-
-  const handleCompletar = useCallback(async (envioId, tipo, posActual) => {
-    await completarParada({
-      envioId,
-      tipo,
-      comisionistaId: userId,
-      fecha: fechaHoy,
-      latActual: posActual?.lat,
-      lngActual: posActual?.lng,
-    });
-    toast.success("Parada completada correctamente.");
-    setTimeout(() => cargarOGenerarRuta(false), 1500);
-  }, [userId, fechaHoy, cargarOGenerarRuta, toast]);
 
   const handleConfirmarRetiro = useCallback(async (envioId, fecha) => {
     await confirmarFechaRetiro({ envioId, fecha, comisionistaId: userId });
@@ -250,18 +325,52 @@ export default function DashboardComisionista() {
     });
   }, [userId, toast]);
 
+  // ── Agenda ordenada según ruta optimizada ─────────────────────────────────
+  // Ordena la grilla según orden_entregas del mapa.
+  // Completadas conservan su número original; pendientes se reindexan desde
+  // completadas.length + 1, coincidiendo exactamente con los números del mapa.
+  const agendaOrdenada = useMemo(() => {
+    if (!ruta?.orden_entregas?.length || !agenda.length) return agenda;
+
+    // "envioId_TIPO" → parada de la ruta
+    const rutaMap = {};
+    for (const p of ruta.orden_entregas) {
+      rutaMap[`${String(p.envioId)}_${p.tipo}`] = p;
+    }
+
+    const nCompletadas = ruta.orden_entregas.filter(p => p.completada).length;
+
+    const itemsConOrden = agenda.map(row => {
+      const clave = `${String(row.id)}_${row.tipo}`;
+      const paradaRuta = rutaMap[clave];
+      if (!paradaRuta) return { ...row, _ordenRuta: 999, _completada: false };
+      return { ...row, _ordenRuta: paradaRuta.orden, _completada: paradaRuta.completada };
+    });
+
+    itemsConOrden.sort((a, b) => a._ordenRuta - b._ordenRuta);
+
+    // Completadas conservan su número; pendientes arrancan desde nCompletadas+1
+    let pendienteIdx = nCompletadas + 1;
+    return itemsConOrden.map(({ _ordenRuta, _completada, ...row }) => ({
+      ...row,
+      orden: _completada ? _ordenRuta : pendienteIdx++,
+    }));
+  }, [agenda, ruta]);
+
+  // ── Métricas ───────────────────────────────────────────────────────────────
   const metrics = useMemo(() => {
     const r = resumen || {};
     return [
-      { value: loading ? "—" : String(r.enviosHoy ?? 0), label: "Envíos hoy" },
-      { value: loading ? "—" : String(r.enRuta ?? 0), label: "En ruta" },
+      { value: loading ? "—" : String(r.enviosHoy ?? 0),       label: "Envíos hoy" },
+      { value: loading ? "—" : String(r.enRuta ?? 0),           label: "En ruta" },
       { value: loading ? "—" : String(r.pendientesRetiro ?? 0), label: "Pendientes de retiro" },
-      { value: loading ? "—" : String(r.calificacion ?? "—"), label: "Calificación" },
+      { value: loading ? "—" : String(r.calificacion ?? "—"),   label: "Calificación" },
     ];
   }, [resumen, loading]);
 
   const hayEnviosHoy = agenda.length > 0;
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between flex-wrap gap-3">
@@ -308,9 +417,9 @@ export default function DashboardComisionista() {
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <QuickAction to="/comisionista/crear-envio" icon={<Package className="h-6 w-6" />} title="Crear envío" />
-        <QuickAction to="/comisionista/envios" icon={<ClipboardList className="h-6 w-6" />} title="Ver envíos" />
-        <QuickAction to="/comisionista/rutas" icon={<Route className="h-6 w-6" />} title="Gestionar rutas" />
+        <QuickAction to="/comisionista/crear-envio" icon={<Package className="h-6 w-6" />}      title="Crear envío" />
+        <QuickAction to="/comisionista/envios"      icon={<ClipboardList className="h-6 w-6" />} title="Ver envíos" />
+        <QuickAction to="/comisionista/rutas"       icon={<Route className="h-6 w-6" />}         title="Gestionar rutas" />
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -320,6 +429,7 @@ export default function DashboardComisionista() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Tabla agenda */}
         <div className="lg:col-span-2">
           <h2 className="text-2xl font-bold text-blue-800 mb-3">
             Entregas y retiros programados para hoy
@@ -344,7 +454,7 @@ export default function DashboardComisionista() {
                   ) : agenda.length === 0 ? (
                     <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">No hay entregas/retiros para hoy.</td></tr>
                   ) : (
-                    agenda.map((row) => (
+                    agendaOrdenada.map((row) => (
                       <AgendaRow
                         key={row.id}
                         row={row}
@@ -360,6 +470,7 @@ export default function DashboardComisionista() {
           </div>
         </div>
 
+        {/* Mapa ruta */}
         <div>
           <Card title="Ruta optimizada del día">
             {loadingRuta ? (
@@ -375,9 +486,10 @@ export default function DashboardComisionista() {
             ) : (
               <MapaRutaOptimizada
                 ruta={ruta}
-                onCompletar={handleCompletar}
                 onConfirmarRetiro={handleConfirmarRetiro}
-                onRegenerar={() => cargarOGenerarRuta(true)}
+                onRegenerar={(coords) => cargarOGenerarRuta(true, coords)}
+                onUbicacionChange={handleUbicacionChange}
+                viajeIniciado={viajeIniciado}
               />
             )}
           </Card>
@@ -387,11 +499,13 @@ export default function DashboardComisionista() {
   );
 }
 
+// ── Subcomponentes ─────────────────────────────────────────────────────────────
+
 function AgendaRow({ row, actionLoading, onRetirar, onEntregar }) {
-  const estadoKey = toEstadoKey(row.estado);
-  const isLoading = (k) => actionLoading === `${row.id}_${k}`;
-  const puedeRetirar = ["ASIGNADO", "EN_RETIRO"].includes(row.estado);
-  const puedeEntregar = ["RETIRADO", "EN_CAMINO", "DEMORADO"].includes(row.estado);
+  const estadoKey   = toEstadoKey(row.estado);
+  const isLoading   = (k) => actionLoading === `${row.id}_${k}`;
+  const puedeRetirar  = ["ASIGNADO", "EN_RETIRO", "DEMORADO_RETIRO"].includes(row.estado);
+  const puedeEntregar = ["RETIRADO", "EN_CAMINO", "DEMORADO_ENTREGA"].includes(row.estado);
 
   return (
     <tr className="border-t border-slate-100 text-sm hover:bg-slate-50">
@@ -457,7 +571,10 @@ function ActionBtn({ title, loading, onClick, colorCls, icon, label }) {
       disabled={loading}
       className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-white ${colorCls} disabled:opacity-40 transition`}
     >
-      {loading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : icon}
+      {loading
+        ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+        : icon
+      }
       {label}
     </button>
   );

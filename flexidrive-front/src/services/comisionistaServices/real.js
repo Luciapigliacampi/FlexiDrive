@@ -31,15 +31,20 @@ export async function getAgendaHoyApi({ date } = {}) {
 
 // ─── Ruta optimizada via ia-route-service ─────────────────────────────────────
 
-export async function generarRutaHoyApi({ comisionistaId, fecha } = {}) {
+export async function generarRutaHoyApi({ comisionistaId, fecha, latActual, lngActual } = {}) {
   const hoy = getTodayString(fecha);
+
+  const params = { fecha: hoy };
+  if (latActual != null) params.latActual = latActual;
+  if (lngActual != null) params.lngActual = lngActual;
 
   const res = await api.get(
     `${IA_ROUTE_BASE}/api/rutas/generar/${comisionistaId}`,
-    { params: { fecha: hoy } }
+    { params }
   );
   return res.data;
 }
+
 
 export async function getRutaActivaApi({ comisionistaId }) {
   const res = await api.get(`${IA_ROUTE_BASE}/api/rutas/activa/${comisionistaId}`);

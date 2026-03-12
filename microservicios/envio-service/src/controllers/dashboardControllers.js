@@ -9,17 +9,13 @@ const IA_ROUTE_BASE = process.env.IA_ROUTE_SERVICE_URL || 'http://localhost:3002
 
 function franjaIniciada(franja, horaActual) {
   if (!franja) return true;
-  // Franja mañana: siempre iniciada (cubre desde inicio del día)
   if (franja === '08:00-13:00' || franja === '00:00-12:00') return true;
-  // Todas las franjas de tarde/noche inician a las 13hs —
-  // el comisionista puede retirar a partir de las 13 independientemente
-  // de si la franja es 13-17 o 17-20.
   return horaActual >= 13;
 }
 
 function franjaEsMañana(franja) {
   if (!franja) return true;
-  return franja === '00:00-12:00' || franja === '08:00-13:00'; // legacy
+  return franja === '00:00-12:00' || franja === '08:00-13:00';
 }
 
 async function lazyUpdateFranjaTarde(comisionistaId, inicioDia, finDia) {
@@ -54,40 +50,35 @@ async function getTripPlanActivo(comisionistaId, token) {
 function getGrupoOrden(envio, tipo, tripPlan) {
   if (!tripPlan) return 7;
 
-  const origenLocalidadId  = tripPlan.origen?.localidadId;
-  const destinoLocalidadId = tripPlan.destino?.localidadId;
-  const intermediasIds     = (tripPlan.intermedias || []).map(i => i.localidadId);
+  if (tipo === 'RETORNO') return 4;
 
-  const localidadId = tipo === 'RETIRO'
-    ? envio.origenCiudad?.localidadId
-    : envio.destinoCiudad?.localidadId;
+  const norm = v => (v == null ? null : String(v));
 
-  const esOrigen     = localidadId === origenLocalidadId;
-  const esDestino    = localidadId === destinoLocalidadId;
-  const esIntermedia = intermediasIds.includes(localidadId);
+  const origenId       = norm(tripPlan.origen?.localidadId);
+  const destinoId      = norm(tripPlan.destino?.localidadId);
+  const intermediasIds = (tripPlan.intermedias || []).map(i => norm(i.localidadId));
+
+  // RETIRO usa ciudad origen del envío; ENTREGA usa ciudad destino
+  const localidadId = norm(
+    tipo === 'RETIRO' || tipo === 'RETORNO'
+      ? envio.origenCiudad?.localidadId
+      : envio.destinoCiudad?.localidadId
+  );
+
+  const esOrigen     = localidadId != null && localidadId === origenId;
+  const esDestino    = localidadId != null && localidadId === destinoId;
+  const esIntermedia = localidadId != null && intermediasIds.includes(localidadId);
   const esManana     = franjaEsMañana(envio.franja_horaria_retiro);
 
-  if (tipo === 'RETIRO') {
-    if (esOrigen && esManana)     return 0;
-    if (esIntermedia && esManana) return 1;
-    if (esDestino)                return 3;
-    if (esOrigen && !esManana)    return 5;
-  }
-  if (tipo === 'ENTREGA') {
-    if (esIntermedia) return 2;
-    if (esDestino)    return 4;
-    if (esOrigen)     return 6;
-  }
-  if (tipo === 'RETORNO') return 6;
+  // Grupo por localidad — retiro y entrega en la misma ciudad van juntos
+  if (esOrigen     && esManana)  return 0;
+  if (esIntermedia && esManana)  return 1;
+  if (esDestino)                 return 2;
+  if (esOrigen     && !esManana) return 3;
 
   return 7;
 }
 
-/**
- * Clave de dirección para agrupar envíos en la misma ubicación física.
- * Usa lat/lng redondeados a 4 decimales (~11m de precisión).
- * Si no hay coords, usa el texto de la dirección.
- */
 function getDireccionKey(envio, tipo) {
   const dir = tipo === 'RETIRO' ? envio.direccion_origen : envio.direccion_destino;
   if (dir?.lat != null && dir?.lng != null) {
@@ -96,6 +87,7 @@ function getDireccionKey(envio, tipo) {
   return (dir?.texto || '').trim().toLowerCase();
 }
 
+/* ─── GET /dashboard/resumen ────────────────────────────────────────────── */
 export const getDashboardResumen = async (req, res, next) => {
   try {
     const comisionistaId = req.userId;
@@ -104,25 +96,27 @@ export const getDashboardResumen = async (req, res, next) => {
 
     await lazyUpdateFranjaTarde(comisionistaId, inicioDia, finDia);
 
+    const ESTADOS_ACTIVOS = ['EN_RETIRO', 'EN_CAMINO', 'DEMORADO_RETIRO', 'DEMORADO_ENTREGA'];
+
     const [enviosHoy, enRuta, pendientesRetiro] = await Promise.all([
       Envio.countDocuments({
         comisionistaId,
         $or: [
-          { estadoId: 'ASIGNADO', fecha_retiro: { $gte: inicioDia, $lte: finDia } },
+          { estadoId: 'ASIGNADO',  fecha_retiro:  { $gte: inicioDia, $lte: finDia } },
           { estadoId: 'RETIRADO',  fecha_entrega: { $gte: inicioDia, $lte: finDia } },
-          { estadoId: { $in: ['EN_RETIRO', 'EN_CAMINO', 'DEMORADO'] } },
+          { estadoId: { $in: ESTADOS_ACTIVOS } },
         ],
       }),
       Envio.countDocuments({
         comisionistaId,
         $or: [
-          { estadoId: { $in: ['EN_RETIRO', 'EN_CAMINO', 'DEMORADO'] } },
+          { estadoId: { $in: ESTADOS_ACTIVOS } },
           { estadoId: 'RETIRADO', fecha_entrega: { $gte: inicioDia, $lte: finDia } },
         ],
       }),
       Envio.countDocuments({
         comisionistaId,
-        estadoId: { $in: ['ASIGNADO', 'EN_RETIRO'] },
+        estadoId: { $in: ['ASIGNADO', 'EN_RETIRO', 'DEMORADO_RETIRO'] },
       }),
     ]);
 
@@ -132,6 +126,7 @@ export const getDashboardResumen = async (req, res, next) => {
   }
 };
 
+/* ─── GET /dashboard/agenda ─────────────────────────────────────────────── */
 export const getAgendaHoy = async (req, res, next) => {
   try {
     const comisionistaId = req.userId;
@@ -144,9 +139,15 @@ export const getAgendaHoy = async (req, res, next) => {
     const envios = await Envio.find({
       comisionistaId,
       $or: [
-        { estadoId: 'ASIGNADO',  fecha_retiro: { $gte: inicioDia, $lte: finDia } },
-      { estadoId: 'RETIRADO',  fecha_entrega: { $gte: inicioDia, $lte: finDia } },
-        { estadoId: { $in: ['EN_RETIRO', 'EN_CAMINO', 'DEMORADO', 'CANCELADO_RETORNO'] } },
+        // Envíos del día: asignados con fecha_retiro hoy
+        { estadoId: 'ASIGNADO',  fecha_retiro:  { $gte: inicioDia, $lte: finDia } },
+        // Envíos del día: retirados con fecha_entrega hoy
+        { estadoId: 'RETIRADO',  fecha_entrega: { $gte: inicioDia, $lte: finDia } },
+        // Envíos activos sin restricción de fecha (en tránsito)
+        { estadoId: { $in: ['EN_RETIRO', 'EN_CAMINO', 'CANCELADO_RETORNO'] } },
+        // DEMORADO_RETIRO / DEMORADO_ENTREGA: sin restricción de fecha,
+        // aparecen en la agenda hasta que se completen (pueden ser de días anteriores)
+        { estadoId: { $in: ['DEMORADO_RETIRO', 'DEMORADO_ENTREGA'] } },
       ],
       eliminado: { $ne: true },
     });
@@ -172,23 +173,22 @@ export const getAgendaHoy = async (req, res, next) => {
     const nombresMap = Object.fromEntries(nombresArr);
 
     function getTipo(e) {
-      if (['ASIGNADO', 'EN_RETIRO'].includes(e.estadoId)) return 'RETIRO';
+      if (['ASIGNADO', 'EN_RETIRO', 'DEMORADO_RETIRO'].includes(e.estadoId)) return 'RETIRO';
       if (e.estadoId === 'CANCELADO_RETORNO') return 'RETORNO';
-      return 'ENTREGA';
+      return 'ENTREGA'; // EN_CAMINO, RETIRADO, DEMORADO_ENTREGA
     }
 
-    // ── Construir items con metadatos ────────────────────────────────────────
     const itemsConMeta = envios.map(e => {
       const tipo  = getTipo(e);
       const grupo = getGrupoOrden(e, tipo, tripPlan);
 
-      const franjaOrden = (e.franja_horaria_retiro === '00:00-12:00' || e.franja_horaria_retiro === '08:00-13:00') ? 0
+      const franjaOrden =
+        (e.franja_horaria_retiro === '00:00-12:00' || e.franja_horaria_retiro === '08:00-13:00') ? 0
         : e.franja_horaria_retiro === '12:00-23:59' ? 1
         : e.franja_horaria_retiro === '13:00-17:00' ? 1
         : e.franja_horaria_retiro === '17:00-20:00' ? 2
         : 0;
 
-      // dirKey usa la dirección física relevante según tipo
       const dirKey = getDireccionKey(e, tipo);
 
       return {
@@ -213,15 +213,7 @@ export const getAgendaHoy = async (req, res, next) => {
       };
     });
 
-    // ── Cluster cross-grupo: paradas en la misma dirección física quedan
-    //    juntas aunque sean de tipos distintos (RETIRO + ENTREGA).
-    //
-    //    Algoritmo:
-    //    1. Pre-ordenar por grupo → franja → createdAt (orden natural)
-    //    2. Asignar índice de cluster a cada dirección la primera vez
-    //       que aparece en ese pre-orden (sin incluir el tipo en la clave,
-    //       para que RETIRO y ENTREGA compartan cluster)
-    //    3. Orden final: clusterIndex → grupo → franja → createdAt
+    // Cluster: paradas en la misma dirección física van juntas
     const clusterIndexMap = new Map();
     let clusterCounter = 0;
 
@@ -232,9 +224,6 @@ export const getAgendaHoy = async (req, res, next) => {
     });
 
     for (const item of preOrden) {
-      // Clave: dirección + franja — agrupa RETIRO+ENTREGA en misma dirección/franja,
-      // pero separa la misma dirección si tiene franjas distintas (ej: retiro mañana
-      // y retiro tarde en el mismo lugar son paradas de días distintos del viaje).
       const clusterKey = `${item._dirKey}||${item._franja}`;
       if (!clusterIndexMap.has(clusterKey)) {
         clusterIndexMap.set(clusterKey, clusterCounter++);
@@ -245,13 +234,13 @@ export const getAgendaHoy = async (req, res, next) => {
     itemsConMeta.sort((a, b) => {
       const ca = clusterIndexMap.get(a._clusterKey ?? `${a._dirKey}||${a._franja}`) ?? 999;
       const cb = clusterIndexMap.get(b._clusterKey ?? `${b._dirKey}||${b._franja}`) ?? 999;
-      if (ca !== cb) return ca - cb;
+      if (ca !== cb)               return ca - cb;
       if (a._grupo  !== b._grupo)  return a._grupo  - b._grupo;
       if (a._franja !== b._franja) return a._franja - b._franja;
       return new Date(a._createdAt) - new Date(b._createdAt);
     });
 
-    const items = itemsConMeta.map(({ _grupo, _franja, _dirKey, _createdAt, ...item }, i) => ({
+    const items = itemsConMeta.map(({ _grupo, _franja, _dirKey, _createdAt, _clusterKey, ...item }, i) => ({
       ...item,
       orden: i + 1,
     }));
@@ -264,18 +253,53 @@ export const getAgendaHoy = async (req, res, next) => {
 
 export { iniciarViaje } from './envioControllers.js';
 
+/* ─── POST /dashboard/finalizar-viaje ───────────────────────────────────── */
+// Llamado tanto por el botón manual como automáticamente cuando se
+// completan todas las paradas desde routeControllers.
 export const finalizarViaje = async (req, res, next) => {
   try {
     const comisionistaId = req.userId;
     const token = req.headers.authorization;
+    // Acepta fecha desde query (?date=) o body ({ fecha })
+    const fechaParam = req.query.date || req.body?.fecha;
+    const { inicioDia, finDia } = getDayRange(fechaParam);
 
+    // 1. Marcar envíos pendientes con estados diferenciados según qué falta hacer:
+    //    - Falta retirar  → DEMORADO_RETIRO   (buildParadas lo incluye como parada RETIRO)
+    //    - Falta entregar → DEMORADO_ENTREGA  (buildParadas lo incluye como parada ENTREGA)
+    const [resRetiro, resCamino] = await Promise.all([
+      // Pendientes de retiro → DEMORADO_RETIRO
+      // Sin restricción de fecha: EN_RETIRO/ASIGNADO activos de CUALQUIER día se demoران
+      Envio.updateMany(
+        {
+          comisionistaId,
+          estadoId: { $in: ['EN_RETIRO', 'ASIGNADO'] },
+        },
+        { $set: { estadoId: 'DEMORADO_RETIRO' } }
+      ),
+      // Pendientes de entrega → DEMORADO_ENTREGA
+      // Sin restricción de fecha: EN_CAMINO/RETIRADO activos de CUALQUIER día se demoran
+      Envio.updateMany(
+        {
+          comisionistaId,
+          estadoId: { $in: ['EN_CAMINO', 'RETIRADO'] },
+        },
+        { $set: { estadoId: 'DEMORADO_ENTREGA' } }
+      ),
+    ]);
+
+    // 2. Desactivar la ruta
     await axios.patch(
       `${IA_ROUTE_BASE}/api/rutas/desactivar/${comisionistaId}`,
       {},
       { headers: { Authorization: token } }
     ).catch(e => console.warn('⚠️ No se pudo desactivar ruta:', e.message));
 
-    return res.status(200).json({ message: 'Viaje finalizado.' });
+    return res.status(200).json({
+      message: 'Viaje finalizado.',
+      demoradosRetiro:   resRetiro.modifiedCount,
+      demoradosEntrega:  resCamino.modifiedCount,
+    });
   } catch (err) {
     next(err);
   }
