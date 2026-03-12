@@ -116,23 +116,30 @@ export default function DashboardComisionista() {
   }, [cargarAgenda, cargarEstadisticas]);
 
   // ── Ruta ───────────────────────────────────────────────────────────────────
-  // IMPORTANTE: esta función NUNCA toca viajeIniciado.
-  // El estado del viaje lo manejan exclusivamente: handleIniciarViaje,
-  // handleFinalizarViaje y handleViajeCompletado.
-  const cargarOGenerarRuta = useCallback(async (forceRegenerate = false, coordenadas = null) => {
+  // IMPORTANTE: esta función NUNCA toca viajeIniciado, EXCEPTO en el mount
+  // inicial (syncViaje=true) donde sincroniza con la realidad del backend
+  // para corregir cualquier valor stale en sessionStorage.
+  const cargarOGenerarRuta = useCallback(async (forceRegenerate = false, coordenadas = null, syncViaje = false) => {
     if (!userId) return;
     setLoadingRuta(true);
     setRutaError("");
 
     try {
-      // Si no forzamos → intentar mostrar la ruta activa existente
+      // Sin forceRegenerate → cargar la ruta activa existente
       if (!forceRegenerate) {
         try {
           const rutaActiva = await getRutaActiva({ comisionistaId: userId });
           setRuta(rutaActiva ?? null);
+          // En el mount inicial sincronizamos viajeIniciado con el backend
+          if (syncViaje) {
+            setViajeIniciadoPersist(rutaActiva?.viaje_iniciado === true);
+          }
         } catch (e) {
-          if (e?.response?.status === 404) setRuta(null);
-          else throw e;
+          if (e?.response?.status === 404) {
+            setRuta(null);
+            // Sin ruta activa → el viaje definitivamente no está iniciado
+            if (syncViaje) setViajeIniciadoPersist(false);
+          } else throw e;
         }
         return;
       }
@@ -166,10 +173,11 @@ export default function DashboardComisionista() {
     } finally {
       setLoadingRuta(false);
     }
-  }, [userId, fechaHoy]);
+  }, [userId, fechaHoy, setViajeIniciadoPersist]);
 
+  // Mount inicial: syncViaje=true para corregir sessionStorage stale
   useEffect(() => {
-    cargarOGenerarRuta();
+    cargarOGenerarRuta(false, null, true);
   }, [cargarOGenerarRuta]);
 
   // ── Test date ──────────────────────────────────────────────────────────────

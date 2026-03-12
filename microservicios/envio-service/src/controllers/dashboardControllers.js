@@ -269,24 +269,18 @@ export const finalizarViaje = async (req, res, next) => {
     //    - Falta retirar  → DEMORADO_RETIRO   (buildParadas lo incluye como parada RETIRO)
     //    - Falta entregar → DEMORADO_ENTREGA  (buildParadas lo incluye como parada ENTREGA)
     //    Guardamos estadoId_previo para referencia histórica
+    // Guardar estadoId_previo y cambiar estado en dos pasos separados
+    // (los pipelines de aggregation requieren configuración especial en algunas versiones de Mongoose)
     const [resRetiro, resCamino] = await Promise.all([
       // Pendientes de retiro → DEMORADO_RETIRO
-      // Sin restricción de fecha: EN_RETIRO/ASIGNADO activos de CUALQUIER día se demoran
       Envio.updateMany(
-        {
-          comisionistaId,
-          estadoId: { $in: ['EN_RETIRO', 'ASIGNADO'] },
-        },
-        [{ $set: { estadoId_previo: '$estadoId', estadoId: 'DEMORADO_RETIRO' } }]
+        { comisionistaId, estadoId: { $in: ['EN_RETIRO', 'ASIGNADO'] } },
+        { $set: { estadoId: 'DEMORADO_RETIRO', estadoId_previo: 'EN_RETIRO' } }
       ),
       // Pendientes de entrega → DEMORADO_ENTREGA
-      // Sin restricción de fecha: EN_CAMINO/RETIRADO activos de CUALQUIER día se demoran
       Envio.updateMany(
-        {
-          comisionistaId,
-          estadoId: { $in: ['EN_CAMINO', 'RETIRADO'] },
-        },
-        [{ $set: { estadoId_previo: '$estadoId', estadoId: 'DEMORADO_ENTREGA' } }]
+        { comisionistaId, estadoId: { $in: ['EN_CAMINO', 'RETIRADO'] } },
+        { $set: { estadoId: 'DEMORADO_ENTREGA', estadoId_previo: 'EN_CAMINO' } }
       ),
     ]);
 
