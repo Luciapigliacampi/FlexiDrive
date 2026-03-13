@@ -11,9 +11,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import { getMyProfile } from "../../services/profileService/profileService";
-import { updateDatosBancarios, clearDatosBancarios  } from "../../services/profileService/profileService";
-
-
+import { updateDatosBancarios, clearDatosBancarios } from "../../services/profileService/profileService";
 
 const LS_BANK_KEY = "flexidrive_datos_bancarios_comisionista";
 
@@ -35,76 +33,70 @@ const emptyForm = {
 };
 
 export default function MediosPagoComisionista() {
-   const navigate = useNavigate();
+  const navigate = useNavigate();
   const [form, setForm] = useState(emptyForm);
   const [guardado, setGuardado] = useState(null);
   const [modoEdicion, setModoEdicion] = useState(true);
   const [mensaje, setMensaje] = useState("");
 
   useEffect(() => {
-  async function cargarDatos() {
-    // 1. Cargar preferencias de cobro desde localStorage
-    const saved = safeJsonParse(localStorage.getItem(LS_BANK_KEY), null);
+    async function cargarDatos() {
+      // 1. Cargar preferencias de cobro desde localStorage (caché local)
+      const saved = safeJsonParse(localStorage.getItem(LS_BANK_KEY), null);
 
-    // 2. Cargar datos bancarios reales desde el perfil
-    try {
-      const perfil = await getMyProfile();
-      const com = perfil?.comisionista || {};
+      // 2. Cargar datos bancarios reales desde el perfil (fuente de verdad = DB)
+      try {
+        const perfil = await getMyProfile();
+        const com = perfil?.comisionista || {};
 
-      const datosDB = {
-        titular: com.alias || "",        // no hay titular, usamos alias como referencia
-        alias: com.alias || "",
-        cbu: com.cbu || "",
-        banco: com.entidadBancaria || "",
-      };
-
-      setForm((prev) => ({
-        ...prev,
-        // Preferencias desde localStorage si existen, sino defaults
-        aceptaEfectivo: saved?.aceptaEfectivo ?? false,
-        aceptaTransferencia: saved?.aceptaTransferencia ?? (!!com.cbu), // si tiene CBU, activar por defecto
-        // Datos bancarios: localStorage tiene prioridad (ediciones previas), sino DB
-        titular: saved?.titular || datosDB.titular,
-        alias: saved?.alias || datosDB.alias,
-        cbu: saved?.cbu || datosDB.cbu,
-        banco: saved?.banco || datosDB.banco,
-      }));
-
-      if (saved) {
-        setGuardado({
-          ...saved,
-          titular: saved.titular || datosDB.titular,
-          alias: saved.alias || datosDB.alias,
-          cbu: saved.cbu || datosDB.cbu,
-          banco: saved.banco || datosDB.banco,
-        });
-        setModoEdicion(false);
-      } else if (com.cbu) {
-        // Si hay datos en DB pero no en localStorage, mostrar como guardado
-        const fromDB = {
-          aceptaEfectivo: false,
-          aceptaTransferencia: true,
-          titular: datosDB.titular,
-          alias: datosDB.alias,
-          cbu: datosDB.cbu,
-          banco: datosDB.banco,
+        const datosDB = {
+          titular: com.alias || "",
+          alias: com.alias || "",
+          cbu: com.cbu || "",
+          banco: com.entidadBancaria || "",
+          // ✅ leer los booleans directamente desde la DB
+          aceptaEfectivo: Boolean(com.aceptaEfectivo),
+          aceptaTransferencia: Boolean(com.aceptaTransferencia),
         };
-        setGuardado(fromDB);
-        setForm(fromDB);
-        setModoEdicion(false);
-      }
-    } catch {
-      // Si falla el fetch, usar solo localStorage
-      if (saved) {
-        setGuardado(saved);
-        setForm(saved);
-        setModoEdicion(false);
+
+        // La DB es la fuente de verdad para los booleans
+        // localStorage solo se usa como caché para los campos de texto si la DB aún no los tiene
+        const formFinal = {
+          aceptaEfectivo: datosDB.aceptaEfectivo,
+          aceptaTransferencia: datosDB.aceptaTransferencia,
+          titular: saved?.titular || datosDB.titular,
+          alias: saved?.alias || datosDB.alias,
+          cbu: saved?.cbu || datosDB.cbu,
+          banco: saved?.banco || datosDB.banco,
+        };
+
+        setForm(formFinal);
+
+        // Si hay datos guardados en DB (tiene CBU o algún booleano activo), mostrar como guardado
+        const tieneConfigDB = com.cbu || com.aceptaEfectivo || com.aceptaTransferencia;
+        if (tieneConfigDB) {
+          setGuardado(formFinal);
+          setModoEdicion(false);
+          // Sincronizar localStorage con la DB
+          localStorage.setItem(LS_BANK_KEY, JSON.stringify(formFinal));
+        } else if (saved) {
+          // Sin datos en DB pero hay caché local (estado inconsistente, raro)
+          setGuardado(saved);
+          setForm(saved);
+          setModoEdicion(false);
+        }
+      } catch {
+        // Si falla el fetch, usar solo localStorage
+        if (saved) {
+          setGuardado(saved);
+          setForm(saved);
+          setModoEdicion(false);
+        }
       }
     }
-  }
 
-  cargarDatos();
-}, []);
+    cargarDatos();
+  }, []);
 
   const tieneAlgunaOpcion = useMemo(() => {
     return form.aceptaEfectivo || form.aceptaTransferencia;
@@ -112,7 +104,6 @@ export default function MediosPagoComisionista() {
 
   function handleChange(e) {
     const { name, value, type, checked } = e.target;
-
     setForm((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
@@ -123,77 +114,78 @@ export default function MediosPagoComisionista() {
     if (!form.aceptaEfectivo && !form.aceptaTransferencia) {
       return "Seleccioná al menos una opción de cobro.";
     }
-
     if (form.aceptaTransferencia) {
       if (!form.titular.trim()) return "Completá el titular de la cuenta.";
       if (!form.alias.trim()) return "Completá el alias.";
       if (!form.cbu.trim()) return "Completá el CBU o CVU.";
       if (!form.banco.trim()) return "Completá el banco o billetera.";
     }
-
     return "";
   }
 
   async function handleGuardar(e) {
-  e.preventDefault();
-  const error = validar();
-  if (error) { setMensaje(error); return; }
+    e.preventDefault();
+    const error = validar();
+    if (error) { setMensaje(error); return; }
 
-  const payload = {
-    aceptaEfectivo: Boolean(form.aceptaEfectivo),
-    aceptaTransferencia: Boolean(form.aceptaTransferencia),
-    titular: form.aceptaTransferencia ? form.titular.trim() : "",
-    alias: form.aceptaTransferencia ? form.alias.trim() : "",
-    cbu: form.aceptaTransferencia ? form.cbu.trim() : "",
-    banco: form.aceptaTransferencia ? form.banco.trim() : "",
-  };
+    const payload = {
+      aceptaEfectivo: Boolean(form.aceptaEfectivo),
+      aceptaTransferencia: Boolean(form.aceptaTransferencia),
+      titular: form.aceptaTransferencia ? form.titular.trim() : "",
+      alias: form.aceptaTransferencia ? form.alias.trim() : "",
+      cbu: form.aceptaTransferencia ? form.cbu.trim() : "",
+      banco: form.aceptaTransferencia ? form.banco.trim() : "",
+    };
 
-  try {
-    // Guardar en DB los campos que acepta el backend
-    await updateDatosBancarios({
-      alias: payload.alias,
-      cbu: payload.cbu,
-      entidadBancaria: payload.banco,  // banco → entidadBancaria en el modelo
-    });
+    try {
+      // ✅ Guardar en DB — ahora incluye los booleans
+      await updateDatosBancarios({
+        alias: payload.alias,
+        cbu: payload.cbu,
+        entidadBancaria: payload.banco,
+        aceptaEfectivo: payload.aceptaEfectivo,
+        aceptaTransferencia: payload.aceptaTransferencia,
+      });
 
-    // Guardar preferencias de cobro en localStorage (no están en el modelo DB)
-    localStorage.setItem(LS_BANK_KEY, JSON.stringify(payload));
-    setGuardado(payload);
-    setForm(payload);
-    setModoEdicion(false);
-    setMensaje("Medios de pago guardados correctamente.");
-  } catch (err) {
-    setMensaje(err?.message || "No se pudieron guardar los datos.");
+      // Caché local
+      localStorage.setItem(LS_BANK_KEY, JSON.stringify(payload));
+      setGuardado(payload);
+      setForm(payload);
+      setModoEdicion(false);
+      setMensaje("Medios de pago guardados correctamente.");
+    } catch (err) {
+      setMensaje(err?.message || "No se pudieron guardar los datos.");
+    }
   }
-}
 
   function handleEditar() {
     setModoEdicion(true);
     setMensaje("");
   }
 
-async function handleEliminar() {
-  try {
-    await clearDatosBancarios();
-    localStorage.removeItem(LS_BANK_KEY);
-    setGuardado(null);
-    setForm(emptyForm);
-    setModoEdicion(true);
-    setMensaje("Medios de pago eliminados.");
-  } catch (err) {
-    setMensaje(err?.message || "No se pudieron eliminar los datos.");
+  async function handleEliminar() {
+    try {
+      // ✅ clearDatosBancarios también resetea los booleans en DB
+      await clearDatosBancarios();
+      localStorage.removeItem(LS_BANK_KEY);
+      setGuardado(null);
+      setForm(emptyForm);
+      setModoEdicion(true);
+      setMensaje("Medios de pago eliminados.");
+    } catch (err) {
+      setMensaje(err?.message || "No se pudieron eliminar los datos.");
+    }
   }
-}
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 md:px-6">
       <section>
         <button
-    onClick={() => navigate(-1)}
-    className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-800"
-  >
-    ← Volver
-  </button>
+          onClick={() => navigate(-1)}
+          className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-800"
+        >
+          ← Volver
+        </button>
         <h1 className="text-3xl font-bold tracking-tight text-slate-800 md:text-4xl">
           Medios de pago
         </h1>
@@ -413,9 +405,7 @@ async function handleEliminar() {
                   <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                     <Banknote className="h-5 w-5 text-emerald-600" />
                     <div>
-                      <div className="font-semibold text-slate-800">
-                        Efectivo
-                      </div>
+                      <div className="font-semibold text-slate-800">Efectivo</div>
                       <div className="text-sm text-slate-500">
                         Cobro presencial en efectivo.
                       </div>

@@ -25,6 +25,11 @@ import { getMyShipments } from "../../services/shipmentServices";
 
 const COLORS = ["#ec4899", "#60a5fa", "#86efac", "#fdba74", "#c084fc"];
 
+const MESES_ORDER = [
+  "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+  "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+];
+
 export default function Estadisticas() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -48,9 +53,7 @@ export default function Estadisticas() {
 
       try {
         const res = await getMyShipments();
-
         const data = Array.isArray(res) ? res : res?.data;
-
         const list = Array.isArray(data)
           ? data
           : Array.isArray(data?.envios)
@@ -70,10 +73,7 @@ export default function Estadisticas() {
     }
 
     load();
-
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, []);
 
   const filterOptions = useMemo(() => {
@@ -111,29 +111,12 @@ export default function Estadisticas() {
       const estado = getEstadoEnvio(envio);
       const comisionista = getComisionista(envio);
 
-      if (filters.fechaDesde && (!fechaISO || fechaISO < filters.fechaDesde)) {
-        return false;
-      }
-
-      if (filters.fechaHasta && (!fechaISO || fechaISO > filters.fechaHasta)) {
-        return false;
-      }
-
-      if (filters.ciudad && ciudad !== filters.ciudad) {
-        return false;
-      }
-
-      if (filters.medioPago && medioPago !== filters.medioPago) {
-        return false;
-      }
-
-      if (filters.estado && estado !== filters.estado) {
-        return false;
-      }
-
-      if (filters.comisionista && comisionista !== filters.comisionista) {
-        return false;
-      }
+      if (filters.fechaDesde && (!fechaISO || fechaISO < filters.fechaDesde)) return false;
+      if (filters.fechaHasta && (!fechaISO || fechaISO > filters.fechaHasta)) return false;
+      if (filters.ciudad && ciudad !== filters.ciudad) return false;
+      if (filters.medioPago && medioPago !== filters.medioPago) return false;
+      if (filters.estado && estado !== filters.estado) return false;
+      if (filters.comisionista && comisionista !== filters.comisionista) return false;
 
       return true;
     });
@@ -147,15 +130,7 @@ export default function Estadisticas() {
     let incidencias = 0;
 
     const paquetesPorMes = {};
-    const diasSemana = {
-      Lun: 0,
-      Mar: 0,
-      Mié: 0,
-      Jue: 0,
-      Vie: 0,
-      Sáb: 0,
-      Dom: 0,
-    };
+    const diasSemana = { Lun: 0, Mar: 0, Mié: 0, Jue: 0, Vie: 0, Sáb: 0, Dom: 0 };
     const gastoPorMes = {};
     const mediosPago = {};
     const ultimos = [...filteredEnvios];
@@ -174,14 +149,13 @@ export default function Estadisticas() {
       if (estado === "CANCELADO") incidencias += 1;
 
       if (fecha) {
-        const mes = fecha.toLocaleDateString("es-AR", { month: "short" });
-        const mesCapitalizado = mes.charAt(0).toUpperCase() + mes.slice(1);
+        const mesRaw = fecha.toLocaleDateString("es-AR", { month: "short" });
+        const mesLabel = mesRaw
+          .replace(".", "")
+          .replace(/^\w/, (c) => c.toUpperCase());
 
-        paquetesPorMes[mesCapitalizado] =
-          (paquetesPorMes[mesCapitalizado] || 0) + cantidadPaquetes;
-
-        gastoPorMes[mesCapitalizado] =
-          (gastoPorMes[mesCapitalizado] || 0) + costo;
+        paquetesPorMes[mesLabel] = (paquetesPorMes[mesLabel] || 0) + cantidadPaquetes;
+        gastoPorMes[mesLabel] = (gastoPorMes[mesLabel] || 0) + costo;
 
         const diaIndex = fecha.getDay();
         const diaNombre = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"][diaIndex];
@@ -204,10 +178,7 @@ export default function Estadisticas() {
       totalEnvios > 0 ? Math.round((entregados / totalEnvios) * 100) : 0;
 
     const paquetesPorMesData = sortMeses(
-      Object.entries(paquetesPorMes).map(([mes, cantidad]) => ({
-        mes,
-        cantidad,
-      }))
+      Object.entries(paquetesPorMes).map(([mes, cantidad]) => ({ mes, cantidad }))
     );
 
     const diasMayorEnvioData = [
@@ -221,10 +192,7 @@ export default function Estadisticas() {
     ];
 
     const gastoPorMesData = sortMeses(
-      Object.entries(gastoPorMes).map(([mes, monto]) => ({
-        mes,
-        monto,
-      }))
+      Object.entries(gastoPorMes).map(([mes, monto]) => ({ mes, monto }))
     );
 
     const mediosPagoData = Object.entries(mediosPago).map(([name, value]) => ({
@@ -283,7 +251,6 @@ export default function Estadisticas() {
             </p>
           </div>
         </div>
-
         <div className="mt-4 h-px w-full bg-slate-200" />
       </section>
 
@@ -299,7 +266,6 @@ export default function Estadisticas() {
             <Filter className="h-5 w-5 text-blue-700" />
             <h2 className="text-lg font-bold text-slate-800">Filtros</h2>
           </div>
-
           <button
             type="button"
             onClick={limpiarFiltros}
@@ -319,7 +285,6 @@ export default function Estadisticas() {
               className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-800 outline-none focus:border-blue-500"
             />
           </Field>
-
           <Field label="Fecha hasta">
             <input
               type="date"
@@ -329,7 +294,6 @@ export default function Estadisticas() {
               className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-800 outline-none focus:border-blue-500"
             />
           </Field>
-
           <Field label="Ciudad">
             <select
               name="ciudad"
@@ -339,13 +303,10 @@ export default function Estadisticas() {
             >
               <option value="">Todas</option>
               {filterOptions.ciudades.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
+                <option key={item} value={item}>{item}</option>
               ))}
             </select>
           </Field>
-
           <Field label="Medio de pago">
             <select
               name="medioPago"
@@ -355,13 +316,10 @@ export default function Estadisticas() {
             >
               <option value="">Todos</option>
               {filterOptions.mediosPago.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
+                <option key={item} value={item}>{item}</option>
               ))}
             </select>
           </Field>
-
           <Field label="Estado de envío">
             <select
               name="estado"
@@ -371,13 +329,10 @@ export default function Estadisticas() {
             >
               <option value="">Todos</option>
               {filterOptions.estados.map((item) => (
-                <option key={item} value={item}>
-                  {beautifyEstado(item)}
-                </option>
+                <option key={item} value={item}>{beautifyEstado(item)}</option>
               ))}
             </select>
           </Field>
-
           <Field label="Comisionista">
             <select
               name="comisionista"
@@ -387,9 +342,7 @@ export default function Estadisticas() {
             >
               <option value="">Todos</option>
               {filterOptions.comisionistas.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
+                <option key={item} value={item}>{item}</option>
               ))}
             </select>
           </Field>
@@ -434,7 +387,7 @@ export default function Estadisticas() {
           </div>
         </ChartCard>
 
-        <ChartCard title="Días de mayor envío (Cliente)">
+        <ChartCard title="Días de mayor envío">
           <div className="h-[320px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={dashboard.diasMayorEnvioData}>
@@ -499,7 +452,7 @@ export default function Estadisticas() {
           </div>
         </ChartCard>
 
-        <ChartCard title="Tasa de entregas exitosas (Cliente)">
+        <ChartCard title="Tasa de entregas exitosas">
           <div className="h-[320px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -525,7 +478,7 @@ export default function Estadisticas() {
         </ChartCard>
       </section>
 
-      <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      {/* <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-bold text-slate-800">Detalle de envíos</h2>
 
         {loading ? (
@@ -571,10 +524,12 @@ export default function Estadisticas() {
             </table>
           </div>
         )}
-      </section>
+      </section> */}
     </main>
   );
 }
+
+// ── Subcomponentes ────────────────────────────────────────────────────────────
 
 function Field({ label, children }) {
   return (
@@ -630,6 +585,8 @@ function StatusBadge({ estado }) {
   );
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function getFechaObj(envio) {
   const raw =
     envio?.fecha ||
@@ -640,7 +597,6 @@ function getFechaObj(envio) {
     null;
 
   if (!raw) return null;
-
   const d = new Date(raw);
   return Number.isNaN(d.getTime()) ? null : d;
 }
@@ -677,42 +633,16 @@ function normalizeEstado(value) {
 
   if (!raw) return "—";
 
-  if (
-    raw === "ENTREGADO" ||
-    raw === "COMPLETADO" ||
-    raw === "COMPLETADA" ||
-    raw === "FINALIZADO" ||
-    raw === "FINALIZADA"
-  ) {
+  if (["ENTREGADO", "COMPLETADO", "COMPLETADA", "FINALIZADO", "FINALIZADA"].includes(raw))
     return "ENTREGADO";
-  }
-
-  if (raw === "PENDIENTE" || raw === "CREADO" || raw === "PUBLICADO") {
+  if (["PENDIENTE", "CREADO", "PUBLICADO"].includes(raw))
     return "PENDIENTE";
-  }
-
-  if (raw === "ASIGNADO" || raw === "ACEPTADO") {
+  if (["ASIGNADO", "ACEPTADO"].includes(raw))
     return "ASIGNADO";
-  }
-
-  if (
-    raw === "EN_CAMINO" ||
-    raw === "EN CURSO" ||
-    raw === "EN_TRANSITO" ||
-    raw === "EN TRÁNSITO" ||
-    raw === "EN TRANSITO"
-  ) {
+  if (["EN_CAMINO", "EN CURSO", "EN_TRANSITO", "EN TRÁNSITO", "EN TRANSITO"].includes(raw))
     return "EN_CAMINO";
-  }
-
-  if (
-    raw === "CANCELADO" ||
-    raw === "CANCELADA" ||
-    raw === "ELIMINADO" ||
-    raw === "ARCHIVADO"
-  ) {
+  if (["CANCELADO", "CANCELADA", "ELIMINADO", "ARCHIVADO"].includes(raw))
     return "CANCELADO";
-  }
 
   return raw;
 }
@@ -740,12 +670,11 @@ function getCiudadVisible(envio) {
   );
 }
 
+// FIX: usa metodo_pago_cliente (elegido por el cliente) como fuente primaria,
+// pago.metodo (confirmado por el comisionista) como fallback.
 function getMedioPago(envio) {
   return (
-    envio?.medioPago?.nombre ||
-    envio?.medio_pago ||
-    envio?.paymentMethod ||
-    envio?.metodoPago ||
+    envio?.metodo_pago_cliente ||
     envio?.pago?.metodo ||
     "—"
   );
@@ -767,15 +696,17 @@ function getComisionista(envio) {
   );
 }
 
+// FIX: costo_estimado es el campo real del modelo — va primero en la cadena de fallbacks.
 function getCostoEnvio(envio) {
   return (
     Number(
+      envio?.costo_estimado ??
       envio?.costo_total ??
-        envio?.costo ??
-        envio?.precio ??
-        envio?.monto ??
-        envio?.total ??
-        0
+      envio?.costo ??
+      envio?.precio ??
+      envio?.monto ??
+      envio?.total ??
+      0
     ) || 0
   );
 }
@@ -784,7 +715,6 @@ function getCantidadPaquetes(envio) {
   if (Array.isArray(envio?.paquetes)) {
     return envio.paquetes.length || 0;
   }
-
   return (
     Number(
       envio?.cantidad_paquetes ??
@@ -796,23 +726,7 @@ function getCantidadPaquetes(envio) {
 }
 
 function sortMeses(data) {
-  const order = [
-    "Ene",
-    "Feb",
-    "Mar",
-    "Abr",
-    "May",
-    "Jun",
-    "Jul",
-    "Ago",
-    "Sept",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dic",
-  ];
-
   return [...data].sort(
-    (a, b) => order.indexOf(a.mes) - order.indexOf(b.mes)
+    (a, b) => MESES_ORDER.indexOf(a.mes) - MESES_ORDER.indexOf(b.mes)
   );
 }

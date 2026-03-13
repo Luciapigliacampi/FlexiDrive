@@ -17,7 +17,7 @@ const ComisionistaSchema = new mongoose.Schema({
     required: false
   },
   tipoCuenta: {
-    type: String, // Ej: Caja de Ahorro, Cuenta Corriente
+    type: String,
     required: false
   },
   alias: {
@@ -28,14 +28,23 @@ const ComisionistaSchema = new mongoose.Schema({
     type: String,
     required: false
   },
-  cuit: { // Cambiado de cuil a cuit según diseño
+  cuit: {
     type: String,
     required: false
+  },
+  // ✅ Medios de pago habilitados
+  aceptaEfectivo: {
+    type: Boolean,
+    default: false,
+  },
+  aceptaTransferencia: {
+    type: Boolean,
+    default: false,
   },
   // Verificación de Usuario (Subida de archivos)
   dniFrenteUrl: {
     type: String,
-    required: false // Se marca como false inicialmente hasta que se procese el archivo
+    required: false
   },
   dniDorsoUrl: {
     type: String,
@@ -49,7 +58,7 @@ const ComisionistaSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  reputacion: { type: Number, default: 5 } // Empezamos con 5 estrellas de "voto de confianza"
+  reputacion: { type: Number, default: 5 }
 });
 
 export default mongoose.model(

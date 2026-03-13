@@ -41,7 +41,6 @@ function buildParadas(envios, viajeIniciado = false) {
 
     switch (envio.estadoId) {
       case 'CANCELADO_RETORNO':
-        // Parada de retorno: volver a la dirección de origen
         if (envio.direccion_origen?.lat != null) {
           paradas.push({
             envioId: id,
@@ -57,11 +56,9 @@ function buildParadas(envios, viajeIniciado = false) {
         break;
 
       case 'ASIGNADO':
-        // Incluir en ruta solo si el viaje ya está iniciado
         if (!viajeIniciado) break;
-        // fallthrough intencional → misma lógica que EN_RETIRO
       case 'EN_RETIRO':
-      case 'DEMORADO_RETIRO': // envíos demorados pendientes de retiro
+      case 'DEMORADO_RETIRO':
         if (envio.direccion_origen?.lat != null) {
           paradas.push({
             envioId: id,
@@ -80,7 +77,7 @@ function buildParadas(envios, viajeIniciado = false) {
 
       case 'RETIRADO':
       case 'EN_CAMINO':
-      case 'DEMORADO': // envíos demorados pendientes de entrega
+      case 'DEMORADO':
         if (envio.direccion_destino?.lat != null) {
           paradas.push({
             envioId: id,
@@ -117,20 +114,8 @@ async function getTripPlan(comisionistaId, token) {
 }
 
 /* ─── getGrupoOrden ─────────────────────────────────────────────────────── */
-// El grupo depende SOLO de la localidad física, no del tipo de operación.
-// Retiro y entrega en la misma localidad van en el mismo grupo porque el
-// comisionista ya está físicamente ahí.
-//
-// Grupos:
-//   0 — Origen, franja mañana    (toda operación en ciudad origen antes de las 13h)
-//   1 — Intermedias, franja mañana
-//   2 — Destino                  (toda operación en ciudad destino)
-//   3 — Origen, franja tarde     (retiros/entregas en origen después de las 13h)
-//   4 — Retorno                  (CANCELADO_RETORNO: volver al origen del envío)
-//   7 — Sin tripPlan / localidad desconocida
 function getGrupoOrden(parada, envio, tripPlan) {
   if (!tripPlan) return 7;
-
   if (parada.tipo === 'RETORNO') return 4;
 
   const norm = v => (v == null ? null : String(v));
@@ -139,8 +124,6 @@ function getGrupoOrden(parada, envio, tripPlan) {
   const destinoId      = norm(tripPlan.destino?.localidadId);
   const intermediasIds = (tripPlan.intermedias || []).map(i => norm(i.localidadId));
 
-  // Para RETIRO y RETORNO usamos ciudad origen del envío.
-  // Para ENTREGA usamos ciudad destino del envío.
   const localidadId = norm(
     parada.tipo === 'RETIRO' || parada.tipo === 'RETORNO'
       ? envio.origenCiudad?.localidadId
@@ -155,7 +138,6 @@ function getGrupoOrden(parada, envio, tripPlan) {
     parada.franja_horaria === '00:00-12:00' ||
     parada.franja_horaria === '08:00-13:00';
 
-  // Grupo por localidad, sin distinguir retiro/entrega
   if (esOrigen     && esManana)  return 0;
   if (esIntermedia && esManana)  return 1;
   if (esDestino)                 return 2;
@@ -247,14 +229,12 @@ export const generarRutaParaComisionista = async (req, res) => {
     const envioMap = {};
     for (const e of envios) envioMap[String(e._id || e.id)] = e;
 
-    // Punto de inicio: coordenadas actuales o última posición guardada
     const _latInicio = latActual || rutaExistentePrev?.lat_inicio;
     const _lngInicio = lngActual || rutaExistentePrev?.lng_inicio;
     const puntoInicio = (_latInicio && _lngInicio)
       ? `${parseFloat(_latInicio).toFixed(6)},${parseFloat(_lngInicio).toFixed(6)}`
       : `${todasLasParadas[0].lat},${todasLasParadas[0].lng}`;
 
-    // ── Asignar grupo, franja y dirKey a cada parada ────────────────────────
     const todasPendientes = todasLasParadas.slice(0, 23);
 
     const paradasConMeta = todasPendientes.map(p => {
@@ -278,9 +258,6 @@ export const generarRutaParaComisionista = async (req, res) => {
       console.log(`  [G${p._grupo}] ${p.tipo} ${p.nro_envio} - ${p.texto?.split(',')[0]}`);
     }
 
-    // ── Agrupar paradas por grupo lógico ──────────────────────────────────────
-    // Separamos en grupos para que Google optimice DENTRO de cada grupo,
-    // respetando siempre el orden macro: origen → intermedias → destino → retorno.
     const gruposMap = new Map();
     for (const p of paradasConMeta) {
       if (!gruposMap.has(p._grupo)) gruposMap.set(p._grupo, []);
@@ -291,29 +268,22 @@ export const generarRutaParaComisionista = async (req, res) => {
     let polyline  = '';
     let distKm    = 0;
     let tiempoMin = 0;
-    let posGlobal = 0; // contador de posición global para _posGoogle
+    let posGlobal = 0;
 
     if (apiKey && apiKey !== 'TU_API_KEY_AQUI') {
-      // Llamar a Google una vez por grupo para optimizar internamente.
-      // El punto de inicio del primer grupo es puntoInicio (GPS/última parada).
-      // El punto de inicio de cada grupo siguiente es la última parada del grupo anterior.
       let puntoInicioGrupo = puntoInicio;
 
       for (const [grupoNum, paradasGrupo] of gruposOrdenados) {
         if (paradasGrupo.length === 0) continue;
 
-        // Ordenar previamente por franja para que la última parada sea la de franja
-        // más tardía (mejor punto de inicio para el grupo siguiente)
         paradasGrupo.sort((a, b) => a._posFragja - b._posFragja);
 
         if (paradasGrupo.length === 1) {
-          // Una sola parada en el grupo: no hace falta llamar a Google
           paradasGrupo[0]._posGoogle = posGlobal++;
           puntoInicioGrupo = `${paradasGrupo[0].lat},${paradasGrupo[0].lng}`;
           continue;
         }
 
-        // Ruta lineal dentro del grupo: última parada como destination
         const ultimaDelGrupo   = paradasGrupo[paradasGrupo.length - 1];
         const intermedGrupo    = paradasGrupo.slice(0, -1);
         const destinoGrupo     = `${ultimaDelGrupo.lat},${ultimaDelGrupo.lng}`;
@@ -336,12 +306,10 @@ export const generarRutaParaComisionista = async (req, res) => {
 
           if (googleRes.data.status === 'OK') {
             const route      = googleRes.data.routes[0];
-            const wayOrder   = route.waypoint_order; // índices de intermedGrupo reordenados
-            // polyline se genera al final con todas las paradas en orden
+            const wayOrder   = route.waypoint_order;
             distKm   += route.legs.reduce((a, l) => a + l.distance.value, 0) / 1000;
             tiempoMin += route.legs.reduce((a, l) => a + l.duration.value, 0) / 60;
 
-            // Asignar posición global según el orden que devuelve Google
             const ordenadosGoogle = [
               ...wayOrder.map(i => intermedGrupo[i]),
               ultimaDelGrupo,
@@ -351,7 +319,6 @@ export const generarRutaParaComisionista = async (req, res) => {
             }
             puntoInicioGrupo = destinoGrupo;
           } else {
-            // Google falló para este grupo: orden por franja
             for (const p of paradasGrupo) p._posGoogle = posGlobal++;
             puntoInicioGrupo = `${ultimaDelGrupo.lat},${ultimaDelGrupo.lng}`;
           }
@@ -361,21 +328,15 @@ export const generarRutaParaComisionista = async (req, res) => {
           puntoInicioGrupo = `${ultimaDelGrupo.lat},${ultimaDelGrupo.lng}`;
         }
       }
-
     }
 
-    // ── Sort final: grupo → posGoogle (dentro del grupo) → franja horaria ─────
     paradasConMeta.sort((a, b) => {
       if (a._grupo     !== b._grupo)     return a._grupo     - b._grupo;
       if (a._posGoogle !== b._posGoogle) return a._posGoogle - b._posGoogle;
       return a._posFragja - b._posFragja;
     });
 
-    // ── Polyline completo: llamada final con el orden post-sort (grupos correctos)
-    // paradasConMeta ya está en el orden definitivo después del sort de grupos.
-    // Llamamos a Google sin optimize:true para que respete ese orden exacto.
     if (apiKey && apiKey !== 'TU_API_KEY_AQUI' && todasPendientes.length > 0) {
-      // paradasConMeta ya está ordenado por grupo → posGoogle → franja
       const ultimaOrden      = paradasConMeta[paradasConMeta.length - 1];
       const intermediasOrden = paradasConMeta.slice(0, -1);
 
@@ -392,7 +353,6 @@ export const generarRutaParaComisionista = async (req, res) => {
               key:      apiKey,
               mode:     'driving',
               language: 'es',
-              // Sin optimize:true — respetamos el orden calculado por grupos
             },
           }
         );
@@ -510,65 +470,54 @@ export const completarParada = async (req, res) => {
     }
 
     parada.completada    = true;
-parada.completada_at = getNow();
+    parada.completada_at = getNow();
 
-// ── Calcular distancia recorrida para esta parada ──────────────────────────
-// Para ENTREGA: distancia desde el retiro del mismo envío hasta acá.
-// Para RETIRO o RETORNO: distancia desde la última parada completada hasta acá.
-if (tipo === 'ENTREGA') {
-  const retiroDelEnvio = ruta.orden_entregas.find(
-    p => String(p.envioId) === String(envioId) && p.tipo === 'RETIRO' && p.completada
-  );
-  const origenLat = retiroDelEnvio?.lat ?? ruta.lat_inicio;
-  const origenLng = retiroDelEnvio?.lng ?? ruta.lng_inicio;
+    if (tipo === 'ENTREGA') {
+      const retiroDelEnvio = ruta.orden_entregas.find(
+        p => String(p.envioId) === String(envioId) && p.tipo === 'RETIRO' && p.completada
+      );
+      const origenLat = retiroDelEnvio?.lat ?? ruta.lat_inicio;
+      const origenLng = retiroDelEnvio?.lng ?? ruta.lng_inicio;
 
-  if (origenLat != null && origenLng != null) {
-    parada.distancia_km = parseFloat(
-      haversineKm(origenLat, origenLng, parada.lat, parada.lng).toFixed(2)
-    );
-  }
-} else {
-  // RETIRO o RETORNO: distancia desde el punto de partida actual
-  if (ruta.lat_inicio != null && ruta.lng_inicio != null) {
-    parada.distancia_km = parseFloat(
-      haversineKm(ruta.lat_inicio, ruta.lng_inicio, parada.lat, parada.lng).toFixed(2)
-    );
-  }
-}
-    // Mover el punto de partida a la parada recién completada
+      if (origenLat != null && origenLng != null) {
+        parada.distancia_km = parseFloat(
+          haversineKm(origenLat, origenLng, parada.lat, parada.lng).toFixed(2)
+        );
+      }
+    } else {
+      if (ruta.lat_inicio != null && ruta.lng_inicio != null) {
+        parada.distancia_km = parseFloat(
+          haversineKm(ruta.lat_inicio, ruta.lng_inicio, parada.lat, parada.lng).toFixed(2)
+        );
+      }
+    }
+
     ruta.lat_inicio = parada.lat;
     ruta.lng_inicio = parada.lng;
 
     await ruta.save();
 
     const token = req.headers.authorization;
-    const nuevoEstado = tipo === 'RETIRO'
-      ? 'EN_CAMINO'
-      : tipo === 'ENTREGA'
-        ? 'ENTREGADO'
-        : 'DEVUELTO';
 
     if (tipo === 'RETIRO') {
-  await axios.patch(
-    `${ENVIO_BASE}/api/envios/${envioId}/marcar-retirado`,
-    {},
-    { headers: { Authorization: token } }
-  ).catch(e => console.warn('⚠️ No se pudo marcar retirado:', e.message));
-} else if (tipo === 'ENTREGA') {
-  await axios.patch(
-    `${ENVIO_BASE}/api/envios/${envioId}/marcar-entregado`,
-    { distanciaKm: parada.distancia_km ?? null },
-    { headers: { Authorization: token } }
-  ).catch(e => console.warn('⚠️ No se pudo marcar entregado:', e.message));
-}
+      await axios.patch(
+        `${ENVIO_BASE}/api/envios/${envioId}/marcar-retirado`,
+        {},
+        { headers: { Authorization: token } }
+      ).catch(e => console.warn('⚠️ No se pudo marcar retirado:', e.message));
+    } else if (tipo === 'ENTREGA') {
+      await axios.patch(
+        `${ENVIO_BASE}/api/envios/${envioId}/marcar-entregado`,
+        { distanciaKm: parada.distancia_km ?? null },
+        { headers: { Authorization: token } }
+      ).catch(e => console.warn('⚠️ No se pudo marcar entregado:', e.message));
+    }
 
     const pendientes = ruta.orden_entregas.filter(p => !p.completada);
 
-    // ── Auto-finalizar si se completaron TODAS las paradas ─────────────────
     if (pendientes.length === 0) {
       await RutaOptima.updateMany({ comisionistaId, activo: true }, { activo: false });
 
-      // Notificar al servicio de envíos que el viaje terminó (marca pendientes como DEMORADO)
       await axios.post(
         `${ENVIO_BASE}/api/envios/comisionista/dashboard/finalizar-viaje`,
         { fecha },
@@ -582,7 +531,6 @@ if (tipo === 'ENTREGA') {
       });
     }
 
-    // ── Re-optimizar con la posición de la parada completada como nuevo origen
     const params = new URLSearchParams({
       fecha,
       latActual: parada.lat,
@@ -723,10 +671,11 @@ export const getSeguimientoEnvio = async (req, res) => {
     }
 
     res.json({
-      nro_envio:   envio.nro_envio,
-      estado:      envio.estadoId,
-      es_demorado: envio.estadoId === 'DEMORADO',
-      es_retorno:  envio.estadoId === 'CANCELADO_RETORNO',
+      nro_envio:           envio.nro_envio,
+      createdAt:           envio.createdAt,                          // FIX: fecha de creación del envío
+      estado:              envio.estadoId,
+      es_demorado:         ['DEMORADO', 'DEMORADO_ENTREGA', 'DEMORADO_RETIRO'].includes(envio.estadoId), // FIX: cubre todos los estados demorados
+      es_retorno:          envio.estadoId === 'CANCELADO_RETORNO',
       fechas: {
         entrega_estimada:  envio.fecha_entrega,
         franja_retiro:     envio.franja_horaria_retiro || '—',
@@ -739,6 +688,8 @@ export const getSeguimientoEnvio = async (req, res) => {
         notas:    envio.notas_adicionales,
         paquetes: envio.paquetes.length,
       },
+      pago:                envio.pago ?? { confirmado: false, metodo: null, fecha: null }, // FIX: exponer campo pago
+      metodo_pago_cliente: envio.metodo_pago_cliente ?? null,        // FIX: exponer método elegido por el cliente
       comisionista: datosComisionista,
       mapa: {
         lat_origen:  envio.direccion_origen.lat,
