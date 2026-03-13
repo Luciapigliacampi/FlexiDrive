@@ -241,12 +241,15 @@ export default function DestinatariosFrecuentes() {
     }
   }
 
+  // FIX: leer exclusivamente desde la estructura anidada normalizada.
+  // Nunca caer a item.provincia / item.ciudad (strings planos) porque
+  // el backend puede devolver ambos campos y se mostraría duplicado.
   function getProvinciaNombre(item) {
-    return item?.provincia?.provinciaNombre || item?.provincia || "";
+    return item?.provincia?.provinciaNombre ?? "";
   }
 
   function getCiudadNombre(item) {
-    return item?.localidad?.localidadNombre || item?.ciudad || "";
+    return item?.localidad?.localidadNombre ?? "";
   }
 
   if (loading) return <Loader />;

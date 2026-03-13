@@ -553,10 +553,17 @@ export const marcarRetirado = async (req, res, next) => {
         { headers: { Authorization: req.headers.authorization } }
       );
       if (data?._id && data?.viaje_iniciado === true) {
-        const { inicioDia, finDia } = getDayRange();
-        const fechaEntrega = envio.fecha_entrega ? new Date(envio.fecha_entrega) : null;
-        if (fechaEntrega && fechaEntrega >= inicioDia && fechaEntrega <= finDia) {
+        // Si viene de DEMORADO_RETIRO y hay viaje activo → siempre EN_CAMINO
+        // (la fecha_entrega original puede ser de un día anterior)
+        if (envio.estadoId === 'DEMORADO_RETIRO') {
           nuevoEstado = 'EN_CAMINO';
+        } else {
+          // Para envíos normales: solo EN_CAMINO si la entrega es hoy
+          const { inicioDia, finDia } = getDayRange();
+          const fechaEntrega = envio.fecha_entrega ? new Date(envio.fecha_entrega) : null;
+          if (fechaEntrega && fechaEntrega >= inicioDia && fechaEntrega <= finDia) {
+            nuevoEstado = 'EN_CAMINO';
+          }
         }
       }
     } catch { /* si no hay ruta activa o falla, queda RETIRADO */ }

@@ -47,6 +47,41 @@ const tiposPaquete = [
   { value: "fragil", label: "Frágil" },
 ];
 
+// Estado inicial limpio del formulario — siempre arranca vacío al entrar
+function getEmptyForm() {
+  return {
+    origen: "",
+    origenDireccion: "",
+    origenLocalidad: "",
+    origenProvincia: "",
+    origenCP: "",
+    origenReferencia: "",
+    franjaHorariaRetiro: "",
+    destinatarioId: "",
+    apellido: "",
+    nombre: "",
+    dni: "",
+    telefono: "",
+    direccion: "",
+    ciudad: "",
+    provincia: "",
+    cp: "",
+    referencia: "",
+    fechaEntrega: getTodayISO(),
+    paquetes: [
+      {
+        cantidad: "",
+        tipoPaquete: "",
+        alto: "",
+        ancho: "",
+        profundidad: "",
+        peso: "",
+      },
+    ],
+    notas: "",
+  };
+}
+
 export default function SolicitarEnvio() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -85,47 +120,10 @@ export default function SolicitarEnvio() {
     { id: "nuevo", label: "Nuevo destinatario..." },
   ]);
 
-  const savedDraft = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem("draftEnvio") || "null");
-    } catch {
-      return null;
-    }
-  }, []);
-
-  const [form, setForm] = useState(
-    savedDraft || {
-      origen: "",
-      origenDireccion: "",
-      origenLocalidad: "",
-      origenProvincia: "",
-      origenCP: "",
-      origenReferencia: "",
-      franjaHorariaRetiro: "",
-      destinatarioId: "",
-      apellido: "",
-      nombre: "",
-      dni: "",
-      telefono: "",
-      direccion: "",
-      ciudad: "",
-      provincia: "",
-      cp: "",
-      referencia: "",
-      fechaEntrega: getTodayISO(),
-      paquetes: [
-        {
-          cantidad: "",
-          tipoPaquete: "",
-          alto: "",
-          ancho: "",
-          profundidad: "",
-          peso: "",
-        },
-      ],
-      notas: "",
-    }
-  );
+  // FIX: El formulario siempre arranca limpio al montar el componente.
+  // El draft del localStorage se ignora para evitar que las secciones de
+  // "otra dirección" y "nuevo destinatario" aparezcan desplegadas al entrar.
+  const [form, setForm] = useState(getEmptyForm);
 
   // Modales
   const [openOrigenModal, setOpenOrigenModal] = useState(false);
@@ -316,47 +314,6 @@ export default function SolicitarEnvio() {
         setError(getApiErrorMessage(e, "No se pudieron cargar provincias."));
       }
     })();
-  }, []);
-
-  useEffect(() => {
-    if (!savedDraft) return;
-    if (savedDraft.origenDireccion) setOrigenQuery(savedDraft.origenDireccion);
-    if (savedDraft.direccion) setDestinoQuery(savedDraft.direccion);
-  }, []); // eslint-disable-line
-
-  useEffect(() => {
-    if (!savedDraft) return;
-    if (savedDraft.origen === "otra" && savedDraft.origenProvincia) {
-      loadLocalidades(setLocalidadesOrigen, savedDraft.origenProvincia);
-    }
-    if (savedDraft.provincia) {
-      loadLocalidades(setLocalidadesDestino, savedDraft.provincia);
-    }
-  }, []); // eslint-disable-line
-
-  useEffect(() => {
-    try {
-      const payload = JSON.parse(
-        localStorage.getItem("draftEnvioPayloadBase") || "null"
-      );
-      if (!payload) return;
-      if (payload.direccion_origen?.lat) {
-        setOrigenGeo({
-          lat: payload.direccion_origen.lat,
-          lng: payload.direccion_origen.lng,
-          texto: payload.direccion_origen.texto,
-          placeId: "",
-        });
-      }
-      if (payload.direccion_destino?.lat) {
-        setDestinoGeo({
-          lat: payload.direccion_destino.lat,
-          lng: payload.direccion_destino.lng,
-          texto: payload.direccion_destino.texto,
-          placeId: "",
-        });
-      }
-    } catch {}
   }, []);
 
   useEffect(() => {

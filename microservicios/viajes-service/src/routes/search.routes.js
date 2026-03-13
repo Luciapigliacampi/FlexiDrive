@@ -10,13 +10,6 @@ const AUTH_BASE = process.env.AUTH_SERVICE_URL || "http://localhost:3000";
 const router = express.Router();
 const norm = (s) => String(s || "").trim().toLowerCase();
 
-// GET /api/search/comisionistas
-// Busca tripPlans activos que:
-//   - pasen por origenLocalidad (origen O intermedia del TripPlan)
-//   - lleguen a destinoLocalidad (destino O intermedia del TripPlan)
-//   - el origen del envío aparezca ANTES del destino en la ruta
-//   - operen el día de fechaEntrega
-//   - tengan precio cargado para el destino
 router.get("/comisionistas", async (req, res, next) => {
   try {
     const querySchema = z.object({
@@ -37,8 +30,6 @@ router.get("/comisionistas", async (req, res, next) => {
     const q = querySchema.parse(req.query);
     const dow = dayOfWeekFromISODate(q.fechaEntrega);
 
-    // ─── Solo filtramos por día y activo en Mongo.
-    //     El filtro de origen/destino lo hacemos en memoria para soportar intermedias.
     const trips = await TripPlan.find({ activo: true, diasSemana: dow }).lean();
 
     const origenId   = q.origenLocalidadId   || null;
@@ -46,7 +37,6 @@ router.get("/comisionistas", async (req, res, next) => {
     const destinoId   = q.destinoLocalidadId   || null;
     const destinoNorm = q.destinoLocalidadNombre ? norm(q.destinoLocalidadNombre) : null;
 
-    // Verifica si una localidad está en algún punto de la ruta (origen, intermedias o destino)
     function estaEnRuta(t, localidadId, localidadNombre) {
       const paradas = [t.origen, ...(t.intermedias || []), t.destino];
       return paradas.some((p) => {
@@ -57,23 +47,15 @@ router.get("/comisionistas", async (req, res, next) => {
     }
 
     const filtered = trips.map((t) => {
-      // Debe pasar por ambas localidades (ruta circular: puede retirar en Oliva
-      // y entregar en Villa María aunque Villa María sea el origen del viaje)
       if (!estaEnRuta(t, origenId, origenNorm))  return null;
       if (!estaEnRuta(t, destinoId, destinoNorm)) return null;
 
-      // Buscar precio para el tramo del envío.
-      // Orden de prioridad:
-      //   1. Precio cargado para la localidad DESTINO del envío
-      //   2. Precio cargado para la localidad ORIGEN del envío (tramo equivalente inverso)
-      //      Cubre casos como: intermedia→origen, intermedia→intermedia, origen→intermedia
       const precios = Array.isArray(t.preciosPorLocalidad) ? t.preciosPorLocalidad : [];
 
       const matchDestino = precios.find((p) =>
         (destinoId && p.localidadId === destinoId) ||
         (destinoNorm && norm(p.localidadNombre) === destinoNorm)
       );
-
       const matchOrigen = precios.find((p) =>
         (origenId && p.localidadId === origenId) ||
         (origenNorm && norm(p.localidadNombre) === origenNorm)
@@ -92,40 +74,57 @@ router.get("/comisionistas", async (req, res, next) => {
       return { t, precioPorBulto, base, final, descuentoAplicado };
     }).filter(Boolean);
 
-    // ─── Traer nombres del auth-service en paralelo ───────────────────────
+    // Traer nombre + medios de pago del auth-service en paralelo
     const comisionistaIds = [...new Set(filtered.map((f) => String(f.t.comisionistaId)))];
-    const nombresMap = {};
+    const authMap = {};
     await Promise.all(
       comisionistaIds.map(async (id) => {
         try {
           const { data } = await axios.get(`${AUTH_BASE}/api/auth/${id}`, {
             headers: { Authorization: req.headers.authorization },
           });
-          nombresMap[id] = data.nombre && data.apellido
-            ? `${data.nombre} ${data.apellido}`
-            : data.nombre || "Comisionista";
+          authMap[id] = {
+            nombre: data.nombre && data.apellido
+              ? `${data.nombre} ${data.apellido}`
+              : data.nombre || "Comisionista",
+          };
         } catch {
-          nombresMap[id] = "Comisionista";
+          authMap[id] = { nombre: "Comisionista" };
+        }
+
+        // Traer medios de pago desde perfil completo (GET /api/auth/me equivalente público)
+        try {
+          const { data } = await axios.get(`${AUTH_BASE}/api/auth/public-profile/${id}`);
+          authMap[id].aceptaEfectivo     = Boolean(data?.comisionista?.aceptaEfectivo);
+          authMap[id].aceptaTransferencia = Boolean(data?.comisionista?.aceptaTransferencia);
+        } catch {
+          authMap[id].aceptaEfectivo     = false;
+          authMap[id].aceptaTransferencia = false;
         }
       })
     );
 
-    const list = filtered.map(({ t, precioPorBulto, base, final, descuentoAplicado }) => ({
-      comisionistaId: String(t.comisionistaId),
-      tripPlanId: String(t._id),
-      nombre: nombresMap[String(t.comisionistaId)] || "Comisionista",
-      rating: 4.7,
-      precioPorBulto,
-      bultos: q.bultos,
-      precioBase: base,
-      descuentoAplicado,
-      precioEstimado: final,
-      ruta: {
-        origen: t.origen,
-        destino: t.destino,
-        intermedias: t.intermedias || [],
-      },
-    }));
+    const list = filtered.map(({ t, precioPorBulto, base, final, descuentoAplicado }) => {
+      const info = authMap[String(t.comisionistaId)] || {};
+      return {
+        comisionistaId: String(t.comisionistaId),
+        tripPlanId: String(t._id),
+        nombre: info.nombre || "Comisionista",
+        rating: 4.7,
+        precioPorBulto,
+        bultos: q.bultos,
+        precioBase: base,
+        descuentoAplicado,
+        precioEstimado: final,
+        aceptaEfectivo:      info.aceptaEfectivo     ?? false,
+        aceptaTransferencia: info.aceptaTransferencia ?? false,
+        ruta: {
+          origen: t.origen,
+          destino: t.destino,
+          intermedias: t.intermedias || [],
+        },
+      };
+    });
 
     return res.json({ total: list.length, comisionistas: list });
   } catch (err) {
@@ -133,7 +132,6 @@ router.get("/comisionistas", async (req, res, next) => {
   }
 });
 
-// GET /api/search/precio
 router.get("/precio", async (req, res, next) => {
   try {
     const qs = z.object({
@@ -160,9 +158,6 @@ router.get("/precio", async (req, res, next) => {
     const origenNorm  = q.origenLocalidadNombre  ? norm(q.origenLocalidadNombre)  : null;
     const precios = Array.isArray(trip.preciosPorLocalidad) ? trip.preciosPorLocalidad : [];
 
-    // Mismo fallback que en /comisionistas:
-    //   1. Precio para el destino del envío
-    //   2. Precio para el origen del envío (tramo equivalente inverso)
     const matchDestino = precios.find((p) =>
       (destinoId && p.localidadId === destinoId) ||
       (destinoNorm && norm(p.localidadNombre) === destinoNorm)

@@ -11,9 +11,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import { getMyProfile } from "../../services/profileService/profileService";
-import { updateDatosBancarios, clearDatosBancarios  } from "../../services/profileService/profileService";
-
-
+import { updateDatosBancarios, clearDatosBancarios } from "../../services/profileService/profileService";
 
 const LS_BANK_KEY = "flexidrive_datos_bancarios_comisionista";
 
@@ -35,76 +33,76 @@ const emptyForm = {
 };
 
 export default function MediosPagoComisionista() {
-   const navigate = useNavigate();
+  const navigate = useNavigate();
   const [form, setForm] = useState(emptyForm);
   const [guardado, setGuardado] = useState(null);
   const [modoEdicion, setModoEdicion] = useState(true);
   const [mensaje, setMensaje] = useState("");
 
   useEffect(() => {
-  async function cargarDatos() {
-    // 1. Cargar preferencias de cobro desde localStorage
-    const saved = safeJsonParse(localStorage.getItem(LS_BANK_KEY), null);
+    async function cargarDatos() {
+      const saved = safeJsonParse(localStorage.getItem(LS_BANK_KEY), null);
 
-    // 2. Cargar datos bancarios reales desde el perfil
-    try {
-      const perfil = await getMyProfile();
-      const com = perfil?.comisionista || {};
+      try {
+        const perfil = await getMyProfile();
+        const com = perfil?.comisionista || {};
 
-      const datosDB = {
-        titular: com.alias || "",        // no hay titular, usamos alias como referencia
-        alias: com.alias || "",
-        cbu: com.cbu || "",
-        banco: com.entidadBancaria || "",
-      };
-
-      setForm((prev) => ({
-        ...prev,
-        // Preferencias desde localStorage si existen, sino defaults
-        aceptaEfectivo: saved?.aceptaEfectivo ?? false,
-        aceptaTransferencia: saved?.aceptaTransferencia ?? (!!com.cbu), // si tiene CBU, activar por defecto
-        // Datos bancarios: localStorage tiene prioridad (ediciones previas), sino DB
-        titular: saved?.titular || datosDB.titular,
-        alias: saved?.alias || datosDB.alias,
-        cbu: saved?.cbu || datosDB.cbu,
-        banco: saved?.banco || datosDB.banco,
-      }));
-
-      if (saved) {
-        setGuardado({
-          ...saved,
-          titular: saved.titular || datosDB.titular,
-          alias: saved.alias || datosDB.alias,
-          cbu: saved.cbu || datosDB.cbu,
-          banco: saved.banco || datosDB.banco,
-        });
-        setModoEdicion(false);
-      } else if (com.cbu) {
-        // Si hay datos en DB pero no en localStorage, mostrar como guardado
-        const fromDB = {
-          aceptaEfectivo: false,
-          aceptaTransferencia: true,
-          titular: datosDB.titular,
-          alias: datosDB.alias,
-          cbu: datosDB.cbu,
-          banco: datosDB.banco,
+        const datosDB = {
+          titular: com.alias || "",
+          alias: com.alias || "",
+          cbu: com.cbu || "",
+          banco: com.entidadBancaria || "",
+          // ✅ Leer medios de pago desde DB (no solo localStorage)
+          aceptaEfectivo: com.aceptaEfectivo ?? false,
+          aceptaTransferencia: com.aceptaTransferencia ?? (!!com.cbu),
         };
-        setGuardado(fromDB);
-        setForm(fromDB);
-        setModoEdicion(false);
-      }
-    } catch {
-      // Si falla el fetch, usar solo localStorage
-      if (saved) {
-        setGuardado(saved);
-        setForm(saved);
-        setModoEdicion(false);
+
+        setForm((prev) => ({
+          ...prev,
+          // localStorage tiene prioridad si existe, sino DB
+          aceptaEfectivo: saved?.aceptaEfectivo ?? datosDB.aceptaEfectivo,
+          aceptaTransferencia: saved?.aceptaTransferencia ?? datosDB.aceptaTransferencia,
+          titular: saved?.titular || datosDB.titular,
+          alias: saved?.alias || datosDB.alias,
+          cbu: saved?.cbu || datosDB.cbu,
+          banco: saved?.banco || datosDB.banco,
+        }));
+
+        if (saved) {
+          setGuardado({
+            ...saved,
+            titular: saved.titular || datosDB.titular,
+            alias: saved.alias || datosDB.alias,
+            cbu: saved.cbu || datosDB.cbu,
+            banco: saved.banco || datosDB.banco,
+          });
+          setModoEdicion(false);
+        } else if (com.cbu || com.aceptaEfectivo || com.aceptaTransferencia) {
+          // Hay datos en DB pero no en localStorage → mostrar como guardado
+          const fromDB = {
+            aceptaEfectivo: datosDB.aceptaEfectivo,
+            aceptaTransferencia: datosDB.aceptaTransferencia,
+            titular: datosDB.titular,
+            alias: datosDB.alias,
+            cbu: datosDB.cbu,
+            banco: datosDB.banco,
+          };
+          setGuardado(fromDB);
+          setForm(fromDB);
+          localStorage.setItem(LS_BANK_KEY, JSON.stringify(fromDB));
+          setModoEdicion(false);
+        }
+      } catch {
+        if (saved) {
+          setGuardado(saved);
+          setForm(saved);
+          setModoEdicion(false);
+        }
       }
     }
-  }
 
-  cargarDatos();
-}, []);
+    cargarDatos();
+  }, []);
 
   const tieneAlgunaOpcion = useMemo(() => {
     return form.aceptaEfectivo || form.aceptaTransferencia;
@@ -112,7 +110,6 @@ export default function MediosPagoComisionista() {
 
   function handleChange(e) {
     const { name, value, type, checked } = e.target;
-
     setForm((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
@@ -123,77 +120,83 @@ export default function MediosPagoComisionista() {
     if (!form.aceptaEfectivo && !form.aceptaTransferencia) {
       return "Seleccioná al menos una opción de cobro.";
     }
-
     if (form.aceptaTransferencia) {
       if (!form.titular.trim()) return "Completá el titular de la cuenta.";
       if (!form.alias.trim()) return "Completá el alias.";
       if (!form.cbu.trim()) return "Completá el CBU o CVU.";
       if (!form.banco.trim()) return "Completá el banco o billetera.";
     }
-
     return "";
   }
 
   async function handleGuardar(e) {
-  e.preventDefault();
-  const error = validar();
-  if (error) { setMensaje(error); return; }
+    e.preventDefault();
+    const error = validar();
+    if (error) { setMensaje(error); return; }
 
-  const payload = {
-    aceptaEfectivo: Boolean(form.aceptaEfectivo),
-    aceptaTransferencia: Boolean(form.aceptaTransferencia),
-    titular: form.aceptaTransferencia ? form.titular.trim() : "",
-    alias: form.aceptaTransferencia ? form.alias.trim() : "",
-    cbu: form.aceptaTransferencia ? form.cbu.trim() : "",
-    banco: form.aceptaTransferencia ? form.banco.trim() : "",
-  };
+    const payload = {
+      aceptaEfectivo: Boolean(form.aceptaEfectivo),
+      aceptaTransferencia: Boolean(form.aceptaTransferencia),
+      titular: form.aceptaTransferencia ? form.titular.trim() : "",
+      alias: form.aceptaTransferencia ? form.alias.trim() : "",
+      cbu: form.aceptaTransferencia ? form.cbu.trim() : "",
+      banco: form.aceptaTransferencia ? form.banco.trim() : "",
+    };
 
-  try {
-    // Guardar en DB los campos que acepta el backend
-    await updateDatosBancarios({
-      alias: payload.alias,
-      cbu: payload.cbu,
-      entidadBancaria: payload.banco,  // banco → entidadBancaria en el modelo
-    });
+    try {
+      // ✅ AHORA incluye aceptaEfectivo y aceptaTransferencia en la DB
+      await updateDatosBancarios({
+        alias: payload.alias,
+        cbu: payload.cbu,
+        entidadBancaria: payload.banco,
+        aceptaEfectivo: payload.aceptaEfectivo,
+        aceptaTransferencia: payload.aceptaTransferencia,
+      });
 
-    // Guardar preferencias de cobro en localStorage (no están en el modelo DB)
-    localStorage.setItem(LS_BANK_KEY, JSON.stringify(payload));
-    setGuardado(payload);
-    setForm(payload);
-    setModoEdicion(false);
-    setMensaje("Medios de pago guardados correctamente.");
-  } catch (err) {
-    setMensaje(err?.message || "No se pudieron guardar los datos.");
+      localStorage.setItem(LS_BANK_KEY, JSON.stringify(payload));
+      setGuardado(payload);
+      setForm(payload);
+      setModoEdicion(false);
+      setMensaje("Medios de pago guardados correctamente.");
+    } catch (err) {
+      setMensaje(err?.message || "No se pudieron guardar los datos.");
+    }
   }
-}
 
   function handleEditar() {
     setModoEdicion(true);
     setMensaje("");
   }
 
-async function handleEliminar() {
-  try {
-    await clearDatosBancarios();
-    localStorage.removeItem(LS_BANK_KEY);
-    setGuardado(null);
-    setForm(emptyForm);
-    setModoEdicion(true);
-    setMensaje("Medios de pago eliminados.");
-  } catch (err) {
-    setMensaje(err?.message || "No se pudieron eliminar los datos.");
+  async function handleEliminar() {
+    try {
+      // ✅ También limpia los medios de pago en DB
+      await updateDatosBancarios({
+        alias: "",
+        cbu: "",
+        entidadBancaria: "",
+        aceptaEfectivo: false,
+        aceptaTransferencia: false,
+      });
+      localStorage.removeItem(LS_BANK_KEY);
+      setGuardado(null);
+      setForm(emptyForm);
+      setModoEdicion(true);
+      setMensaje("Medios de pago eliminados.");
+    } catch (err) {
+      setMensaje(err?.message || "No se pudieron eliminar los datos.");
+    }
   }
-}
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 md:px-6">
       <section>
         <button
-    onClick={() => navigate(-1)}
-    className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-800"
-  >
-    ← Volver
-  </button>
+          onClick={() => navigate(-1)}
+          className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-800"
+        >
+          ← Volver
+        </button>
         <h1 className="text-3xl font-bold tracking-tight text-slate-800 md:text-4xl">
           Medios de pago
         </h1>
@@ -247,9 +250,7 @@ async function handleEliminar() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-slate-800">
                     <Banknote className="h-5 w-5 text-emerald-600" />
-                    <span className="font-semibold">
-                      Aceptar pagos en efectivo
-                    </span>
+                    <span className="font-semibold">Aceptar pagos en efectivo</span>
                   </div>
                   <p className="mt-1 text-sm text-slate-500">
                     El cliente puede abonarte directamente en efectivo.
@@ -284,16 +285,12 @@ async function handleEliminar() {
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="mb-4 flex items-center gap-2">
                   <Landmark className="h-5 w-5 text-blue-700" />
-                  <h3 className="text-base font-bold text-slate-800">
-                    Datos bancarios
-                  </h3>
+                  <h3 className="text-base font-bold text-slate-800">Datos bancarios</h3>
                 </div>
 
                 <div className="space-y-4">
                   <div>
-                    <label className="mb-1 block text-sm font-semibold text-slate-700">
-                      Titular
-                    </label>
+                    <label className="mb-1 block text-sm font-semibold text-slate-700">Titular</label>
                     <input
                       type="text"
                       name="titular"
@@ -304,11 +301,8 @@ async function handleEliminar() {
                       className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500 disabled:bg-slate-100"
                     />
                   </div>
-
                   <div>
-                    <label className="mb-1 block text-sm font-semibold text-slate-700">
-                      Alias
-                    </label>
+                    <label className="mb-1 block text-sm font-semibold text-slate-700">Alias</label>
                     <input
                       type="text"
                       name="alias"
@@ -319,11 +313,8 @@ async function handleEliminar() {
                       className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500 disabled:bg-slate-100"
                     />
                   </div>
-
                   <div>
-                    <label className="mb-1 block text-sm font-semibold text-slate-700">
-                      CBU / CVU
-                    </label>
+                    <label className="mb-1 block text-sm font-semibold text-slate-700">CBU / CVU</label>
                     <input
                       type="text"
                       name="cbu"
@@ -334,11 +325,8 @@ async function handleEliminar() {
                       className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500 disabled:bg-slate-100"
                     />
                   </div>
-
                   <div>
-                    <label className="mb-1 block text-sm font-semibold text-slate-700">
-                      Banco / billetera
-                    </label>
+                    <label className="mb-1 block text-sm font-semibold text-slate-700">Banco / billetera</label>
                     <input
                       type="text"
                       name="banco"
@@ -372,7 +360,6 @@ async function handleEliminar() {
                   <Pencil className="h-4 w-4" />
                   Editar
                 </button>
-
                 <button
                   type="button"
                   onClick={handleEliminar}
@@ -392,9 +379,7 @@ async function handleEliminar() {
               <CheckCircle2 className="h-6 w-6" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-800">
-                Opciones habilitadas
-              </h2>
+              <h2 className="text-xl font-bold text-slate-800">Opciones habilitadas</h2>
               <p className="text-sm text-slate-500">
                 Resumen de los medios de pago que tenés activos.
               </p>
@@ -407,36 +392,25 @@ async function handleEliminar() {
                 <CheckCircle2 className="h-4 w-4" />
                 Tus medios de pago están guardados.
               </div>
-
               <div className="space-y-3">
                 {guardado.aceptaEfectivo && (
                   <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                     <Banknote className="h-5 w-5 text-emerald-600" />
                     <div>
-                      <div className="font-semibold text-slate-800">
-                        Efectivo
-                      </div>
-                      <div className="text-sm text-slate-500">
-                        Cobro presencial en efectivo.
-                      </div>
+                      <div className="font-semibold text-slate-800">Efectivo</div>
+                      <div className="text-sm text-slate-500">Cobro presencial en efectivo.</div>
                     </div>
                   </div>
                 )}
-
                 {guardado.aceptaTransferencia && (
                   <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                     <CreditCard className="h-5 w-5 text-blue-700" />
                     <div>
-                      <div className="font-semibold text-slate-800">
-                        Transferencia bancaria / billetera
-                      </div>
-                      <div className="text-sm text-slate-500">
-                        Medio habilitado para cobro digital.
-                      </div>
+                      <div className="font-semibold text-slate-800">Transferencia bancaria / billetera</div>
+                      <div className="text-sm text-slate-500">Medio habilitado para cobro digital.</div>
                     </div>
                   </div>
                 )}
-
                 {!guardado.aceptaEfectivo && !guardado.aceptaTransferencia && (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
                     No hay medios de pago habilitados.
