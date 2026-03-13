@@ -67,6 +67,33 @@ const UBICACIONES = [
   },
 ];
 
+const COORDS_POR_LOCALIDAD = {
+  "14042170": { lat: -32.4153, lng: -63.2439 }, // Villa María
+  "14014010": { lat: -31.4167, lng: -64.1833 }, // Córdoba
+  "14182060": { lat: -32.6333, lng: -62.6833 }, // Bell Ville
+  "14098230": { lat: -33.1307, lng: -64.3499 }, // Río Cuarto
+  "82084270": { lat: -32.9468, lng: -60.6393 }, // Rosario
+  "82063170": { lat: -31.6333, lng: -60.7000 }, // Santa Fe
+  "82021310": { lat: -31.2500, lng: -61.4833 }, // Rafaela
+  "0644103015": { lat: -34.9205, lng: -57.9536 }, // La Plata
+  "0635711003": { lat: -38.0023, lng: -57.5575 }, // Mar del Plata
+  "0605601001": { lat: -38.7196, lng: -62.2724 }, // Bahía Blanca
+};
+
+const CALLES_POR_LOCALIDAD = {
+  "14042170": ["Av. Rivadavia", "Bv. Sarmiento", "Av. Baudrix", "Calle Mendoza", "Bv. España", "Calle 9 de Julio"],
+  "14014010": ["Av. Colón", "Bv. San Juan", "Av. Vélez Sársfield", "Calle Dean Funes", "Av. Gral. Paz", "Calle Obispo Trejo"],
+  "14182060": ["Av. San Martín", "Calle Urquiza", "Av. Rivadavia", "Calle Mitre", "Calle Belgrano"],
+  "14098230": ["Bv. Roca", "Av. Hipólito Yrigoyen", "Calle Sobremonte", "Av. Libertad", "Calle Tucumán"],
+  "82084270": ["Av. Pellegrini", "Bv. Oroño", "Calle Córdoba", "Av. San Martín", "Calle Santa Fe", "Av. Francia"],
+  "82063170": ["Av. Gral. López", "Calle San Jerónimo", "Av. Rivadavia", "Calle Tucumán", "Bv. Gálvez"],
+  "82021310": ["Av. Santa Fe", "Calle Belgrano", "Av. Matienzo", "Calle Mitre", "Av. Italia"],
+  "0644103015": ["Av. 7", "Calle 13", "Av. 44", "Calle 51", "Av. 122", "Calle 32"],
+  "0635711003": ["Av. Colón", "Bv. Marítimo", "Calle Salta", "Av. Independencia", "Calle Luro"],
+  "0605601001": ["Av. Alem", "Calle Chiclana", "Av. Colón", "Calle Drago", "Bv. Fortín"],
+};
+
+
 function getBaseNow() {
   if (!TEST_DATE) return new Date();
   const d = new Date(TEST_DATE);
@@ -142,17 +169,26 @@ function pickLugar() {
   };
 }
 
-function randomCoordsArgentina() {
+function randomCoordsParaLocalidad(localidadId) {
+  const base = COORDS_POR_LOCALIDAD[localidadId];
+  if (!base) {
+    return {
+      lat: Number(faker.number.float({ min: -38.5, max: -30.0, fractionDigits: 6 })),
+      lng: Number(faker.number.float({ min: -65.5, max: -56.0, fractionDigits: 6 })),
+    };
+  }
+  // Variación pequeña dentro de la ciudad (~1-2 km)
   return {
-    lat: Number(faker.number.float({ min: -38.5, max: -30.0, fractionDigits: 6 })),
-    lng: Number(faker.number.float({ min: -65.5, max: -56.0, fractionDigits: 6 })),
+    lat: Number((base.lat + faker.number.float({ min: -0.015, max: 0.015, fractionDigits: 6 })).toFixed(6)),
+    lng: Number((base.lng + faker.number.float({ min: -0.015, max: 0.015, fractionDigits: 6 })).toFixed(6)),
   };
 }
 
 function buildDireccionTexto(lugar) {
-  const calle = faker.location.street();
-  const numero = faker.number.int({ min: 100, max: 5000 });
-  const coords = randomCoordsArgentina();
+  const calles = CALLES_POR_LOCALIDAD[lugar.localidadId] || ["Calle Sin Nombre"];
+  const calle = faker.helpers.arrayElement(calles);
+  const numero = faker.number.int({ min: 100, max: 3000 });
+  const coords = randomCoordsParaLocalidad(lugar.localidadId);
   return {
     texto: `${calle} ${numero}, ${lugar.localidadNombre}, ${lugar.provinciaNombre}`,
     lat: coords.lat,
@@ -481,7 +517,7 @@ function generarEnvios(clientes, comisionistas, tripPlansPorComisionista, destin
         localidadId: destinoLugar.localidadId,
         localidadNombre: destinoLugar.localidadNombre,
       },
-      nro_envio: String(100000 + i),
+nro_envio: `FD-${String(faker.number.int({ min: 1000, max: 9999 }))}-${String(faker.number.int({ min: 1000, max: 9999 }))}`,
       paquetes,
       costo_estimado: faker.number.int({ min: 1800, max: 18000 }),
       fecha_entrega: fechaEntrega,

@@ -18,12 +18,13 @@ import {
 } from "lucide-react";
 
 import Loader from "../../components/Loader";
-import {
-  getMyProfile,
-  getDirecciones,
-} from "../../services/profileService/profileService";
+import { getMyProfile } from "../../services/profileService/profileService";
 import { getMyShipments } from "../../services/shipmentServices";
-import { getEstadisticasComisionista } from "../../services/comisionistaServices";
+import { getMyVehicles } from "../../services/authService";
+import {
+  getEstadisticasComisionista,
+  listRutas,
+} from "../../services/comisionistaServices";
 
 const LS_PROFILE_PHOTO_KEY = "flexidrive_profile_photo";
 const LS_BANK_KEY = "flexidrive_datos_bancarios_comisionista";
@@ -70,33 +71,12 @@ function getEstadoEnvio(envio) {
     .trim()
     .toUpperCase();
 
-  if (
-    raw === "ENTREGADO" ||
-    raw === "COMPLETADO" ||
-    raw === "COMPLETADA" ||
-    raw === "FINALIZADO" ||
-    raw === "FINALIZADA"
-  ) {
+  if (["ENTREGADO", "COMPLETADO", "COMPLETADA", "FINALIZADO", "FINALIZADA"].includes(raw))
     return "ENTREGADO";
-  }
-
-  if (
-    raw === "EN_CAMINO" ||
-    raw === "EN CURSO" ||
-    raw === "EN_TRANSITO" ||
-    raw === "EN TRÁNSITO" ||
-    raw === "EN TRANSITO"
-  ) {
+  if (["EN_CAMINO", "EN CURSO", "EN_TRANSITO", "EN TRÁNSITO", "EN TRANSITO"].includes(raw))
     return "EN_CAMINO";
-  }
-
-  if (raw === "ASIGNADO" || raw === "ACEPTADO") {
-    return "ASIGNADO";
-  }
-
-  if (raw === "PENDIENTE" || raw === "CREADO" || raw === "PUBLICADO") {
-    return "PENDIENTE";
-  }
+  if (["ASIGNADO", "ACEPTADO"].includes(raw)) return "ASIGNADO";
+  if (["PENDIENTE", "CREADO", "PUBLICADO"].includes(raw)) return "PENDIENTE";
 
   return raw || "—";
 }
@@ -124,42 +104,11 @@ function getLocalProfilePhoto() {
 
 function humanizeEstado(estado) {
   const e = String(estado || "").toUpperCase();
-
   if (e === "ENTREGADO") return "Entregado";
   if (e === "EN_CAMINO") return "En tránsito";
   if (e === "ASIGNADO") return "Aceptado";
   if (e === "PENDIENTE") return "Pendiente";
-
   return estado || "—";
-}
-
-function normalizeText(text) {
-  return String(text || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
-}
-
-function buildDireccionDetalle(dir) {
-  const direccionBase = String(dir?.direccion || dir?.calle || "").trim();
-  const ciudad = String(dir?.ciudad || dir?.localidad || "").trim();
-  const provincia = String(dir?.provincia || "").trim();
-
-  const direccionNorm = normalizeText(direccionBase);
-  const ciudadNorm = normalizeText(ciudad);
-  const provinciaNorm = normalizeText(provincia);
-
-  const incluyeCiudad = ciudadNorm && direccionNorm.includes(ciudadNorm);
-  const incluyeProvincia =
-    provinciaNorm && direccionNorm.includes(provinciaNorm);
-
-  const partes = [direccionBase];
-
-  if (ciudad && !incluyeCiudad) partes.push(ciudad);
-  if (provincia && !incluyeProvincia) partes.push(provincia);
-
-  return partes.filter(Boolean).join(", ");
 }
 
 function InfoCard({ title, accent = "blue", content }) {
@@ -210,13 +159,11 @@ function PaymentChip({ icon, label, tone = "blue" }) {
     >
       <div className="flex items-center gap-3">
         <div className="shrink-0">{icon}</div>
-
         <div className="min-w-0">
           <div className="text-sm font-bold">{label}</div>
           <div className="text-xs font-medium opacity-80">Habilitado</div>
         </div>
       </div>
-
       <div
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${badgeClasses}`}
       >
@@ -231,11 +178,12 @@ export default function PerfilComisionista() {
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
   const [p, setP] = useState(null);
-  const [direcciones, setDirecciones] = useState([]);
+  const [rutas, setRutas] = useState([]);
   const [envios, setEnvios] = useState([]);
   const [profilePhoto, setProfilePhoto] = useState("");
   const [estadisticas, setEstadisticas] = useState(null);
   const [datosPagoLocal, setDatosPagoLocal] = useState(null);
+  const [vehiculos, setVehiculos] = useState([]);
 
   const userRaw = localStorage.getItem("user");
   const userId = userRaw ? JSON.parse(userRaw)?.id : null;
@@ -250,61 +198,44 @@ export default function PerfilComisionista() {
         setWarning("");
 
         const perfilData = await getMyProfile();
-console.log("vehiculo en perfil:", perfilData?.vehiculo);
-console.log("keys del perfil:", Object.keys(perfilData));
 
-        const [
-          direccionesData,
-          enviosData,
-          estadisticasData,
-        ] = await Promise.all([
-          getDirecciones().catch(() => {
-            if (alive) {
-              setWarning((prev) =>
-                prev
-                  ? `${prev} No se pudieron cargar las direcciones.`
-                  : "No se pudieron cargar las direcciones."
-              );
-            }
-            return [];
-          }),
-          getMyShipments().catch(() => {
-            if (alive) {
-              setWarning((prev) =>
-                prev
-                  ? `${prev} No se pudo cargar el historial de envíos.`
-                  : "No se pudo cargar el historial de envíos."
-              );
-            }
-            return [];
-          }),
-          userId
-            ? getEstadisticasComisionista(userId).catch(() => {
-                if (alive) {
-                  setWarning((prev) =>
-                    prev
-                      ? `${prev} No se pudieron cargar las estadísticas.`
-                      : "No se pudieron cargar las estadísticas."
-                  );
-                }
-                return null;
-              })
-            : Promise.resolve(null),
-        ]);
+        const [enviosData, estadisticasData, vehiculosData, rutasData] =
+          await Promise.all([
+            getMyShipments().catch(() => {
+              if (alive)
+                setWarning((prev) =>
+                  prev
+                    ? `${prev} No se pudo cargar el historial de envíos.`
+                    : "No se pudo cargar el historial de envíos."
+                );
+              return [];
+            }),
+            userId
+              ? getEstadisticasComisionista(userId).catch(() => {
+                  if (alive)
+                    setWarning((prev) =>
+                      prev
+                        ? `${prev} No se pudieron cargar las estadísticas.`
+                        : "No se pudieron cargar las estadísticas."
+                    );
+                  return null;
+                })
+              : Promise.resolve(null),
+            getMyVehicles().catch(() => []),
+            listRutas({}).catch(() => []),
+          ]);
 
         if (!alive) return;
 
         setP(perfilData || null);
-        setDirecciones(Array.isArray(direccionesData) ? direccionesData : []);
         setEnvios(Array.isArray(enviosData) ? enviosData : []);
         setEstadisticas(estadisticasData || null);
+        setVehiculos(Array.isArray(vehiculosData) ? vehiculosData : []);
+        setRutas(Array.isArray(rutasData) ? rutasData : []);
         setProfilePhoto(getLocalProfilePhoto());
-        setDatosPagoLocal(
-          safeJsonParse(localStorage.getItem(LS_BANK_KEY), null)
-        );
+        setDatosPagoLocal(safeJsonParse(localStorage.getItem(LS_BANK_KEY), null));
       } catch (err) {
         if (!alive) return;
-
         setError(
           err?.response?.data?.message ||
             err?.response?.data?.error ||
@@ -319,17 +250,13 @@ console.log("keys del perfil:", Object.keys(perfilData));
     loadAll();
 
     function onStorage(e) {
-      if (e.key === LS_BANK_KEY) {
+      if (e.key === LS_BANK_KEY)
         setDatosPagoLocal(safeJsonParse(e.newValue, null));
-      }
-
-      if (e.key === LS_PROFILE_PHOTO_KEY) {
+      if (e.key === LS_PROFILE_PHOTO_KEY)
         setProfilePhoto(e.newValue || "");
-      }
     }
 
     window.addEventListener("storage", onStorage);
-
     return () => {
       alive = false;
       window.removeEventListener("storage", onStorage);
@@ -341,62 +268,47 @@ console.log("keys del perfil:", Object.keys(perfilData));
       setDatosPagoLocal(safeJsonParse(localStorage.getItem(LS_BANK_KEY), null));
       setProfilePhoto(getLocalProfilePhoto());
     }
-
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
   }, []);
 
   const nombreCompleto = useMemo(() => {
     if (!p) return "—";
-    const full = `${p?.nombre || ""} ${p?.apellido || ""}`.trim();
-    return full || "—";
+    return `${p?.nombre || ""} ${p?.apellido || ""}`.trim() || "—";
   }, [p]);
 
-  const ultimasDirecciones = useMemo(
-    () => direcciones.slice(0, 3),
-    [direcciones]
-  );
+  const ultimasRutas = useMemo(() => rutas.slice(0, 3), [rutas]);
+
+  const vehiculoPrincipal = useMemo(() => vehiculos[0] || null, [vehiculos]);
 
   const actividadReciente = useMemo(() => {
     const copy = [...envios];
-
     copy.sort((a, b) => {
-      const fa = new Date(
-        a?.fecha || a?.createdAt || a?.fecha_creacion || 0
-      ).getTime();
-      const fb = new Date(
-        b?.fecha || b?.createdAt || b?.fecha_creacion || 0
-      ).getTime();
+      const fa = new Date(a?.fecha || a?.createdAt || a?.fecha_creacion || 0).getTime();
+      const fb = new Date(b?.fecha || b?.createdAt || b?.fecha_creacion || 0).getTime();
       return fb - fa;
     });
-
     return copy.slice(0, 3).map((envio) => ({
       numero: getShipmentNumber(envio),
       estado: getEstadoEnvio(envio),
     }));
   }, [envios]);
 
-  const resumenActividad = useMemo(() => {
-    const ingresosTotales = Number(estadisticas?.ingresosTotales || 0);
-    const ingresoPromedio = Number(
-      estadisticas?.ingresoPromedio ||
-        estadisticas?.ingresoPromedioViaje ||
-        0
-    );
-    const distanciaPromedio = Number(
-      estadisticas?.distanciaPromedio ||
-        estadisticas?.distanciaPromedioViaje ||
-        0
-    );
-
-    return {
-      ingresosTotales,
-      ingresoPromedio,
-      distanciaPromedio,
-    };
-  }, [estadisticas]);
+  const resumenActividad = useMemo(
+    () => ({
+      ingresosTotales: Number(estadisticas?.ingresosTotales || 0),
+      ingresoPromedio: Number(
+        estadisticas?.ingresoPromedio || estadisticas?.ingresoPromedioViaje || 0
+      ),
+      distanciaPromedio: Number(
+        estadisticas?.distanciaPromedio || estadisticas?.distanciaPromedioViaje || 0
+      ),
+    }),
+    [estadisticas]
+  );
 
   const mediosPago = useMemo(() => {
+    const com = p?.comisionista || {};
     const origen =
       datosPagoLocal ||
       p?.datos_bancarios ||
@@ -404,10 +316,9 @@ console.log("keys del perfil:", Object.keys(perfilData));
       p?.medioPago ||
       p?.medio_pago ||
       {};
-
     return {
       aceptaEfectivo: Boolean(origen?.aceptaEfectivo),
-      aceptaTransferencia: Boolean(origen?.aceptaTransferencia),
+      aceptaTransferencia: Boolean(origen?.aceptaTransferencia) || Boolean(com?.cbu),
     };
   }, [p, datosPagoLocal]);
 
@@ -459,24 +370,17 @@ console.log("keys del perfil:", Object.keys(perfilData));
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <UserCircle2
-                  className="h-24 w-24 text-blue-700"
-                  strokeWidth={1.5}
-                />
+                <UserCircle2 className="h-24 w-24 text-blue-700" strokeWidth={1.5} />
               )}
             </div>
 
             <div className="space-y-3">
-              <h2 className="text-3xl font-bold text-slate-800">
-                {nombreCompleto}
-              </h2>
-
+              <h2 className="text-3xl font-bold text-slate-800">{nombreCompleto}</h2>
               <div className="space-y-2 text-slate-600">
                 <div className="flex items-center gap-3">
                   <Mail className="h-5 w-5 text-blue-700" />
                   <span>{safeValue(p?.email)}</span>
                 </div>
-
                 <div className="flex items-center gap-3">
                   <Phone className="h-5 w-5 text-blue-700" />
                   <span>{safeValue(p?.telefono)}</span>
@@ -522,46 +426,44 @@ console.log("keys del perfil:", Object.keys(perfilData));
         />
 
         <InfoCard
-          title="Direcciones"
+          title="Rutas"
           accent="blue"
           content={
             <>
-              {ultimasDirecciones.length > 0 ? (
+              {ultimasRutas.length > 0 ? (
                 <ul className="space-y-4">
-                  {ultimasDirecciones.map((dir, idx) => {
-                    const titulo =
-                      dir?.alias ||
-                      dir?.nombre ||
-                      dir?.direccion ||
-                      dir?.calle ||
-                      `Dirección ${idx + 1}`;
-
-                    const detalle = buildDireccionDetalle(dir);
-
+                  {ultimasRutas.map((ruta, idx) => {
+                    const origen = ruta?.origen?.localidadNombre || "—";
+                    const destino = ruta?.destino?.localidadNombre || "—";
+                    const activa = ruta?.activa ?? true;
                     return (
                       <InfoItem
-                        key={dir?._id || dir?.id || idx}
-                        icon={<MapPin className="h-5 w-5 text-blue-700" />}
-                        label={titulo}
-                        value={detalle || "Guardada"}
-                      />
+  key={ruta?._id || ruta?.id || idx}
+  icon={<MapPin className="h-5 w-5 text-blue-700" />}
+  label={`${origen} → ${destino}`}
+  value={
+    [
+      activa ? "Activa" : "Pausada",
+      ruta?.dias?.length ? ruta.dias.join(" · ") : null,
+    ]
+      .filter(Boolean)
+      .join(" — ")
+  }
+/>
                     );
                   })}
                 </ul>
               ) : (
-                <EmptyText text="Todavía no tenés direcciones guardadas." />
+                <EmptyText text="Todavía no tenés rutas cargadas." />
               )}
 
               <div className="pt-4">
-                <div className="flex flex-wrap gap-2">
-                  <Link
-                    to="/comisionista/rutas"
-                    className="inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Mis rutas
-                  </Link>
-
-                </div>
+                <Link
+                  to="/comisionista/rutas"
+                  className="inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Gestionar rutas
+                </Link>
               </div>
             </>
           }
@@ -596,14 +498,12 @@ console.log("keys del perfil:", Object.keys(perfilData));
               )}
 
               <div className="pt-4">
-                <div className="flex flex-wrap gap-2">
-                  <Link
-                    to="/comisionista/envios"
-                    className="inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Ver envíos
-                  </Link>
-                </div>
+                <Link
+                  to="/comisionista/envios"
+                  className="inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Ver envíos
+                </Link>
               </div>
             </>
           }
@@ -619,25 +519,21 @@ console.log("keys del perfil:", Object.keys(perfilData));
               <InfoItem
                 icon={<Wallet className="h-5 w-5 text-emerald-600" />}
                 label="Ingresos totales"
-                value={`$${resumenActividad.ingresosTotales.toLocaleString(
-                  "es-AR"
-                )}`}
+                value={`$${resumenActividad.ingresosTotales.toLocaleString("es-AR")}`}
               />
               <InfoItem
                 icon={<CircleCheckBig className="h-5 w-5 text-emerald-600" />}
                 label="Ingreso promedio por viaje"
-                value={`$${resumenActividad.ingresoPromedio.toLocaleString(
-                  "es-AR",
-                  { maximumFractionDigits: 0 }
-                )}`}
+                value={`$${resumenActividad.ingresoPromedio.toLocaleString("es-AR", {
+                  maximumFractionDigits: 0,
+                })}`}
               />
               <InfoItem
                 icon={<Route className="h-5 w-5 text-emerald-600" />}
                 label="Distancia promedio por viaje"
-                value={`${resumenActividad.distanciaPromedio.toLocaleString(
-                  "es-AR",
-                  { maximumFractionDigits: 1 }
-                )} km`}
+                value={`${resumenActividad.distanciaPromedio.toLocaleString("es-AR", {
+                  maximumFractionDigits: 1,
+                })} km`}
               />
             </ul>
           }
@@ -646,32 +542,48 @@ console.log("keys del perfil:", Object.keys(perfilData));
         <InfoCard
           title="Vehículo"
           accent="green"
+        
           content={
-            <ul className="space-y-4">
-              <InfoItem
-                icon={<Truck className="h-5 w-5 text-emerald-600" />}
-                label="Tipo"
-                value={safeValue(
-                  p?.vehiculo?.tipo || p?.tipoVehiculo || p?.vehiculo_tipo
-                )}
-              />
-              <InfoItem
-                icon={<Truck className="h-5 w-5 text-emerald-600" />}
-                label="Marca / modelo"
-                value={safeValue(
-                  p?.vehiculo?.marcaModelo ||
-                    [p?.vehiculo?.marca, p?.vehiculo?.modelo]
+              <>
+            {vehiculoPrincipal ? (
+              <ul className="space-y-4">
+                <InfoItem
+                  icon={<Truck className="h-5 w-5 text-emerald-600" />}
+                  label="Nombre"
+                  value={safeValue(vehiculoPrincipal?.nombre)}
+                />
+                <InfoItem
+                  icon={<Truck className="h-5 w-5 text-emerald-600" />}
+                  label="Tipo"
+                  value={safeValue(vehiculoPrincipal?.tipo)}
+                />
+                <InfoItem
+                  icon={<Truck className="h-5 w-5 text-emerald-600" />}
+                  label="Marca / modelo"
+                  value={safeValue(
+                    [vehiculoPrincipal?.marca, vehiculoPrincipal?.modelo]
                       .filter(Boolean)
-                      .join(" ") ||
-                    p?.marca_modelo
-                )}
-              />
-              <InfoItem
-                icon={<IdCard className="h-5 w-5 text-emerald-600" />}
-                label="Patente"
-                value={safeValue(p?.vehiculo?.patente || p?.patente)}
-              />
-            </ul>
+                      .join(" ")
+                  )}
+                />
+                <InfoItem
+                  icon={<IdCard className="h-5 w-5 text-emerald-600" />}
+                  label="Patente"
+                  value={safeValue(vehiculoPrincipal?.patente)}
+                />
+              </ul>
+            ) : (
+              <EmptyText text="Todavía no tenés vehículos registrados." />
+            )}
+           <div className="pt-4">
+        <Link
+          to="/comisionista/vehiculos"
+          className="inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+        >
+          Gestionar vehículos
+        </Link>
+      </div>
+          </>
           }
         />
 
@@ -689,7 +601,6 @@ console.log("keys del perfil:", Object.keys(perfilData));
                       tone="green"
                     />
                   )}
-
                   {mediosPago.aceptaTransferencia && (
                     <PaymentChip
                       icon={<CreditCard className="h-4 w-4" />}

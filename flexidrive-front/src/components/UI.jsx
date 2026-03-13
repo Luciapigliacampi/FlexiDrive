@@ -1,6 +1,6 @@
 export function Card({ title, children, className = "" }) {
   return (
-    <div className={`rounded-2xl border bg-white p-6 ${className}`}>
+    <div className={`rounded-md bg-white p-6 shadow-lg ${className}`}>
       {title ? <div className="text-xl font-bold text-slate-700">{title}</div> : null}
       <div className={title ? "mt-4 space-y-3" : ""}>{children}</div>
     </div>
@@ -11,7 +11,7 @@ export function Input({ className = "", ...props }) {
   return (
     <input
       {...props}
-      className={`w-full rounded-xl border px-4 py-3 outline-none text-slate-700 ${className}`}
+      className={`w-full rounded-md border px-4 py-3 outline-none text-slate-700 ${className}`}
     />
   );
 }

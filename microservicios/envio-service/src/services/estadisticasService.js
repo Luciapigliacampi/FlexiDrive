@@ -1,7 +1,44 @@
 // services/estadisticaService.js
 import EstadisticaComisionista from "../models/estadisticaComisionistaModel.js";
 import EnvioXComisionista from "../models/envioXcomisionistaModel.js";
+import EstadisticaCliente from "../models/estadisticaClienteModel.js";
 
+
+export async function registrarEstadisticaCliente({ clienteId, fecha }) {
+  const inicio = new Date(fecha);
+  inicio.setHours(0, 0, 0, 0);
+  const fin = new Date(fecha);
+  fin.setHours(23, 59, 59, 999);
+
+  const enviosDelDia = await Envio.find({
+    usuarioId: clienteId,
+    eliminado: { $ne: true },
+    createdAt: { $gte: inicio, $lte: fin },
+  });
+
+  const entregados = enviosDelDia.filter(e => e.estadoId === "ENTREGADO").length;
+  const pendientes = enviosDelDia.filter(e =>
+    ["PENDIENTE", "ASIGNADO", "EN_CAMINO"].includes(e.estadoId)
+  ).length;
+  const cancelados = enviosDelDia.filter(e =>
+    ["CANCELADO", "CANCELADO_RETORNO", "DEVUELTO"].includes(e.estadoId)
+  ).length;
+  const gastoTotal = enviosDelDia.reduce((acc, e) => acc + (e.costo_estimado || 0), 0);
+
+  await EstadisticaCliente.findOneAndUpdate(
+    { clienteId: String(clienteId), fecha: inicio },
+    {
+      $set: {
+        enviosTotales: enviosDelDia.length,
+        enviosEntregados: entregados,
+        enviosPendientes: pendientes,
+        enviosCancelados: cancelados,
+        gastoTotal,
+      },
+    },
+    { upsert: true, new: true }
+  );
+}
 /**
  * Llama esto al finalizar un viaje (finalizarViaje controller).
  * Upsert del registro diario del comisionista.
