@@ -42,8 +42,10 @@ export default function MediosPagoComisionista() {
 
   useEffect(() => {
     async function cargarDatos() {
+      // 1. Cargar preferencias de cobro desde localStorage (caché local)
       const saved = safeJsonParse(localStorage.getItem(LS_BANK_KEY), null);
 
+      // 2. Cargar datos bancarios reales desde el perfil (fuente de verdad = DB)
       try {
         const perfil = await getMyProfile();
         const com = perfil?.comisionista || {};
@@ -53,47 +55,39 @@ export default function MediosPagoComisionista() {
           alias: com.alias || "",
           cbu: com.cbu || "",
           banco: com.entidadBancaria || "",
-          // ✅ Leer medios de pago desde DB (no solo localStorage)
-          aceptaEfectivo: com.aceptaEfectivo ?? false,
-          aceptaTransferencia: com.aceptaTransferencia ?? (!!com.cbu),
+          // Leer los booleans directamente desde la DB
+          aceptaEfectivo: Boolean(com.aceptaEfectivo),
+          aceptaTransferencia: Boolean(com.aceptaTransferencia),
         };
 
-        setForm((prev) => ({
-          ...prev,
-          // localStorage tiene prioridad si existe, sino DB
-          aceptaEfectivo: saved?.aceptaEfectivo ?? datosDB.aceptaEfectivo,
-          aceptaTransferencia: saved?.aceptaTransferencia ?? datosDB.aceptaTransferencia,
+        // La DB es la fuente de verdad para los booleans.
+        // localStorage solo se usa como caché para los campos de texto si la DB aún no los tiene.
+        const formFinal = {
+          aceptaEfectivo: datosDB.aceptaEfectivo,
+          aceptaTransferencia: datosDB.aceptaTransferencia,
           titular: saved?.titular || datosDB.titular,
           alias: saved?.alias || datosDB.alias,
           cbu: saved?.cbu || datosDB.cbu,
           banco: saved?.banco || datosDB.banco,
-        }));
+        };
 
-        if (saved) {
-          setGuardado({
-            ...saved,
-            titular: saved.titular || datosDB.titular,
-            alias: saved.alias || datosDB.alias,
-            cbu: saved.cbu || datosDB.cbu,
-            banco: saved.banco || datosDB.banco,
-          });
+        setForm(formFinal);
+
+        // Si hay datos guardados en DB (tiene CBU o algún booleano activo), mostrar como guardado
+        const tieneConfigDB = com.cbu || com.aceptaEfectivo || com.aceptaTransferencia;
+        if (tieneConfigDB) {
+          setGuardado(formFinal);
           setModoEdicion(false);
-        } else if (com.cbu || com.aceptaEfectivo || com.aceptaTransferencia) {
-          // Hay datos en DB pero no en localStorage → mostrar como guardado
-          const fromDB = {
-            aceptaEfectivo: datosDB.aceptaEfectivo,
-            aceptaTransferencia: datosDB.aceptaTransferencia,
-            titular: datosDB.titular,
-            alias: datosDB.alias,
-            cbu: datosDB.cbu,
-            banco: datosDB.banco,
-          };
-          setGuardado(fromDB);
-          setForm(fromDB);
-          localStorage.setItem(LS_BANK_KEY, JSON.stringify(fromDB));
+          // Sincronizar localStorage con la DB
+          localStorage.setItem(LS_BANK_KEY, JSON.stringify(formFinal));
+        } else if (saved) {
+          // Sin datos en DB pero hay caché local (estado inconsistente, raro)
+          setGuardado(saved);
+          setForm(saved);
           setModoEdicion(false);
         }
       } catch {
+        // Si falla el fetch, usar solo localStorage
         if (saved) {
           setGuardado(saved);
           setForm(saved);
@@ -145,7 +139,7 @@ export default function MediosPagoComisionista() {
     };
 
     try {
-      // ✅ AHORA incluye aceptaEfectivo y aceptaTransferencia en la DB
+      // Guardar en DB — incluye los booleans
       await updateDatosBancarios({
         alias: payload.alias,
         cbu: payload.cbu,
@@ -154,6 +148,7 @@ export default function MediosPagoComisionista() {
         aceptaTransferencia: payload.aceptaTransferencia,
       });
 
+      // Caché local
       localStorage.setItem(LS_BANK_KEY, JSON.stringify(payload));
       setGuardado(payload);
       setForm(payload);
@@ -171,14 +166,8 @@ export default function MediosPagoComisionista() {
 
   async function handleEliminar() {
     try {
-      // ✅ También limpia los medios de pago en DB
-      await updateDatosBancarios({
-        alias: "",
-        cbu: "",
-        entidadBancaria: "",
-        aceptaEfectivo: false,
-        aceptaTransferencia: false,
-      });
+      // clearDatosBancarios también resetea los booleans en DB
+      await clearDatosBancarios();
       localStorage.removeItem(LS_BANK_KEY);
       setGuardado(null);
       setForm(emptyForm);
@@ -399,7 +388,9 @@ export default function MediosPagoComisionista() {
                     <Banknote className="h-5 w-5 text-emerald-600" />
                     <div>
                       <div className="font-semibold text-slate-800">Efectivo</div>
-                      <div className="text-sm text-slate-500">Cobro presencial en efectivo.</div>
+                      <div className="text-sm text-slate-500">
+                        Cobro presencial en efectivo.
+                      </div>
                     </div>
                   </div>
                 )}

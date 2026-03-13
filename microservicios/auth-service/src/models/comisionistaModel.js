@@ -6,21 +6,62 @@ const ComisionistaSchema = new mongoose.Schema({
     ref: 'Usuario',
     required: true
   },
-  entidadBancaria: { type: String, required: false },
-  nroCuenta:       { type: String, required: false },
-  tipoCuenta:      { type: String, required: false },
-  alias:           { type: String, required: false },
-  cbu:             { type: String, required: false },
-  cuit:            { type: String, required: false },
-  dniFrenteUrl:    { type: String, required: false },
-  dniDorsoUrl:     { type: String, required: false },
-  fecha_Alta:      { type: Date, default: Date.now },
-  verificado:      { type: Boolean, default: false },
-  reputacion:      { type: Number, default: 5 },
-
+  // Datos Bancarios del formulario
+  entidadBancaria: {
+    type: String,
+    required: false
+  },
+  nroCuenta: {
+    type: String,
+    required: false
+  },
+  tipoCuenta: {
+    type: String,
+    required: false
+  },
+  alias: {
+    type: String,
+    required: false
+  },
+  cbu: {
+    type: String,
+    required: false
+  },
+  cuit: {
+    type: String,
+    required: false
+  },
   // Medios de pago habilitados
-  aceptaEfectivo:     { type: Boolean, default: false },
-  aceptaTransferencia: { type: Boolean, default: false },
+  aceptaEfectivo: {
+    type: Boolean,
+    default: false,
+  },
+  aceptaTransferencia: {
+    type: Boolean,
+    default: false,
+  },
+  // Verificación de Usuario (Subida de archivos)
+  dniFrenteUrl: {
+    type: String,
+    required: false
+  },
+  dniDorsoUrl: {
+    type: String,
+    required: false
+  },
+  fecha_Alta: {
+    type: Date,
+    default: Date.now
+  },
+  verificado: {
+    type: Boolean,
+    default: false
+  },
+  reputacion: { type: Number, default: 5 }
 });
 
-export default mongoose.model('Comisionista', ComisionistaSchema, 'comisionista');
+export default mongoose.model(
+  'Comisionista',
+  ComisionistaSchema,
+  'comisionista'
+);

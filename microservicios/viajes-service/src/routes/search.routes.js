@@ -10,6 +10,7 @@ const AUTH_BASE = process.env.AUTH_SERVICE_URL || "http://localhost:3000";
 const router = express.Router();
 const norm = (s) => String(s || "").trim().toLowerCase();
 
+// GET /api/search/comisionistas
 router.get("/comisionistas", async (req, res, next) => {
   try {
     const querySchema = z.object({
@@ -32,15 +33,15 @@ router.get("/comisionistas", async (req, res, next) => {
 
     const trips = await TripPlan.find({ activo: true, diasSemana: dow }).lean();
 
-    const origenId   = q.origenLocalidadId   || null;
-    const origenNorm = q.origenLocalidadNombre ? norm(q.origenLocalidadNombre) : null;
-    const destinoId   = q.destinoLocalidadId   || null;
+    const origenId    = q.origenLocalidadId    || null;
+    const origenNorm  = q.origenLocalidadNombre  ? norm(q.origenLocalidadNombre)  : null;
+    const destinoId   = q.destinoLocalidadId    || null;
     const destinoNorm = q.destinoLocalidadNombre ? norm(q.destinoLocalidadNombre) : null;
 
     function estaEnRuta(t, localidadId, localidadNombre) {
       const paradas = [t.origen, ...(t.intermedias || []), t.destino];
       return paradas.some((p) => {
-        if (localidadId && p?.localidadId === localidadId) return true;
+        if (localidadId   && p?.localidadId === localidadId)          return true;
         if (localidadNombre && norm(p?.localidadNombre) === localidadNombre) return true;
         return false;
       });
@@ -53,11 +54,11 @@ router.get("/comisionistas", async (req, res, next) => {
       const precios = Array.isArray(t.preciosPorLocalidad) ? t.preciosPorLocalidad : [];
 
       const matchDestino = precios.find((p) =>
-        (destinoId && p.localidadId === destinoId) ||
+        (destinoId   && p.localidadId === destinoId) ||
         (destinoNorm && norm(p.localidadNombre) === destinoNorm)
       );
       const matchOrigen = precios.find((p) =>
-        (origenId && p.localidadId === origenId) ||
+        (origenId   && p.localidadId === origenId) ||
         (origenNorm && norm(p.localidadNombre) === origenNorm)
       );
 
@@ -74,53 +75,56 @@ router.get("/comisionistas", async (req, res, next) => {
       return { t, precioPorBulto, base, final, descuentoAplicado };
     }).filter(Boolean);
 
-    // Traer nombre + medios de pago del auth-service en paralelo
+    // ─── Traer nombre + medios de pago del auth-service en paralelo ──────────
     const comisionistaIds = [...new Set(filtered.map((f) => String(f.t.comisionistaId)))];
-    const authMap = {};
+    const nombresMap     = {};
+    const mediosPagoMap  = {};
+
     await Promise.all(
       comisionistaIds.map(async (id) => {
         try {
-          const { data } = await axios.get(`${AUTH_BASE}/api/auth/${id}`, {
+          // GET /api/auth/public-profile/:id → { usuario, comisionista, vehiculo }
+          const { data } = await axios.get(`${AUTH_BASE}/api/auth/public-profile/${id}`, {
             headers: { Authorization: req.headers.authorization },
           });
-          authMap[id] = {
-            nombre: data.nombre && data.apellido
-              ? `${data.nombre} ${data.apellido}`
-              : data.nombre || "Comisionista",
+
+          const u   = data.usuario   || {};
+          const com = data.comisionista || {};
+
+          nombresMap[id] = u.nombre && u.apellido
+            ? `${u.nombre} ${u.apellido}`.trim()
+            : u.nombre || "Comisionista";
+
+          // Leer los booleans directamente del modelo Comisionista
+          mediosPagoMap[id] = {
+            aceptaEfectivo:      Boolean(com.aceptaEfectivo),
+            aceptaTransferencia: Boolean(com.aceptaTransferencia),
           };
         } catch {
-          authMap[id] = { nombre: "Comisionista" };
-        }
-
-        // Traer medios de pago desde perfil completo (GET /api/auth/me equivalente público)
-        try {
-          const { data } = await axios.get(`${AUTH_BASE}/api/auth/public-profile/${id}`);
-          authMap[id].aceptaEfectivo     = Boolean(data?.comisionista?.aceptaEfectivo);
-          authMap[id].aceptaTransferencia = Boolean(data?.comisionista?.aceptaTransferencia);
-        } catch {
-          authMap[id].aceptaEfectivo     = false;
-          authMap[id].aceptaTransferencia = false;
+          nombresMap[id]    = "Comisionista";
+          mediosPagoMap[id] = { aceptaEfectivo: false, aceptaTransferencia: false };
         }
       })
     );
 
     const list = filtered.map(({ t, precioPorBulto, base, final, descuentoAplicado }) => {
-      const info = authMap[String(t.comisionistaId)] || {};
+      const comiId = String(t.comisionistaId);
       return {
-        comisionistaId: String(t.comisionistaId),
-        tripPlanId: String(t._id),
-        nombre: info.nombre || "Comisionista",
-        rating: 4.7,
+        comisionistaId:      comiId,
+        tripPlanId:          String(t._id),
+        nombre:              nombresMap[comiId]    || "Comisionista",
+        rating:              4.7,
         precioPorBulto,
-        bultos: q.bultos,
-        precioBase: base,
+        bultos:              q.bultos,
+        precioBase:          base,
         descuentoAplicado,
-        precioEstimado: final,
-        aceptaEfectivo:      info.aceptaEfectivo     ?? false,
-        aceptaTransferencia: info.aceptaTransferencia ?? false,
+        precioEstimado:      final,
+        // Medios de pago desde la DB del comisionista
+        aceptaEfectivo:      mediosPagoMap[comiId]?.aceptaEfectivo      ?? false,
+        aceptaTransferencia: mediosPagoMap[comiId]?.aceptaTransferencia ?? false,
         ruta: {
-          origen: t.origen,
-          destino: t.destino,
+          origen:      t.origen,
+          destino:     t.destino,
           intermedias: t.intermedias || [],
         },
       };
@@ -135,36 +139,36 @@ router.get("/comisionistas", async (req, res, next) => {
 router.get("/precio", async (req, res, next) => {
   try {
     const qs = z.object({
-      tripPlanId: z.string().min(1),
-      destinoLocalidadId:    z.string().optional(),
+      tripPlanId:             z.string().min(1),
+      destinoLocalidadId:     z.string().optional(),
       destinoLocalidadNombre: z.string().optional(),
-      origenLocalidadId:     z.string().optional(),
+      origenLocalidadId:      z.string().optional(),
       origenLocalidadNombre:  z.string().optional(),
-      bultos: z.coerce.number().int().min(1),
+      bultos:                 z.coerce.number().int().min(1),
     }).refine(
       (d) => d.destinoLocalidadId || d.destinoLocalidadNombre,
       { message: "Se requiere destinoLocalidadId o destinoLocalidadNombre" }
     );
 
-    const q = qs.parse(req.query);
+    const q    = qs.parse(req.query);
     const trip = await TripPlan.findById(q.tripPlanId).lean();
     if (!trip || !trip.activo) {
       return res.status(404).json({ error: "TripPlan no encontrado o inactivo" });
     }
 
-    const destinoId   = q.destinoLocalidadId   || null;
+    const destinoId   = q.destinoLocalidadId    || null;
     const destinoNorm = q.destinoLocalidadNombre ? norm(q.destinoLocalidadNombre) : null;
-    const origenId    = q.origenLocalidadId    || null;
+    const origenId    = q.origenLocalidadId      || null;
     const origenNorm  = q.origenLocalidadNombre  ? norm(q.origenLocalidadNombre)  : null;
-    const precios = Array.isArray(trip.preciosPorLocalidad) ? trip.preciosPorLocalidad : [];
+    const precios     = Array.isArray(trip.preciosPorLocalidad) ? trip.preciosPorLocalidad : [];
 
     const matchDestino = precios.find((p) =>
-      (destinoId && p.localidadId === destinoId) ||
+      (destinoId   && p.localidadId === destinoId) ||
       (destinoNorm && norm(p.localidadNombre) === destinoNorm)
     );
     const matchOrigen = (origenId || origenNorm)
       ? precios.find((p) =>
-          (origenId && p.localidadId === origenId) ||
+          (origenId   && p.localidadId === origenId) ||
           (origenNorm && norm(p.localidadNombre) === origenNorm)
         )
       : null;
@@ -177,19 +181,19 @@ router.get("/precio", async (req, res, next) => {
 
     const { base, final, descuentoAplicado } = calcularTotalConDescuento({
       precioPorBulto,
-      bultos: q.bultos,
+      bultos:    q.bultos,
       descuento: trip.descuentoPorBultos,
     });
 
     return res.json({
-      tripPlanId: String(trip._id),
-      comisionistaId: String(trip.comisionistaId),
-      destino: match ? { localidadId: match.localidadId, localidadNombre: match.localidadNombre } : null,
-      bultos: q.bultos,
+      tripPlanId:         String(trip._id),
+      comisionistaId:     String(trip.comisionistaId),
+      destino:            match ? { localidadId: match.localidadId, localidadNombre: match.localidadNombre } : null,
+      bultos:             q.bultos,
       precioPorBulto,
-      precioBase: base,
+      precioBase:         base,
       descuentoAplicado,
-      total: final,
+      total:              final,
       descuentoPorBultos: trip.descuentoPorBultos ?? null,
     });
   } catch (err) {

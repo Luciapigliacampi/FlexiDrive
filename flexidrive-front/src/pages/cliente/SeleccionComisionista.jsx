@@ -25,30 +25,33 @@ const moneyARS = (n) =>
 export default function SeleccionComisionista() {
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [list, setList] = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState("");
+  const [list, setList]         = useState([]);
   const [selected, setSelected] = useState(null);
 
   const draft = useMemo(() => {
-    try { return JSON.parse(localStorage.getItem("draftEnvio") || "{}"); } catch { return {}; }
+    try { return JSON.parse(localStorage.getItem("draftEnvio") || "{}"); }
+    catch { return {}; }
   }, []);
 
   const payloadBase = useMemo(() => {
-    try { return JSON.parse(localStorage.getItem("draftEnvioPayloadBase") || "{}"); } catch { return {}; }
+    try { return JSON.parse(localStorage.getItem("draftEnvioPayloadBase") || "{}"); }
+    catch { return {}; }
   }, []);
 
   const draftBusqueda = useMemo(() => {
-    try { return JSON.parse(localStorage.getItem("draftBusqueda") || "{}"); } catch { return {}; }
+    try { return JSON.parse(localStorage.getItem("draftBusqueda") || "{}"); }
+    catch { return {}; }
   }, []);
 
   const resumen = useMemo(() => {
     const bultos = Array.isArray(draft?.paquetes)
       ? draft.paquetes.reduce((acc, p) => acc + Math.max(1, parseInt(p.cantidad) || 1), 0)
       : 1;
-    const origenCiudad   = draftBusqueda?.origenCiudad   || payloadBase?.origenCiudad   || "";
-    const destinoCiudad  = draftBusqueda?.destinoCiudad  || payloadBase?.destinoCiudad  || "";
-    const fechaEntrega   = draftBusqueda?.fechaEntrega   || draft?.fechaEntrega          || "";
+    const origenCiudad  = draftBusqueda?.origenCiudad  || payloadBase?.origenCiudad  || "";
+    const destinoCiudad = draftBusqueda?.destinoCiudad || payloadBase?.destinoCiudad || "";
+    const fechaEntrega  = draftBusqueda?.fechaEntrega  || draft?.fechaEntrega         || "";
     return { origenCiudad, destinoCiudad, fechaEntrega, bultos };
   }, [draft, payloadBase, draftBusqueda]);
 
@@ -60,26 +63,28 @@ export default function SeleccionComisionista() {
       setError("");
 
       try {
-        if (!resumen.fechaEntrega) throw new Error("Falta la fecha de entrega.");
-        if (!resumen.origenCiudad) throw new Error("Falta la ciudad de origen.");
+        if (!resumen.fechaEntrega)  throw new Error("Falta la fecha de entrega.");
+        if (!resumen.origenCiudad)  throw new Error("Falta la ciudad de origen.");
         if (!resumen.destinoCiudad) throw new Error("Falta la ciudad de destino.");
 
         const res = await searchComisionistas({
-          fechaEntrega: resumen.fechaEntrega,
-          origenLocalidadId: resumen.origenCiudad?.localidadId,
-          origenLocalidadNombre: resumen.origenCiudad?.localidadNombre,
-          destinoLocalidadId: resumen.destinoCiudad?.localidadId,
+          fechaEntrega:           resumen.fechaEntrega,
+          origenLocalidadId:      resumen.origenCiudad?.localidadId,
+          origenLocalidadNombre:  resumen.origenCiudad?.localidadNombre,
+          destinoLocalidadId:     resumen.destinoCiudad?.localidadId,
           destinoLocalidadNombre: resumen.destinoCiudad?.localidadNombre,
-          bultos: resumen.bultos,
+          bultos:                 resumen.bultos,
         });
 
         const arr =
-          Array.isArray(res) ? res :
-          Array.isArray(res?.data) ? res.data :
-          Array.isArray(res?.comisionistas) ? res.comisionistas :
-          Array.isArray(res?.items) ? res.items :
+          Array.isArray(res)                      ? res :
+          Array.isArray(res?.data)                ? res.data :
+          Array.isArray(res?.comisionistas)       ? res.comisionistas :
+          Array.isArray(res?.items)               ? res.items :
           Array.isArray(res?.data?.comisionistas) ? res.data.comisionistas :
           [];
+
+        console.log("Respuesta comisionistas:", arr);
 
         const normalized = arr.map((c) => ({
           id:                  String(c.comisionistaId ?? c.id ?? ""),
@@ -90,11 +95,11 @@ export default function SeleccionComisionista() {
           bultos:              c.bultos ?? resumen.bultos,
           precioBase:          c.precioBase ?? null,
           descuentoAplicado:   c.descuentoAplicado ?? 0,
-          precioEstimado:      c.precioEstimado ?? c.precioBase ?? null,
+          precioEstimado:      c.precioEstimado ?? (c.precioBase ?? null),
           descuentoPorBultos:  c.descuentoPorBultos ?? null,
-          // Medios de pago — vienen del backend
-          aceptaEfectivo:      c.aceptaEfectivo      ?? false,
-          aceptaTransferencia: c.aceptaTransferencia ?? false,
+          // Medios de pago que vienen de la DB via el backend
+          aceptaEfectivo:      Boolean(c.aceptaEfectivo),
+          aceptaTransferencia: Boolean(c.aceptaTransferencia),
           ruta:                c.ruta,
         })).filter((c) => c.id && c.tripPlanId);
 
@@ -142,6 +147,7 @@ export default function SeleccionComisionista() {
       descuentoAplicado:   comi.descuentoAplicado,
       precioEstimado:      comi.precioEstimado,
       descuentoPorBultos:  comi.descuentoPorBultos,
+      // Propagar medios de pago al siguiente paso
       aceptaEfectivo:      comi.aceptaEfectivo      ?? false,
       aceptaTransferencia: comi.aceptaTransferencia ?? false,
     }));
@@ -176,7 +182,10 @@ export default function SeleccionComisionista() {
           {loading ? (
             <Loader label="Buscando comisionistas..." />
           ) : list.length === 0 ? (
-            <EmptyState title="No hay comisionistas disponibles" subtitle="Probá más tarde o cambiá la fecha." />
+            <EmptyState
+              title="No hay comisionistas disponibles"
+              subtitle="Probá más tarde o cambiá la fecha."
+            />
           ) : (
             <div className="space-y-4">
               {list.map((c) => {
@@ -213,6 +222,19 @@ export default function SeleccionComisionista() {
                         <div className="text-xs text-slate-500">
                           {c.precioPorBulto != null ? `${moneyARS(c.precioPorBulto)} x bulto` : "—"}{" "}
                           ({c.bultos ?? "—"})
+                        </div>
+                        {/* Mostrar medios de pago habilitados en la tarjeta */}
+                        <div className="mt-1 flex gap-2">
+                          {c.aceptaEfectivo && (
+                            <span className="text-xs rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5">
+                              💵 Efectivo
+                            </span>
+                          )}
+                          {c.aceptaTransferencia && (
+                            <span className="text-xs rounded-full bg-blue-50 border border-blue-200 text-blue-700 px-2 py-0.5">
+                              🏦 Transferencia
+                            </span>
+                          )}
                         </div>
                         {tieneDescuento && (
                           <div className="mt-1 text-xs font-semibold text-green-700">
