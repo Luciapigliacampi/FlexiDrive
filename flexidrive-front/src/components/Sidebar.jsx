@@ -1,6 +1,6 @@
 // flexidrive-front/src/components/Sidebar.jsx
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { Home, Package, Route, /* CalendarDays, Wallet, */ User, Settings, Car } from "lucide-react";
+import { Home, Package, Route, User, Settings, Car, Wallet } from "lucide-react";
 import logo from "../assets/white-logo.png";
 
 export default function SidebarComisionista() {
@@ -13,8 +13,8 @@ export default function SidebarComisionista() {
         { to: "/comisionista/envios",    label: "Envíos",            icon: Package },
         { to: "/comisionista/rutas",     label: "Gestión De Rutas",  icon: Route   },
         { to: "/comisionista/vehiculos", label: "Vehículos",         icon: Car     },
+        { to: "/comisionista/medios-pago", label: "Medios de pago", icon: Wallet },
         // { to: "/comisionista/calendario", label: "Calendario", icon: CalendarDays },
-        // { to: "/comisionista/ganancias",  label: "Ganancias",  icon: Wallet      },
         { to: "/comisionista/perfil",    label: "Perfil",            icon: User    },
         { to: "/comisionista/ajustes",   label: "Ajustes",           icon: Settings},
     ];

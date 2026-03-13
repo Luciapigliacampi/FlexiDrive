@@ -250,6 +250,8 @@ export default function PerfilComisionista() {
         setWarning("");
 
         const perfilData = await getMyProfile();
+        console.log("perfil completo:", perfilData);
+console.log("comisionista:", perfilData?.comisionista);
 
         const [
           direccionesData,
@@ -559,12 +561,6 @@ export default function PerfilComisionista() {
                     Mis rutas
                   </Link>
 
-                  <Link
-                    to="/comisionista/medios-pago"
-                    className="inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Medios de pago
-                  </Link>
                 </div>
               </div>
             </>
