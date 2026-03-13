@@ -155,6 +155,16 @@ export default function RutaModal({ open, onClose, onSave, initial }) {
         setLocOrigen(Array.isArray(locsOrigen) ? locsOrigen : []);
         setLocDestino(Array.isArray(locsDestino) ? locsDestino : []);
 
+         console.log("=== DEBUG HIDRATACIÓN ===");
+    console.log("origen.localidadId (backend):", origenPlace.localidadId, typeof origenPlace.localidadId);
+    console.log("destino.localidadId (backend):", destinoPlace.localidadId, typeof destinoPlace.localidadId);
+    console.log("locOrigen sample (georef):", locsOrigen.slice(0, 3));
+    console.log("locDestino sample (georef):", locsDestino.slice(0, 3));
+    console.log("locOrigen tiene el id?", locsOrigen.find(l => l.id === origenPlace.localidadId));
+    console.log("locDestino tiene el id?", locsDestino.find(l => l.id === destinoPlace.localidadId));
+console.log("locOrigen IDs completos:", locsOrigen.slice(0, 5).map(l => l.id));
+console.log("locDestino IDs completos:", locsDestino.slice(0, 5).map(l => l.id));
+
         const map = {};
         for (let idx = 0; idx < interResolved.length; idx++) {
           const it = interResolved[idx];
@@ -171,41 +181,40 @@ export default function RutaModal({ open, onClose, onSave, initial }) {
         setLocOrigen([]);
         setLocDestino([]);
         setLocInter({});
+
+        
+        
       } finally {
-        isHydratingRef.current = false;
-      }
+  // Defer para que los useEffect de provincia ya hayan corrido con isHydrating=true
+  setTimeout(() => {
+    isHydratingRef.current = false;
+  }, 0);
+}
     })();
   }, [open, initial, provincias.length]);
 
   useEffect(() => {
-    if (!open) return;
-    const pid = String(form.origen.provinciaId || "");
-    if (!pid) {
-      setLocOrigen([]);
-      return;
-    }
-    if (pid === String(prevOrigenProvRef.current || "")) return;
-    prevOrigenProvRef.current = pid;
-    setForm((p) => ({ ...p, origen: { ...p.origen, localidadId: "", localidadNombre: "" } }));
-    getLocalidadesByProvincia(pid)
-      .then((locs) => setLocOrigen(Array.isArray(locs) ? locs : []))
-      .catch(() => setLocOrigen([]));
-  }, [form.origen.provinciaId, open]);
+  if (!open) return;
+  if (isHydratingRef.current) return;
+  const pid = String(form.origen.provinciaId || "");
+  if (!pid) { setLocOrigen([]); return; }
+  // Solo resetear localidad si el usuario cambió la provincia (no en hidratación)
+  setForm((p) => ({ ...p, origen: { ...p.origen, localidadId: "", localidadNombre: "" } }));
+  getLocalidadesByProvincia(pid)
+    .then((locs) => setLocOrigen(Array.isArray(locs) ? locs : []))
+    .catch(() => setLocOrigen([]));
+}, [form.origen.provinciaId, open]);  // eslint-disable-line
 
-  useEffect(() => {
-    if (!open) return;
-    const pid = String(form.destino.provinciaId || "");
-    if (!pid) {
-      setLocDestino([]);
-      return;
-    }
-    if (pid === String(prevDestinoProvRef.current || "")) return;
-    prevDestinoProvRef.current = pid;
-    setForm((p) => ({ ...p, destino: { ...p.destino, localidadId: "", localidadNombre: "" } }));
-    getLocalidadesByProvincia(pid)
-      .then((locs) => setLocDestino(Array.isArray(locs) ? locs : []))
-      .catch(() => setLocDestino([]));
-  }, [form.destino.provinciaId, open]);
+useEffect(() => {
+  if (!open) return;
+  if (isHydratingRef.current) return;
+  const pid = String(form.destino.provinciaId || "");
+  if (!pid) { setLocDestino([]); return; }
+  setForm((p) => ({ ...p, destino: { ...p.destino, localidadId: "", localidadNombre: "" } }));
+  getLocalidadesByProvincia(pid)
+    .then((locs) => setLocDestino(Array.isArray(locs) ? locs : []))
+    .catch(() => setLocDestino([]));
+}, [form.destino.provinciaId, open]);  // eslint-disable-line
 
   function toggleDia(d) {
     setForm((p) => ({
@@ -739,8 +748,13 @@ function PlacePicker({ title, provincias, localidades, value, onProvinciaChange,
       <div className="space-y-1">
         <div className="text-sm font-bold text-slate-700">Localidad</div>
         <select
-          value={value.localidadId}
-          onChange={(e) => onLocalidadChange(e.target.value)}
+  value={
+    // Intentar match exacto, si no, buscar por nombre
+    localidades.find(l => l.id === value.localidadId)
+      ? value.localidadId
+      : localidades.find(l => l.nombre === value.localidadNombre)?.id ?? ""
+  }
+  onChange={(e) => onLocalidadChange(e.target.value)}
           className="w-full rounded-md border px-3 py-2 outline-none"
           disabled={!value.provinciaId}
         >

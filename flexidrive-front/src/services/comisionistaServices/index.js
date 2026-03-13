@@ -61,7 +61,7 @@ export const deleteRuta = (id) =>
   USE_MOCK ? deleteRutaMock(id) : deleteRutaApi(id);
 
 export const toggleRutaActiva = (id, activa) =>
-  USE_MOCK ? updateRutaMock(id, { activa }) : toggleRutaActivaApi(id, activa);
+  USE_MOCK ? updateRutaMock(id, { activo: activa }) : toggleRutaActivaApi(id, activa);
 
 export const getEstadisticasComisionista = (comisionistaId) =>
   USE_MOCK

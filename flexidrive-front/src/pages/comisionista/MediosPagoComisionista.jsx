@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Landmark,
   Wallet,
@@ -9,6 +10,10 @@ import {
   Banknote,
   CreditCard,
 } from "lucide-react";
+import { getMyProfile } from "../../services/profileService/profileService";
+import { updateDatosBancarios, clearDatosBancarios  } from "../../services/profileService/profileService";
+
+
 
 const LS_BANK_KEY = "flexidrive_datos_bancarios_comisionista";
 
@@ -30,29 +35,76 @@ const emptyForm = {
 };
 
 export default function MediosPagoComisionista() {
+   const navigate = useNavigate();
   const [form, setForm] = useState(emptyForm);
   const [guardado, setGuardado] = useState(null);
   const [modoEdicion, setModoEdicion] = useState(true);
   const [mensaje, setMensaje] = useState("");
 
   useEffect(() => {
+  async function cargarDatos() {
+    // 1. Cargar preferencias de cobro desde localStorage
     const saved = safeJsonParse(localStorage.getItem(LS_BANK_KEY), null);
 
-    if (saved) {
-      const normalizado = {
-        aceptaEfectivo: Boolean(saved.aceptaEfectivo),
-        aceptaTransferencia: Boolean(saved.aceptaTransferencia),
-        titular: saved.titular || "",
-        alias: saved.alias || "",
-        cbu: saved.cbu || "",
-        banco: saved.banco || "",
+    // 2. Cargar datos bancarios reales desde el perfil
+    try {
+      const perfil = await getMyProfile();
+      const com = perfil?.comisionista || {};
+
+      const datosDB = {
+        titular: com.alias || "",        // no hay titular, usamos alias como referencia
+        alias: com.alias || "",
+        cbu: com.cbu || "",
+        banco: com.entidadBancaria || "",
       };
 
-      setGuardado(normalizado);
-      setForm(normalizado);
-      setModoEdicion(false);
+      setForm((prev) => ({
+        ...prev,
+        // Preferencias desde localStorage si existen, sino defaults
+        aceptaEfectivo: saved?.aceptaEfectivo ?? false,
+        aceptaTransferencia: saved?.aceptaTransferencia ?? (!!com.cbu), // si tiene CBU, activar por defecto
+        // Datos bancarios: localStorage tiene prioridad (ediciones previas), sino DB
+        titular: saved?.titular || datosDB.titular,
+        alias: saved?.alias || datosDB.alias,
+        cbu: saved?.cbu || datosDB.cbu,
+        banco: saved?.banco || datosDB.banco,
+      }));
+
+      if (saved) {
+        setGuardado({
+          ...saved,
+          titular: saved.titular || datosDB.titular,
+          alias: saved.alias || datosDB.alias,
+          cbu: saved.cbu || datosDB.cbu,
+          banco: saved.banco || datosDB.banco,
+        });
+        setModoEdicion(false);
+      } else if (com.cbu) {
+        // Si hay datos en DB pero no en localStorage, mostrar como guardado
+        const fromDB = {
+          aceptaEfectivo: false,
+          aceptaTransferencia: true,
+          titular: datosDB.titular,
+          alias: datosDB.alias,
+          cbu: datosDB.cbu,
+          banco: datosDB.banco,
+        };
+        setGuardado(fromDB);
+        setForm(fromDB);
+        setModoEdicion(false);
+      }
+    } catch {
+      // Si falla el fetch, usar solo localStorage
+      if (saved) {
+        setGuardado(saved);
+        setForm(saved);
+        setModoEdicion(false);
+      }
     }
-  }, []);
+  }
+
+  cargarDatos();
+}, []);
 
   const tieneAlgunaOpcion = useMemo(() => {
     return form.aceptaEfectivo || form.aceptaTransferencia;
@@ -82,47 +134,66 @@ export default function MediosPagoComisionista() {
     return "";
   }
 
-  function handleGuardar(e) {
-    e.preventDefault();
+  async function handleGuardar(e) {
+  e.preventDefault();
+  const error = validar();
+  if (error) { setMensaje(error); return; }
 
-    const error = validar();
-    if (error) {
-      setMensaje(error);
-      return;
-    }
+  const payload = {
+    aceptaEfectivo: Boolean(form.aceptaEfectivo),
+    aceptaTransferencia: Boolean(form.aceptaTransferencia),
+    titular: form.aceptaTransferencia ? form.titular.trim() : "",
+    alias: form.aceptaTransferencia ? form.alias.trim() : "",
+    cbu: form.aceptaTransferencia ? form.cbu.trim() : "",
+    banco: form.aceptaTransferencia ? form.banco.trim() : "",
+  };
 
-    const payload = {
-      aceptaEfectivo: Boolean(form.aceptaEfectivo),
-      aceptaTransferencia: Boolean(form.aceptaTransferencia),
-      titular: form.aceptaTransferencia ? form.titular.trim() : "",
-      alias: form.aceptaTransferencia ? form.alias.trim() : "",
-      cbu: form.aceptaTransferencia ? form.cbu.trim() : "",
-      banco: form.aceptaTransferencia ? form.banco.trim() : "",
-    };
+  try {
+    // Guardar en DB los campos que acepta el backend
+    await updateDatosBancarios({
+      alias: payload.alias,
+      cbu: payload.cbu,
+      entidadBancaria: payload.banco,  // banco → entidadBancaria en el modelo
+    });
 
+    // Guardar preferencias de cobro en localStorage (no están en el modelo DB)
     localStorage.setItem(LS_BANK_KEY, JSON.stringify(payload));
     setGuardado(payload);
     setForm(payload);
     setModoEdicion(false);
     setMensaje("Medios de pago guardados correctamente.");
+  } catch (err) {
+    setMensaje(err?.message || "No se pudieron guardar los datos.");
   }
+}
 
   function handleEditar() {
     setModoEdicion(true);
     setMensaje("");
   }
 
-  function handleEliminar() {
+async function handleEliminar() {
+  try {
+    await clearDatosBancarios();
     localStorage.removeItem(LS_BANK_KEY);
     setGuardado(null);
     setForm(emptyForm);
     setModoEdicion(true);
     setMensaje("Medios de pago eliminados.");
+  } catch (err) {
+    setMensaje(err?.message || "No se pudieron eliminar los datos.");
   }
+}
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 md:px-6">
       <section>
+        <button
+    onClick={() => navigate(-1)}
+    className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-800"
+  >
+    ← Volver
+  </button>
         <h1 className="text-3xl font-bold tracking-tight text-slate-800 md:text-4xl">
           Medios de pago
         </h1>

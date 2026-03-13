@@ -55,4 +55,14 @@ export async function deleteDestinatario(id) {
   return unwrap(svc.deleteDestinatario(id));
 }
 
+export async function updateDatosBancarios(payload) {
+  const svc = getSvc();
+  return unwrap(svc.updateDatosBancarios(payload));
+}
+
+export async function clearDatosBancarios() {
+  const svc = getSvc();
+  return unwrap(svc.clearDatosBancarios());
+}
+
 export const __USE_MOCK__ = USE_MOCK;

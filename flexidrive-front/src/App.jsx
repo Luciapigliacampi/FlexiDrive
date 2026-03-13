@@ -44,6 +44,8 @@ import GestionRutas from "./pages/comisionista/GestionRutas";
 import Vehiculos from "./pages/comisionista/Vehiculos";
 import TrackingEnvioComisionista from "./pages/comisionista/TrackingEnvio";
 import NotificacionesComisionista from "./pages/comisionista/Notificaciones";
+import PerfilComisionista from "./pages/comisionista/PerfilComisionista";
+import MediosPagoComisionista from "./pages/comisionista/MediosPagoComisionista";
 
 // Sistema
 import NotFound from "./pages/system/NotFound";
@@ -123,6 +125,8 @@ export default function App() {
             <Route path="/comisionista/envios/:id" element={<TrackingEnvioComisionista />} />
             <Route path="/comisionista/envios/:id/tracking" element={<TrackingEnvioComisionista />} />
             <Route path="/comisionista/notificaciones" element={<NotificacionesComisionista />} />
+            <Route path="/comisionista/perfil" element={<PerfilComisionista />} />
+            <Route path="/comisionista/medios-pago" element={<MediosPagoComisionista />} />
           </Route>
         </Route>
 

@@ -25,7 +25,7 @@ function writeCache(key, data) {
 }
 
 export async function getProvinciasAR() {
-  const cacheKey = "geo_provincias_ar_v1";
+  const cacheKey = "geo_provincias_ar_v2";
   const cached = readCache(cacheKey);
   if (cached) return cached;
 
@@ -34,8 +34,8 @@ export async function getProvinciasAR() {
 
   // {id, nombre}
   const normalized = list
-    .map((p) => ({ id: p.id, nombre: p.nombre }))
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  .map((p) => ({ id: String(p.id), nombre: p.nombre }))  // ← String()
+  .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
   writeCache(cacheKey, normalized);
   return normalized;
@@ -44,7 +44,7 @@ export async function getProvinciasAR() {
 export async function getLocalidadesByProvincia(provinciaId) {
   if (!provinciaId) return [];
 
-  const cacheKey = `geo_localidades_ar_${provinciaId}_v1`;
+  const cacheKey = `geo_localidades_ar_${provinciaId}_v2`;
   const cached = readCache(cacheKey);
   if (cached) return cached;
 
@@ -53,11 +53,12 @@ export async function getLocalidadesByProvincia(provinciaId) {
     params: { provincia: provinciaId, max: 5000 },
   });
 
-  const list = Array.isArray(res.data?.localidades) ? res.data.localidades : [];
-
-  // {id, nombre}
+   const list = Array.isArray(res.data?.localidades) ? res.data.localidades : [];
+  
+  console.log("georef localidad raw sample:", list[0]); // ← ver estructura completa
+  
   const normalized = list
-    .map((l) => ({ id: l.id, nombre: l.nombre }))
+    .map((l) => ({ id: String(l.id), nombre: l.nombre }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
   writeCache(cacheKey, normalized);
