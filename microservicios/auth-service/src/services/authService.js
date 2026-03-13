@@ -132,7 +132,7 @@ export const loginUser = async ({ email, password }) => {
     throw new Error('Este usuario no tiene contraseña (registrado con Google). Usa el inicio de sesión con Google.');
   }
   const passwordOk = await bcrypt.compare(password, usuario.contraseña_hash);
-  if (!passwordOk) throw new Error('Credenciales inválidas');
+  if (!passwordOk) throw new Error('Contraseña o usuario incorrectos');
 
   // SI NO TIENE TOTP: Setup
   if (!usuario.totpSecret) {

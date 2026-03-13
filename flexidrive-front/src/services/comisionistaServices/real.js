@@ -110,8 +110,8 @@ export const deleteRutaApi = async (id) => {
 };
 
 export const toggleRutaActivaApi = async (id, activa) => {
-  const res = await api.patch(`${VIAJES_BASE}/api/trip/${id}/activa`, {
-    activa,
+  const res = await api.patch(`${VIAJES_BASE}/api/trip/${id}/activo`, {
+    activo: activa,   // backend espera "activo", no "activa"
   });
   return res.data;
 };
@@ -147,7 +147,7 @@ function tripPlanToRutaUI(tp = {}) {
                : [],
 
     // Estado
-    activa: tp.activa ?? tp.isActive ?? false,
+activa: tp.activo ?? tp.activa ?? tp.isActive ?? false,
 
     // Precios — normalizar precio → precioPorBulto para RutaCard
     preciosPorLocalidad: Array.isArray(tp.preciosPorLocalidad)

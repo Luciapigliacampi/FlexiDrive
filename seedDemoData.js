@@ -41,28 +41,28 @@ const UBICACIONES = [
     provinciaId: "14",
     provinciaNombre: "Córdoba",
     localidades: [
-      { localidadId: "14042", localidadNombre: "Villa María" },
-      { localidadId: "14014", localidadNombre: "Córdoba" },
-      { localidadId: "14056", localidadNombre: "Bell Ville" },
-      { localidadId: "14063", localidadNombre: "Río Cuarto" },
+      { localidadId: "14042170", localidadNombre: "Villa María" },
+      { localidadId: "14014010", localidadNombre: "Córdoba" },
+      { localidadId: "14182060", localidadNombre: "Bell Ville" },
+      { localidadId: "14098230", localidadNombre: "Río Cuarto" },
     ],
   },
   {
     provinciaId: "82",
     provinciaNombre: "Santa Fe",
     localidades: [
-      { localidadId: "82084", localidadNombre: "Rosario" },
-      { localidadId: "82091", localidadNombre: "Santa Fe" },
-      { localidadId: "82073", localidadNombre: "Rafaela" },
+      { localidadId: "82084270", localidadNombre: "Rosario" },
+      { localidadId: "82063170", localidadNombre: "Santa Fe" },
+      { localidadId: "82021310", localidadNombre: "Rafaela" },
     ],
   },
   {
     provinciaId: "06",
     provinciaNombre: "Buenos Aires",
     localidades: [
-      { localidadId: "06014", localidadNombre: "La Plata" },
-      { localidadId: "06056", localidadNombre: "Mar del Plata" },
-      { localidadId: "06091", localidadNombre: "Bahía Blanca" },
+      { localidadId: "0644103015", localidadNombre: "La Plata" },
+      { localidadId: "0635711003", localidadNombre: "Mar del Plata" },
+      { localidadId: "0605601001", localidadNombre: "Bahía Blanca" },
     ],
   },
 ];
