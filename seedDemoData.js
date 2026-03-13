@@ -2,7 +2,7 @@ import { MongoClient, ObjectId } from "mongodb";
 import { faker } from "@faker-js/faker";
 import bcrypt from "bcrypt";
 
-const uri = "mongodb+srv://flexidrive9098:pabKgmiueWxx57TH@cluster0.j8jsbvb.mongodb.net/?retryWrites=true&w=majority"; 
+const uri = "mongodb+srv://flexidrive9098:pabKgmiueWxx57TH@cluster0.j8jsbvb.mongodb.net/?retryWrites=true&w=majority";
 
 const DB_NAME = "flexidrive_fake";
 
@@ -69,7 +69,6 @@ const UBICACIONES = [
 
 function getBaseNow() {
   if (!TEST_DATE) return new Date();
-
   const d = new Date(TEST_DATE);
   return Number.isNaN(d.getTime()) ? new Date() : d;
 }
@@ -135,7 +134,6 @@ function pickProvincia() {
 function pickLugar() {
   const provincia = pickProvincia();
   const localidad = faker.helpers.arrayElement(provincia.localidades);
-
   return {
     provinciaId: provincia.provinciaId,
     provinciaNombre: provincia.provinciaNombre,
@@ -146,20 +144,8 @@ function pickLugar() {
 
 function randomCoordsArgentina() {
   return {
-    lat: Number(
-      faker.number.float({
-        min: -38.5,
-        max: -30.0,
-        fractionDigits: 6,
-      })
-    ),
-    lng: Number(
-      faker.number.float({
-        min: -65.5,
-        max: -56.0,
-        fractionDigits: 6,
-      })
-    ),
+    lat: Number(faker.number.float({ min: -38.5, max: -30.0, fractionDigits: 6 })),
+    lng: Number(faker.number.float({ min: -65.5, max: -56.0, fractionDigits: 6 })),
   };
 }
 
@@ -167,7 +153,6 @@ function buildDireccionTexto(lugar) {
   const calle = faker.location.street();
   const numero = faker.number.int({ min: 100, max: 5000 });
   const coords = randomCoordsArgentina();
-
   return {
     texto: `${calle} ${numero}, ${lugar.localidadNombre}, ${lugar.provinciaNombre}`,
     lat: coords.lat,
@@ -201,19 +186,15 @@ function crearRoles() {
 
 async function generarUsuariosClientes() {
   const usuarios = [];
-
   for (let i = 0; i < CANT_CLIENTES; i++) {
     const _id = new ObjectId();
     const nombre = faker.person.firstName();
     const apellido = faker.person.lastName();
-
     usuarios.push({
       _id,
       nombre,
       apellido,
-      email: faker.internet
-        .email({ firstName: nombre, lastName: apellido })
-        .toLowerCase(),
+      email: faker.internet.email({ firstName: nombre, lastName: apellido }).toLowerCase(),
       contraseña_hash: await generarPasswordHashFake(),
       estado: "activo",
       dni: generarDni(),
@@ -224,25 +205,20 @@ async function generarUsuariosClientes() {
       tempTotpSecret: null,
     });
   }
-
   return usuarios;
 }
 
 async function generarUsuariosComisionistas() {
   const usuarios = [];
-
   for (let i = 0; i < CANT_COMISIONISTAS; i++) {
     const _id = new ObjectId();
     const nombre = faker.person.firstName();
     const apellido = faker.person.lastName();
-
     usuarios.push({
       _id,
       nombre,
       apellido,
-      email: faker.internet
-        .email({ firstName: nombre, lastName: apellido })
-        .toLowerCase(),
+      email: faker.internet.email({ firstName: nombre, lastName: apellido }).toLowerCase(),
       contraseña_hash: await generarPasswordHashFake(),
       estado: "activo",
       dni: generarDni(),
@@ -253,7 +229,6 @@ async function generarUsuariosComisionistas() {
       tempTotpSecret: null,
     });
   }
-
   return usuarios;
 }
 
@@ -280,11 +255,7 @@ function generarPerfilesComisionista(comisionistas) {
     _id: new ObjectId(),
     usuarioId: u._id,
     entidadBancaria: faker.helpers.arrayElement([
-      "Banco Nación",
-      "Banco Santander",
-      "BBVA",
-      "Banco Macro",
-      "Bancor",
+      "Banco Nación", "Banco Santander", "BBVA", "Banco Macro", "Bancor",
     ]),
     nroCuenta: faker.string.numeric(12),
     tipoCuenta: faker.helpers.arrayElement(TIPOS_CUENTA),
@@ -295,9 +266,7 @@ function generarPerfilesComisionista(comisionistas) {
     dniDorsoUrl: faker.internet.url(),
     fecha_Alta: randomPastDateReal(150),
     verificado: faker.datatype.boolean(0.85),
-    reputacion: Number(
-      faker.number.float({ min: 3.5, max: 5, fractionDigits: 1 })
-    ),
+    reputacion: Number(faker.number.float({ min: 3.5, max: 5, fractionDigits: 1 })),
   }));
 }
 
@@ -306,36 +275,16 @@ function generarVehiculos(comisionistas) {
     _id: new ObjectId(),
     comisionistaId: u._id,
     nombre: faker.helpers.arrayElement([
-      "Mi vehículo principal",
-      "Utilitario blanco",
-      "Camioneta de reparto",
-      "Auto de trabajo",
+      "Mi vehículo principal", "Utilitario blanco", "Camioneta de reparto", "Auto de trabajo",
     ]),
     adicionales: faker.helpers.arrayElement([
-      "Seguro al día",
-      "Aire acondicionado",
-      "Carga mediana",
-      "Uso urbano",
-      "",
+      "Seguro al día", "Aire acondicionado", "Carga mediana", "Uso urbano", "",
     ]),
     marca: faker.helpers.arrayElement([
-      "Fiat",
-      "Renault",
-      "Ford",
-      "Peugeot",
-      "Volkswagen",
-      "Citroën",
-      "Toyota",
+      "Fiat", "Renault", "Ford", "Peugeot", "Volkswagen", "Citroën", "Toyota",
     ]),
     modelo: faker.helpers.arrayElement([
-      "Fiorino",
-      "Kangoo",
-      "Partner",
-      "Berlingo",
-      "Hilux",
-      "Ranger",
-      "Gol",
-      "Cronos",
+      "Fiorino", "Kangoo", "Partner", "Berlingo", "Hilux", "Ranger", "Gol", "Cronos",
     ]),
     patente: generarPatente(),
     tipo: faker.helpers.arrayElement(TIPOS_VEHICULO),
@@ -397,10 +346,7 @@ function generarTripPlans(comisionistas, vehiculosPorComisionista) {
         localidadNombre: destino.localidadNombre,
       },
       intermedias,
-      diasSemana: faker.helpers.arrayElements([1, 2, 3, 4, 5, 6], {
-        min: 2,
-        max: 5,
-      }),
+      diasSemana: faker.helpers.arrayElements([1, 2, 3, 4, 5, 6], { min: 2, max: 5 }),
       activo: true,
       preciosPorLocalidad,
       descuentoPorBultos: {
@@ -457,29 +403,28 @@ function generarPaquete(clienteId) {
     alto: faker.number.int({ min: 10, max: 80 }),
     ancho: faker.number.int({ min: 10, max: 80 }),
     profundidad: faker.number.int({ min: 5, max: 70 }),
-    peso: Number(
-      faker.number.float({ min: 0.3, max: 20, fractionDigits: 1 })
-    ),
+    peso: Number(faker.number.float({ min: 0.3, max: 20, fractionDigits: 1 })),
     contenido: faker.helpers.arrayElement([
-      "Documentación",
-      "Ropa",
-      "Electrónica",
-      "Regalo",
-      "Accesorios",
-      "Caja mediana",
+      "Documentación", "Ropa", "Electrónica", "Regalo", "Accesorios", "Caja mediana",
     ]),
     fragil: faker.datatype.boolean(0.25),
-    codigo_paquete: `PK-${faker.string.alphanumeric({
-      length: 8,
-      casing: "upper",
-    })}`,
+    codigo_paquete: `PK-${faker.string.alphanumeric({ length: 8, casing: "upper" })}`,
     clienteId,
   };
 }
 
-function generarEnvios(clientes, comisionistas, tripPlansPorComisionista) {
+// FIX 1: destinatarioId se asigna aleatoriamente desde la lista real de destinatarios
+function generarEnvios(clientes, comisionistas, tripPlansPorComisionista, destinatarios) {
   const envios = [];
   const envioXComisionista = [];
+
+  // Índice de destinatarios por clienteId para asignación rápida
+  const destinatariosPorCliente = {};
+  for (const d of destinatarios) {
+    const key = String(d.userId);
+    if (!destinatariosPorCliente[key]) destinatariosPorCliente[key] = [];
+    destinatariosPorCliente[key].push(d);
+  }
 
   for (let i = 0; i < CANT_ENVIOS; i++) {
     const _id = new ObjectId();
@@ -495,9 +440,7 @@ function generarEnvios(clientes, comisionistas, tripPlansPorComisionista) {
     const estadoId = pickEstadoSegunAntiguedad(fechaBase);
 
     const asignado = estadoId !== "PENDIENTE";
-    const comisionista = asignado
-      ? faker.helpers.arrayElement(comisionistas)
-      : null;
+    const comisionista = asignado ? faker.helpers.arrayElement(comisionistas) : null;
 
     const tripPlan =
       comisionista && tripPlansPorComisionista[String(comisionista._id)]
@@ -505,27 +448,29 @@ function generarEnvios(clientes, comisionistas, tripPlansPorComisionista) {
         : null;
 
     const fechaRetiro =
-      ["RETIRADO", "EN_CAMINO", "ENTREGADO", "DEMORADO_ENTREGA"].includes(
-        estadoId
-      )
+      ["RETIRADO", "EN_CAMINO", "ENTREGADO", "DEMORADO_ENTREGA"].includes(estadoId)
         ? addDays(fechaBase, faker.number.int({ min: 0, max: 1 }))
         : null;
 
-    const fechaEntrega = addDays(
-      fechaBase,
-      faker.number.int({ min: 1, max: 4 })
-    );
+    const fechaEntrega = addDays(fechaBase, faker.number.int({ min: 1, max: 4 }));
 
     const paquetes = Array.from(
       { length: faker.number.int({ min: 1, max: 3 }) },
       () => generarPaquete(cliente._id)
     );
 
+    // FIX 1: asignar destinatarioId real del cliente, con probabilidad de 70%
+    const destinatariosDelCliente = destinatariosPorCliente[String(cliente._id)] || [];
+    const destinatarioId =
+      destinatariosDelCliente.length > 0 && faker.datatype.boolean(0.7)
+        ? faker.helpers.arrayElement(destinatariosDelCliente)._id
+        : null;
+
     const envio = {
       _id,
       usuarioId: cliente._id,
       comisionistaId: comisionista ? comisionista._id : null,
-      destinatarioId: null,
+      destinatarioId, // FIX 1: ahora tiene valor real
       direccion_origen,
       direccion_destino,
       origenCiudad: {
@@ -545,9 +490,7 @@ function generarEnvios(clientes, comisionistas, tripPlansPorComisionista) {
       estadoId,
       tripPlanId: tripPlan ? tripPlan._id : null,
       notas_adicionales:
-        faker.helpers.maybe(() => faker.lorem.sentence(), {
-          probability: 0.3,
-        }) || "",
+        faker.helpers.maybe(() => faker.lorem.sentence(), { probability: 0.3 }) || "",
       polyline_especifica: "",
       archivado: false,
       eliminado: false,
@@ -562,18 +505,13 @@ function generarEnvios(clientes, comisionistas, tripPlansPorComisionista) {
         _id: new ObjectId(),
         comisionistaId: comisionista._id,
         envioId: _id,
-        vehiculoId: tripPlan
-          ? new ObjectId(tripPlan.vehiculoId)
-          : new ObjectId(),
+        // FIX 2: vehiculoId null si no hay tripPlan, nunca un ObjectId inventado
+        vehiculoId: tripPlan ? new ObjectId(tripPlan.vehiculoId) : null,
         tripPlanId: tripPlan ? tripPlan._id : null,
         precio_final: envio.costo_estimado,
         fecha_asignacion: addDays(fechaBase, 0),
         fecha_inicio_retiro: [
-          "EN_RETIRO",
-          "RETIRADO",
-          "EN_CAMINO",
-          "ENTREGADO",
-          "DEMORADO_ENTREGA",
+          "EN_RETIRO", "RETIRADO", "EN_CAMINO", "ENTREGADO", "DEMORADO_ENTREGA",
         ].includes(estadoId)
           ? addDays(fechaBase, 0)
           : null,
@@ -581,18 +519,14 @@ function generarEnvios(clientes, comisionistas, tripPlansPorComisionista) {
         fecha_demora: ["DEMORADO_RETIRO", "DEMORADO_ENTREGA"].includes(estadoId)
           ? addDays(fechaBase, faker.number.int({ min: 1, max: 2 }))
           : null,
-        fecha_inicio: ["EN_CAMINO", "ENTREGADO", "DEMORADO_ENTREGA"].includes(
-          estadoId
-        )
+        fecha_inicio: ["EN_CAMINO", "ENTREGADO", "DEMORADO_ENTREGA"].includes(estadoId)
           ? addDays(fechaBase, faker.number.int({ min: 1, max: 2 }))
           : null,
         fecha_fin:
           estadoId === "ENTREGADO"
             ? addDays(fechaBase, faker.number.int({ min: 2, max: 4 }))
             : null,
-        distanciaKm: Number(
-          faker.number.float({ min: 1, max: 40, fractionDigits: 1 })
-        ),
+        distanciaKm: Number(faker.number.float({ min: 1, max: 40, fractionDigits: 1 })),
         estado_id:
           estadoId === "RETIRADO"
             ? "EN_CAMINO"
@@ -608,6 +542,7 @@ function generarEnvios(clientes, comisionistas, tripPlansPorComisionista) {
   return { envios, envioXComisionista };
 }
 
+// FIX 3: retiros cuenta solo EN_RETIRO y RETIRADO, sin solaparse con entregas
 function generarEstadisticasComisionista(comisionistas, envios) {
   const stats = [];
   const hoy = getBaseNow();
@@ -622,12 +557,13 @@ function generarEstadisticasComisionista(comisionistas, envios) {
           startOfDay(e.createdAt).getTime() === dia.getTime()
       );
 
-      const entregas = enviosDia.filter(
-        (e) => e.estadoId === "ENTREGADO"
-      ).length;
+      const entregas = enviosDia.filter((e) => e.estadoId === "ENTREGADO").length;
+
+      // FIX 3: retiros ya no incluye ENTREGADO (evita doble conteo)
       const retiros = enviosDia.filter((e) =>
-        ["RETIRADO", "EN_CAMINO", "ENTREGADO"].includes(e.estadoId)
+        ["EN_RETIRO", "RETIRADO"].includes(e.estadoId)
       ).length;
+
       const ingresosTotales = enviosDia.reduce(
         (acc, e) => acc + (e.costo_estimado || 0),
         0
@@ -644,13 +580,7 @@ function generarEstadisticasComisionista(comisionistas, envios) {
         distanciaKm:
           enviosDia.length === 0
             ? 0
-            : Number(
-                faker.number.float({
-                  min: 5,
-                  max: 70,
-                  fractionDigits: 1,
-                })
-              ),
+            : Number(faker.number.float({ min: 5, max: 70, fractionDigits: 1 })),
         viajes:
           enviosDia.length === 0
             ? 0
@@ -664,11 +594,12 @@ function generarEstadisticasComisionista(comisionistas, envios) {
   return stats;
 }
 
+// FIX 4: rutas para TODOS los comisionistas, no solo los primeros 20
 function generarRutasOptimas(comisionistas, envios) {
   const rutas = [];
   const hoy = startOfDay(getBaseNow());
 
-  for (const comisionista of comisionistas.slice(0, 20)) {
+  for (const comisionista of comisionistas) { // FIX 4: sin .slice(0, 20)
     const fechasRuta = [hoy, addDays(hoy, -1), addDays(hoy, -2)];
 
     for (const fechaRuta of fechasRuta) {
@@ -678,13 +609,8 @@ function generarRutasOptimas(comisionistas, envios) {
             String(e.comisionistaId) === String(comisionista._id) &&
             startOfDay(e.createdAt).getTime() === fechaRuta.getTime() &&
             [
-              "ASIGNADO",
-              "EN_RETIRO",
-              "RETIRADO",
-              "EN_CAMINO",
-              "DEMORADO_RETIRO",
-              "DEMORADO_ENTREGA",
-              "ENTREGADO",
+              "ASIGNADO", "EN_RETIRO", "RETIRADO", "EN_CAMINO",
+              "DEMORADO_RETIRO", "DEMORADO_ENTREGA", "ENTREGADO",
             ].includes(e.estadoId)
         )
         .slice(0, 5);
@@ -705,17 +631,11 @@ function generarRutasOptimas(comisionistas, envios) {
           texto: envio.direccion_origen.texto,
           franja_horaria: envio.franja_horaria_retiro,
           fecha_retiro_confirmada: envio.fecha_retiro || null,
-          completada: ["RETIRADO", "EN_CAMINO", "ENTREGADO"].includes(
-            envio.estadoId
-          ),
-          completada_at: ["RETIRADO", "EN_CAMINO", "ENTREGADO"].includes(
-            envio.estadoId
-          )
+          completada: ["RETIRADO", "EN_CAMINO", "ENTREGADO"].includes(envio.estadoId),
+          completada_at: ["RETIRADO", "EN_CAMINO", "ENTREGADO"].includes(envio.estadoId)
             ? addDays(envio.createdAt, 1)
             : null,
-          distancia_km: Number(
-            faker.number.float({ min: 1, max: 8, fractionDigits: 1 })
-          ),
+          distancia_km: Number(faker.number.float({ min: 1, max: 8, fractionDigits: 1 })),
         });
 
         orden_entregas.push({
@@ -730,12 +650,8 @@ function generarRutasOptimas(comisionistas, envios) {
           fecha_retiro_confirmada: null,
           completada: envio.estadoId === "ENTREGADO",
           completada_at:
-            envio.estadoId === "ENTREGADO"
-              ? addDays(envio.createdAt, 2)
-              : null,
-          distancia_km: Number(
-            faker.number.float({ min: 1, max: 8, fractionDigits: 1 })
-          ),
+            envio.estadoId === "ENTREGADO" ? addDays(envio.createdAt, 2) : null,
+          distancia_km: Number(faker.number.float({ min: 1, max: 8, fractionDigits: 1 })),
         });
       }
 
@@ -756,13 +672,9 @@ function generarRutasOptimas(comisionistas, envios) {
             ? faker.datatype.boolean(0.65)
             : true,
         lat_inicio:
-          faker.helpers.maybe(() => randomCoordsArgentina().lat, {
-            probability: 0.65,
-          }) ?? null,
+          faker.helpers.maybe(() => randomCoordsArgentina().lat, { probability: 0.65 }) ?? null,
         lng_inicio:
-          faker.helpers.maybe(() => randomCoordsArgentina().lng, {
-            probability: 0.65,
-          }) ?? null,
+          faker.helpers.maybe(() => randomCoordsArgentina().lng, { probability: 0.65 }) ?? null,
         createdAt: fechaRuta,
         updatedAt: new Date(),
       });
@@ -775,29 +687,19 @@ function generarRutasOptimas(comisionistas, envios) {
 function generarDestinatarios(clientes) {
   return clientes.flatMap((cliente) => {
     const cantidad = faker.number.int({ min: 1, max: 4 });
-
     return Array.from({ length: cantidad }).map(() => {
       const lugar = pickLugar();
       const direccion = buildDireccionTexto(lugar);
-      const apellido = faker.person.lastName();
-      const nombre = faker.person.firstName();
-
       return {
         _id: new ObjectId(),
         userId: cliente._id,
-        apellido,
-        nombre,
+        apellido: faker.person.lastName(),
+        nombre: faker.person.firstName(),
         dni: String(generarDni()),
         telefono: generarTelefono(),
         direccion: direccion.texto,
-        provincia: {
-          provinciaId: lugar.provinciaId,
-          provinciaNombre: lugar.provinciaNombre,
-        },
-        localidad: {
-          localidadId: lugar.localidadId,
-          localidadNombre: lugar.localidadNombre,
-        },
+        provincia: { provinciaId: lugar.provinciaId, provinciaNombre: lugar.provinciaNombre },
+        localidad: { localidadId: lugar.localidadId, localidadNombre: lugar.localidadNombre },
         cp: faker.location.zipCode("####"),
         placeId: `place_${faker.string.alphanumeric(16)}`,
         lat: direccion.lat,
@@ -812,30 +714,18 @@ function generarDestinatarios(clientes) {
 function generarDireccionesFrecuentes(clientes) {
   return clientes.flatMap((cliente) => {
     const cantidad = faker.number.int({ min: 1, max: 3 });
-
     return Array.from({ length: cantidad }).map(() => {
       const lugar = pickLugar();
       const direccion = buildDireccionTexto(lugar);
-
       return {
         _id: new ObjectId(),
         userId: cliente._id,
         alias: faker.helpers.arrayElement([
-          "Casa",
-          "Trabajo",
-          "Oficina",
-          "Depósito",
-          "Lo de mamá",
+          "Casa", "Trabajo", "Oficina", "Depósito", "Lo de mamá",
         ]),
         direccion: direccion.texto,
-        provincia: {
-          provinciaId: lugar.provinciaId,
-          provinciaNombre: lugar.provinciaNombre,
-        },
-        localidad: {
-          localidadId: lugar.localidadId,
-          localidadNombre: lugar.localidadNombre,
-        },
+        provincia: { provinciaId: lugar.provinciaId, provinciaNombre: lugar.provinciaNombre },
+        localidad: { localidadId: lugar.localidadId, localidadNombre: lugar.localidadNombre },
         cp: faker.location.zipCode("####"),
         placeId: `place_${faker.string.alphanumeric(16)}`,
         lat: direccion.lat,
@@ -847,19 +737,23 @@ function generarDireccionesFrecuentes(clientes) {
   });
 }
 
+// FIX 4 (calificaciones): distribuir sobre todos los envíos entregados, sin slice arbitrario
 function generarCalificaciones(envios) {
-  return envios
-    .filter((envio) => envio.estadoId === "ENTREGADO" && envio.comisionistaId)
-    .slice(0, 220)
+  const entregados = envios.filter(
+    (e) => e.estadoId === "ENTREGADO" && e.comisionistaId
+  );
+
+  // 70% de los entregados recibe calificación (más realista que un slice fijo)
+  return entregados
+    .filter(() => faker.datatype.boolean(0.7))
     .map((envio) => ({
       _id: new ObjectId(),
       envioId: envio._id,
       emisorId: envio.usuarioId,
       receptorId: envio.comisionistaId,
       puntuacion: faker.number.int({ min: 6, max: 10 }),
-      comentario: faker.helpers.maybe(() => faker.lorem.sentence(), {
-        probability: 0.65,
-      }) || "",
+      comentario:
+        faker.helpers.maybe(() => faker.lorem.sentence(), { probability: 0.65 }) || "",
       fecha: addDays(envio.createdAt, faker.number.int({ min: 1, max: 5 })),
       createdAt: addDays(envio.createdAt, faker.number.int({ min: 1, max: 5 })),
       updatedAt: new Date(),
@@ -880,24 +774,14 @@ function generarEstadisticasCliente(clientes, envios) {
           startOfDay(e.createdAt).getTime() === dia.getTime()
       );
 
-      const enviosEntregados = enviosDia.filter(
-        (e) => e.estadoId === "ENTREGADO"
-      ).length;
-
+      const enviosEntregados = enviosDia.filter((e) => e.estadoId === "ENTREGADO").length;
       const enviosPendientes = enviosDia.filter((e) =>
-        ["PENDIENTE", "ASIGNADO", "EN_RETIRO", "RETIRADO", "EN_CAMINO"].includes(
-          e.estadoId
-        )
+        ["PENDIENTE", "ASIGNADO", "EN_RETIRO", "RETIRADO", "EN_CAMINO"].includes(e.estadoId)
       ).length;
-
       const enviosCancelados = enviosDia.filter((e) =>
         ["CANCELADO", "CANCELADO_RETORNO", "DEVUELTO"].includes(e.estadoId)
       ).length;
-
-      const gastoTotal = enviosDia.reduce(
-        (acc, e) => acc + (e.costo_estimado || 0),
-        0
-      );
+      const gastoTotal = enviosDia.reduce((acc, e) => acc + (e.costo_estimado || 0), 0);
 
       stats.push({
         _id: new ObjectId(),
@@ -926,16 +810,11 @@ function generarNotificaciones(comisionistas, envios) {
       userId: envio.usuarioId,
       rol: "cliente",
       tipo: faker.helpers.arrayElement([
-        "ENVIO_ACEPTADO",
-        "ESTADO_ACTUALIZADO",
-        "RETIRO_CONFIRMADO",
-        "PAGO_CONFIRMADO",
+        "ENVIO_ACEPTADO", "ESTADO_ACTUALIZADO", "RETIRO_CONFIRMADO", "PAGO_CONFIRMADO",
       ]),
       titulo: faker.helpers.arrayElement([
-        "Actualización de tu envío",
-        "Tu envío fue aceptado",
-        "Retiro confirmado",
-        "Pago confirmado",
+        "Actualización de tu envío", "Tu envío fue aceptado",
+        "Retiro confirmado", "Pago confirmado",
       ]),
       contenido: `El envío #${envio.nro_envio} tuvo una actualización.`,
       leida: faker.datatype.boolean(0.45),
@@ -946,18 +825,16 @@ function generarNotificaciones(comisionistas, envios) {
     });
   }
 
-  for (const comisionista of comisionistas.slice(0, 50)) {
+  for (const comisionista of comisionistas) {
     notificaciones.push({
       _id: new ObjectId(),
       userId: comisionista._id,
       rol: "comisionista",
       tipo: faker.helpers.arrayElement([
-        "NUEVO_ENVIO_DISPONIBLE",
-        "RECORDATORIO_ENTREGAS",
+        "NUEVO_ENVIO_DISPONIBLE", "RECORDATORIO_ENTREGAS",
       ]),
       titulo: faker.helpers.arrayElement([
-        "Nuevo envío disponible",
-        "Tenés entregas pendientes",
+        "Nuevo envío disponible", "Tenés entregas pendientes",
       ]),
       contenido: "Revisá tu panel para ver la actividad del día.",
       leida: faker.datatype.boolean(0.55),
@@ -970,8 +847,6 @@ function generarNotificaciones(comisionistas, envios) {
 
   return notificaciones;
 }
-
-
 
 async function recreateCollection(db, name) {
   const exists = await db.listCollections({ name }).toArray();
@@ -991,22 +866,11 @@ async function seed() {
     console.log(`Conectado a ${DB_NAME}`);
 
     const collections = [
-  "rol",
-  "usuarios",
-  "usuarioxrol",
-  "comisionista",
-  "vehiculos",
-  "tripplans",
-  "envios",
-  "envioXComisionista",
-  "rutasOptimas",
-  "notificaciones",
-  "estadisticacomisionistas",
-  "calificaciones",
-  "destinatarios",
-  "direccionfrecuentes",
-  "estadisticascliente",
-];
+      "rol", "usuarios", "usuarioxrol", "comisionista", "vehiculos",
+      "tripplans", "envios", "envioXComisionista", "rutasOptimas",
+      "notificaciones", "estadisticacomisionistas", "calificaciones",
+      "destinatarios", "direccionfrecuentes", "estadisticascliente",
+    ];
 
     console.log("Recreando colecciones...");
     for (const name of collections) {
@@ -1019,7 +883,7 @@ async function seed() {
 
     console.log("Generando usuarios...");
     const clientes = await generarUsuariosClientes();
-const comisionistas = await generarUsuariosComisionistas();
+    const comisionistas = await generarUsuariosComisionistas();
     const usuarios = [...clientes, ...comisionistas];
 
     console.log("Generando usuarioxrol...");
@@ -1030,45 +894,45 @@ const comisionistas = await generarUsuariosComisionistas();
 
     console.log("Generando vehículos...");
     const vehiculos = generarVehiculos(comisionistas);
-
     const vehiculosPorComisionista = Object.fromEntries(
       vehiculos.map((v) => [String(v.comisionistaId), v])
     );
 
     console.log("Generando tripplans...");
     const tripplans = generarTripPlans(comisionistas, vehiculosPorComisionista);
-
     const tripPlansPorComisionista = Object.fromEntries(
       tripplans.map((t) => [String(t.comisionistaId), t])
     );
+
+    // FIX 1: destinatarios se genera ANTES que envios para poder asignar destinatarioId
+    console.log("Generando destinatarios...");
+    const destinatarios = generarDestinatarios(clientes);
 
     console.log("Generando envíos...");
     const { envios, envioXComisionista } = generarEnvios(
       clientes,
       comisionistas,
-      tripPlansPorComisionista
+      tripPlansPorComisionista,
+      destinatarios // FIX 1: se pasa al generador
     );
 
     console.log("Generando rutas óptimas...");
     const rutasOptimas = generarRutasOptimas(comisionistas, envios);
 
-    console.log("Generando estadísticas...");
+    console.log("Generando estadísticas de comisionista...");
     const estadisticas = generarEstadisticasComisionista(comisionistas, envios);
 
     console.log("Generando notificaciones...");
     const notificaciones = generarNotificaciones(comisionistas, envios);
 
-    console.log("Generando destinatarios...");
-const destinatarios = generarDestinatarios(clientes);
+    console.log("Generando direcciones frecuentes...");
+    const direccionfrecuentes = generarDireccionesFrecuentes(clientes);
 
-console.log("Generando direcciones frecuentes...");
-const direccionfrecuentes = generarDireccionesFrecuentes(clientes);
+    console.log("Generando calificaciones...");
+    const calificaciones = generarCalificaciones(envios);
 
-console.log("Generando calificaciones...");
-const calificaciones = generarCalificaciones(envios);
-
-console.log("Generando estadísticas de cliente...");
-const estadisticasCliente = generarEstadisticasCliente(clientes, envios);
+    console.log("Generando estadísticas de cliente...");
+    const estadisticasCliente = generarEstadisticasCliente(clientes, envios);
 
     console.log("Insertando datos...");
     await db.collection("rol").insertMany(roles);
@@ -1083,27 +947,25 @@ const estadisticasCliente = generarEstadisticasCliente(clientes, envios);
     await db.collection("notificaciones").insertMany(notificaciones);
     await db.collection("estadisticacomisionistas").insertMany(estadisticas);
     await db.collection("destinatarios").insertMany(destinatarios);
-await db.collection("direccionfrecuentes").insertMany(direccionfrecuentes);
-await db.collection("calificaciones").insertMany(calificaciones);
-await db.collection("estadisticascliente").insertMany(estadisticasCliente);
+    await db.collection("direccionfrecuentes").insertMany(direccionfrecuentes);
+    await db.collection("calificaciones").insertMany(calificaciones);
+    await db.collection("estadisticascliente").insertMany(estadisticasCliente);
 
-    console.log("✅ Seed completado correctamente");
+    console.log("\n✅ Seed completado correctamente");
     console.log(`Roles: ${roles.length}`);
-    console.log(`Usuarios: ${usuarios.length}`);
-    console.log(`Clientes: ${clientes.length}`);
-    console.log(`Comisionistas: ${comisionistas.length}`);
+    console.log(`Usuarios: ${usuarios.length} (clientes: ${clientes.length}, comisionistas: ${comisionistas.length})`);
     console.log(`Perfiles comisionista: ${perfilesComisionista.length}`);
     console.log(`Vehículos: ${vehiculos.length}`);
     console.log(`TripPlans: ${tripplans.length}`);
+    console.log(`Destinatarios: ${destinatarios.length}`);
     console.log(`Envíos: ${envios.length}`);
     console.log(`EnvioXComisionista: ${envioXComisionista.length}`);
     console.log(`Rutas óptimas: ${rutasOptimas.length}`);
     console.log(`Notificaciones: ${notificaciones.length}`);
-    console.log(`Estadísticas: ${estadisticas.length}`);
-    console.log(`Destinatarios: ${destinatarios.length}`);
-console.log(`Direccion frecuentes: ${direccionfrecuentes.length}`);
-console.log(`Calificaciones: ${calificaciones.length}`);
-console.log(`Estadísticas cliente: ${estadisticasCliente.length}`);
+    console.log(`Estadísticas comisionista: ${estadisticas.length}`);
+    console.log(`Calificaciones: ${calificaciones.length}`);
+    console.log(`Direcciones frecuentes: ${direccionfrecuentes.length}`);
+    console.log(`Estadísticas cliente: ${estadisticasCliente.length}`);
   } catch (error) {
     console.error("❌ Error al poblar la base:", error);
   } finally {

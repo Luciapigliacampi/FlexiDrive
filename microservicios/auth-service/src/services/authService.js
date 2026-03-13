@@ -94,7 +94,7 @@ export const checkUserProfile = async (userId) => {
   // 2. Lógica específica si es Comisionista
   if (relacionRol?.rolId) {
     const rolDoc = await Rol.findById(relacionRol.rolId);
-    rol = rolDoc?.nombre || "pendiente"
+    rol = rolDoc?.nombre?.toLowerCase() || "pendiente"
 
     const comi = await Comisionista.findOne({ usuarioId: userId });
     const vehiculo = await Vehiculo.findOne({ comisionistaId: userId });
@@ -171,7 +171,7 @@ export const verifyTotp = async ({ tempToken, codigoIngresado }) => {
 
   if (relacion?.rolId) {
     const rolDoc = await Rol.findById(relacion.rolId);
-    miRol = rolDoc?.nombre || "cliente";
+    miRol = rolDoc?.nombre?.toLowerCase() || "cliente";
   }
 
   const token = generarTokenSesion({
