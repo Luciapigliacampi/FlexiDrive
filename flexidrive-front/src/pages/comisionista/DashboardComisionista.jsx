@@ -363,8 +363,15 @@ export default function DashboardComisionista() {
     [userId, fechaHoy, setViajeIniciadoPersist]
   );
 
+  // syncViaje=true SOLO en el mount inicial. Si cargarOGenerarRuta cambia por
+  // un re-render posterior (ej: despues de una accion), NO volvemos a sincronizar
+  // viajeIniciado desde el backend — eso evita que una ruta con viaje_iniciado=false
+  // pise el estado local correcto mientras el viaje esta activo.
+  const didSyncViajeRef = useRef(false);
   useEffect(() => {
-    cargarOGenerarRuta(false, null, true);
+    const syncViaje = !didSyncViajeRef.current;
+    if (syncViaje) didSyncViajeRef.current = true;
+    cargarOGenerarRuta(false, null, syncViaje);
   }, [cargarOGenerarRuta]);
 
   // ── Test date ─────────────────────────────────────────────────────────────
@@ -385,12 +392,19 @@ export default function DashboardComisionista() {
   }, [cargarAgenda, cargarOGenerarRuta]);
 
   // ── Recargar ruta sin regenerar ───────────────────────────────────────────
+  // IMPORTANTE: nunca toca viajeIniciado. Si hay 404 durante un viaje activo,
+  // simplemente no actualiza la ruta para no perder el estado del botón.
   const recargarRuta = useCallback(async () => {
     try {
       const rutaActiva = await getRutaActiva({ comisionistaId: userId });
       setRuta(rutaActiva);
     } catch (e) {
-      if (e?.response?.status === 404) setRuta(null);
+      if (e?.response?.status === 404) {
+        // Solo nullear la ruta si NO hay un viaje en curso
+        if (!viajeIniciadoRef.current) {
+          setRuta(null);
+        }
+      }
     }
   }, [userId]);
 
@@ -442,8 +456,22 @@ export default function DashboardComisionista() {
               fecha: fechaHoy,
             }).catch(() => null);
 
+            // Solo finalizar el viaje si el backend confirma que se completaron
+            // TODAS las paradas (retiros + entregas). Verificamos además con la
+            // agenda actualizada para evitar falsos positivos cuando un retiro
+            // genera automaticamente una parada de entrega pendiente.
             if (result?.viajeCompletado) {
-              await handleViajeCompletado();
+              const agendaCheck = await getAgendaHoy({ date: fechaHoy }).catch(() => null);
+              const itemsCheck = Array.isArray(agendaCheck?.items ?? agendaCheck)
+                ? agendaCheck?.items ?? agendaCheck
+                : [];
+              const hayPendientes = itemsCheck.some((item) =>
+                ["ASIGNADO", "EN_RETIRO", "RETIRADO", "EN_CAMINO",
+                 "DEMORADO_RETIRO", "DEMORADO_ENTREGA"].includes(item.estado)
+              );
+              if (!hayPendientes) {
+                await handleViajeCompletado();
+              }
             }
 
             toast.success("Paquete marcado como retirado.");
@@ -470,7 +498,17 @@ export default function DashboardComisionista() {
             }).catch(() => null);
 
             if (result?.viajeCompletado) {
-              await handleViajeCompletado();
+              const agendaCheck = await getAgendaHoy({ date: fechaHoy }).catch(() => null);
+              const itemsCheck = Array.isArray(agendaCheck?.items ?? agendaCheck)
+                ? agendaCheck?.items ?? agendaCheck
+                : [];
+              const hayPendientes = itemsCheck.some((item) =>
+                ["ASIGNADO", "EN_RETIRO", "RETIRADO", "EN_CAMINO",
+                 "DEMORADO_RETIRO", "DEMORADO_ENTREGA"].includes(item.estado)
+              );
+              if (!hayPendientes) {
+                await handleViajeCompletado();
+              }
             }
 
             toast.success("Paquete marcado como entregado.");
@@ -732,7 +770,6 @@ export default function DashboardComisionista() {
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{error || actionError}</span>
           <button
-            type="button"
             className="ml-auto"
             onClick={() => {
               setError("");
@@ -756,7 +793,7 @@ export default function DashboardComisionista() {
         {/* COLUMNA IZQUIERDA: agenda + estadísticas */}
         <div className="space-y-4 lg:col-span-2">
           <div>
-            <h2 className="mb-3 text-2xl font-bold text-blue-800">
+            <h2 className="mb-2 text-xl font-bold text-blue-800">
               Entregas y retiros programados para hoy
             </h2>
 
@@ -929,7 +966,7 @@ export default function DashboardComisionista() {
               )}
             </div>
 
-            <div className={`grid grid-cols-1 gap-4 md:grid-cols-3 transition-opacity ${loadingStats ? "opacity-50 pointer-events-none" : "opacity-100"}`}>
+            <div className={`grid grid-cols-1 gap-4 md:grid-cols-2 transition-opacity ${loadingStats ? "opacity-50 pointer-events-none" : "opacity-100"}`}>
               <StatCard
                 icon={<DollarSign className="h-5 w-5" />}
                 label="Ingresos totales"
@@ -938,15 +975,20 @@ export default function DashboardComisionista() {
               <StatCard
                 icon={<TrendingUp className="h-5 w-5" />}
                 label="Ingreso promedio por viaje"
-                value={`$${stats.ingresoPromedioViaje.toLocaleString("es-AR")}`}
+                value={`$${stats.ingresoPromedioViaje.toLocaleString("es-AR", {
+                  maximumFractionDigits: 0,
+                })}`}
               />
-              <StatCard
+              {/* <StatCard
                 icon={<Map className="h-5 w-5" />}
                 label="Distancia promedio por viaje"
-                value={`${stats.distanciaPromedioViaje.toLocaleString("es-AR", {
-                  maximumFractionDigits: 1,
-                })} km`}
-              />
+                value={`${stats.distanciaPromedioViaje.toLocaleString(
+                  "es-AR",
+                  {
+                    maximumFractionDigits: 1,
+                  }
+                )} km`}
+              /> */}
             </div>
 
             <div className={`grid grid-cols-1 gap-6 xl:grid-cols-2 transition-opacity ${loadingStats ? "opacity-50 pointer-events-none" : "opacity-100"}`}>
@@ -958,7 +1000,11 @@ export default function DashboardComisionista() {
                       <XAxis dataKey="dia" />
                       <YAxis allowDecimals={false} />
                       <Tooltip />
-                      <Bar dataKey="entregas" radius={[6, 6, 0, 0]} />
+                      <Bar
+                        dataKey="entregas"
+                        fill="#2563eb"
+                        radius={[6, 6, 0, 0]}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -972,7 +1018,11 @@ export default function DashboardComisionista() {
                       <XAxis dataKey="tipo" />
                       <YAxis allowDecimals={false} />
                       <Tooltip />
-                      <Bar dataKey="cantidad" radius={[6, 6, 0, 0]} />
+                      <Bar
+                        dataKey="cantidad"
+                        fill="#10b981"
+                        radius={[6, 6, 0, 0]}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -1057,7 +1107,9 @@ function AgendaRow({ row, actionLoading, onRetirar, onEntregar }) {
       <td className="max-w-[160px] px-3 py-3 text-slate-700">
         <span className="line-clamp-2 text-xs">{row.destino}</span>
         {row.franja && (
-          <span className="mt-0.5 block text-slate-400">🕐 {row.franja}</span>
+          <span className="mt-0.5 block text-[10px] text-slate-400">
+            🕐 {row.franja}
+          </span>
         )}
       </td>
 

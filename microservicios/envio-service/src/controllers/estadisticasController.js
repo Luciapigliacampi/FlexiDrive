@@ -2,37 +2,57 @@
 import EstadisticaComisionista from "../models/estadisticaComisionistaModel.js";
 import Envio from "../models/envioModels.js";
 
+// ── Estadísticas del comisionista (tiempo real) ───────────────────────────────
+
 export const getEstadisticasComisionista = async (req, res) => {
   try {
     const { comisionistaId } = req.params;
+    const { desde, hasta } = req.query;
 
-    const registros = await EstadisticaComisionista.find({
+    // Rango de fechas — si no viene, trae todo
+    const filtroFecha = {};
+    if (desde || hasta) {
+      filtroFecha.createdAt = {};
+      if (desde) filtroFecha.createdAt.$gte = new Date(desde);
+      if (hasta) {
+        const fin = new Date(hasta);
+        fin.setHours(23, 59, 59, 999);
+        filtroFecha.createdAt.$lte = fin;
+      }
+    }
+
+    // Traer todos los envíos del comisionista en el rango
+    const envios = await Envio.find({
       comisionistaId: String(comisionistaId),
-    }).sort({ fecha: 1 });
+      eliminado: { $ne: true },
+      ...filtroFecha,
+    });
 
-    // Totales acumulados
-    const ingresosTotales = registros.reduce(
-      (acc, r) => acc + (r.ingresosTotales || 0),
-      0
-    );
-    const totalViajes = registros.reduce((acc, r) => acc + (r.viajes || 0), 0);
-    const totalEntregas = registros.reduce(
-      (acc, r) => acc + (r.entregas || 0),
-      0
-    );
-    const totalRetiros = registros.reduce(
-      (acc, r) => acc + (r.retiros || 0),
-      0
-    );
-    const distanciaTotal = registros.reduce(
-      (acc, r) => acc + (r.distanciaKm || 0),
-      0
-    );
+    const totalEntregas = envios.filter((e) => e.estadoId === "ENTREGADO").length;
+    const totalRetiros  = envios.filter((e) =>
+      ["RETIRADO", "EN_CAMINO", "ENTREGADO", "DEMORADO_ENTREGA",
+       "DEVUELTO", "CANCELADO_RETORNO"].includes(e.estadoId)
+    ).length;
 
-    const ingresoPromedio =
-      totalViajes > 0 ? ingresosTotales / totalViajes : 0;
-    const distanciaPromedio =
-      totalViajes > 0 ? distanciaTotal / totalViajes : 0;
+    // Ingresos: solo envíos efectivamente entregados
+    const ingresosTotales = envios
+      .filter((e) => e.estadoId === "ENTREGADO")
+      .reduce((acc, e) => acc + (e.costo_estimado || 0), 0);
+
+    // Viajes: días distintos con al menos un envío entregado
+    const diasConEntrega = new Set(
+      envios
+        .filter((e) => e.estadoId === "ENTREGADO")
+        .map((e) => {
+          const d = new Date(e.updatedAt || e.createdAt);
+          return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        })
+    );
+    const totalViajes = diasConEntrega.size || 1; // evitar división por 0
+
+    const ingresoPromedio   = ingresosTotales / totalViajes;
+    const distanciaTotal    = envios.reduce((acc, e) => acc + (e.distanciaKm || 0), 0);
+    const distanciaPromedio = distanciaTotal / totalViajes;
 
     // Días de más entregas — agrupar por día de la semana
     const diasMap = {
@@ -45,9 +65,10 @@ export const getEstadisticasComisionista = async (req, res) => {
       6: { dia: "Sáb", entregas: 0 },
     };
 
-    for (const r of registros) {
-      const diaSemana = new Date(r.fecha).getDay();
-      diasMap[diaSemana].entregas += r.entregas || 0;
+    for (const e of envios) {
+      if (e.estadoId !== "ENTREGADO") continue;
+      const diaSemana = new Date(e.updatedAt || e.createdAt).getDay();
+      diasMap[diaSemana].entregas += 1;
     }
 
     // Ordenar Lun→Dom para el gráfico
@@ -56,15 +77,15 @@ export const getEstadisticasComisionista = async (req, res) => {
     return res.json({
       ingresosTotales,
       ingresoPromedio,
-      ingresoPromedioViaje: ingresoPromedio, // alias para el frontend
+      ingresoPromedioViaje:   ingresoPromedio,
       distanciaPromedio,
-      distanciaPromedioViaje: distanciaPromedio, // alias
-      entregas: totalEntregas,
-      retiros: totalRetiros,
+      distanciaPromedioViaje: distanciaPromedio,
+      entregas:               totalEntregas,
+      retiros:                totalRetiros,
       diasMasEntregas,
       comparativaEnvios: [
         { tipo: "Entregas", cantidad: totalEntregas },
-        { tipo: "Retiros", cantidad: totalRetiros },
+        { tipo: "Retiros",  cantidad: totalRetiros  },
       ],
     });
   } catch (error) {
@@ -84,9 +105,9 @@ export const getEstadisticasCliente = async (req, res) => {
       eliminado: { $ne: true },
     }).select("estadoId createdAt costo_estimado destinoCiudad");
 
-    const total = envios.length;
+    const total      = envios.length;
     const entregados = envios.filter((e) => e.estadoId === "ENTREGADO").length;
-    const activos = envios.filter((e) =>
+    const activos    = envios.filter((e) =>
       ["PENDIENTE", "ASIGNADO", "EN_CAMINO", "RETIRADO",
        "EN_RETIRO", "DEMORADO_RETIRO", "DEMORADO_ENTREGA"].includes(e.estadoId)
     ).length;
@@ -104,8 +125,8 @@ export const getEstadisticasCliente = async (req, res) => {
     const meses = Array.from({ length: 6 }, (_, i) => {
       const d = new Date(ahora.getFullYear(), ahora.getMonth() - (5 - i), 1);
       return {
-        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-        label: d.toLocaleString("es-AR", { month: "short" }),
+        key:      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+        label:    d.toLocaleString("es-AR", { month: "short" }),
         cantidad: 0,
       };
     });

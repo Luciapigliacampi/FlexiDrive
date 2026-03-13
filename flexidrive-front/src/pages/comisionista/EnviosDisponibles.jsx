@@ -2,17 +2,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  Check,
-  Archive,
-  Trash2,
-  X,
-  Eye,
-  AlertCircle,
-  ArrowUpDown,
-  Search,
-  CalendarDays,
-  Funnel,
-  ChevronDown,
+  Check, Archive, Trash2, X, Eye, AlertCircle,
+  ArrowUpDown, Search, CalendarDays, Funnel, ChevronDown,
 } from "lucide-react";
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -23,10 +14,7 @@ import EmptyState from "../../components/EmptyState";
 import { toEstadoKey, estadoLabel } from "../../utils/estadoUtils";
 import { getMyShipments } from "../../services/shipmentServices";
 import {
-  useEnvioAcciones,
-  puedeCancel,
-  puedeEliminar,
-  mensajeBloqueo,
+  useEnvioAcciones, puedeCancel, puedeEliminar, mensajeBloqueo,
 } from "../../hooks/useShipments";
 import { getTodayString } from "../../utils/testDate";
 import { formatFechaEntrega } from "../../utils/fechas";
@@ -34,7 +22,6 @@ import { formatFechaEntrega } from "../../utils/fechas";
 registerLocale("es", es);
 
 const ESTADOS = [
-  { value: "todos",             label: "Todos" },
   { value: "PENDIENTE",         label: "Pendiente" },
   { value: "ASIGNADO",          label: "Asignado" },
   { value: "EN_RETIRO",         label: "En retiro" },
@@ -45,7 +32,7 @@ const ESTADOS = [
   { value: "CANCELADO",         label: "Cancelado" },
   { value: "CANCELADO_RETORNO", label: "Cancelado en tránsito" },
   { value: "DEVUELTO",          label: "Devuelto" },
-  { value: "archivado",         label: "Archivados" },
+  { value: "_archivado",        label: "Archivados" },
 ];
 
 const SORT_OPTIONS = [
@@ -58,7 +45,6 @@ const SORT_OPTIONS = [
   { value: "estado",        label: "Estado" },
 ];
 
-// ── Helpers de normalización ───────────────────────────────────────────────
 function normalizeText(text) {
   return String(text || "")
     .toLowerCase()
@@ -68,105 +54,84 @@ function normalizeText(text) {
 }
 
 function getShipmentNumber(envio) {
-  return (
-    envio?.nro_envio ||
-    envio?.numero_envio ||
-    envio?.numero ||
-    envio?.shipmentNumber ||
-    envio?.codigo ||
-    envio?._id ||
-    envio?.id ||
-    ""
-  );
+  return envio?.nro_envio || envio?.numero_envio || envio?.numero
+    || envio?.shipmentNumber || envio?.codigo || envio?._id || envio?.id || "";
 }
 
 function getEstadoEnvio(envio) {
   const raw = String(
-    envio?.estadoId ??
-      envio?.estado ??
-      envio?.estado_actual ??
-      envio?.status ??
-      envio?.estadoNombre ??
-      envio?.estado_nombre ??
-      envio?.estado?.nombre ??
-      envio?.estado?.id ??
-      ""
-  )
-    .trim()
-    .toUpperCase();
+    envio?.estadoId ?? envio?.estado ?? envio?.estado_actual
+    ?? envio?.status ?? envio?.estadoNombre ?? envio?.estado_nombre
+    ?? envio?.estado?.nombre ?? envio?.estado?.id ?? ""
+  ).trim().toUpperCase();
 
-  if (["ENTREGADO", "COMPLETADO", "COMPLETADA", "FINALIZADO", "FINALIZADA"].includes(raw)) return "ENTREGADO";
-  if (["EN_CAMINO", "EN CURSO", "EN_TRANSITO", "EN TRÁNSITO", "EN TRANSITO"].includes(raw)) return "EN_CAMINO";
+  if (["ENTREGADO","COMPLETADO","COMPLETADA","FINALIZADO","FINALIZADA"].includes(raw)) return "ENTREGADO";
+  if (["EN_CAMINO","EN CURSO","EN_TRANSITO","EN TRÁNSITO","EN TRANSITO"].includes(raw)) return "EN_CAMINO";
   if (["RETIRADO"].includes(raw))          return "RETIRADO";
   if (["EN_RETIRO"].includes(raw))         return "EN_RETIRO";
   if (["DEMORADO_RETIRO"].includes(raw))   return "DEMORADO_RETIRO";
   if (["DEMORADO_ENTREGA"].includes(raw))  return "DEMORADO_ENTREGA";
-  if (["ASIGNADO", "ACEPTADO"].includes(raw)) return "ASIGNADO";
-  if (["PENDIENTE", "CREADO", "PUBLICADO"].includes(raw)) return "PENDIENTE";
+  if (["ASIGNADO","ACEPTADO"].includes(raw)) return "ASIGNADO";
+  if (["PENDIENTE","CREADO","PUBLICADO"].includes(raw)) return "PENDIENTE";
   if (["CANCELADO"].includes(raw))         return "CANCELADO";
   if (["CANCELADO_RETORNO"].includes(raw)) return "CANCELADO_RETORNO";
   if (["DEVUELTO"].includes(raw))          return "DEVUELTO";
-
   return raw || "—";
 }
 
 function puedeArchivarComisionista(estadoRaw) {
-  const e = String(estadoRaw || "").toUpperCase();
-  return ["CANCELADO", "CANCELADO_RETORNO", "ENTREGADO", "DEVUELTO"].includes(e);
+  return ["CANCELADO","CANCELADO_RETORNO","ENTREGADO","DEVUELTO"].includes(
+    String(estadoRaw || "").toUpperCase()
+  );
 }
 
 function puedeAceptar(estadoRaw) {
   return String(estadoRaw || "").toUpperCase() === "PENDIENTE";
 }
 
-/* ─── helpers fecha ─── */
 function toISODate(d) {
   if (!d) return "";
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 function fromISODate(s) {
   if (!s) return null;
-  const [y, m, d] = s.split("-").map(Number);
-  return new Date(y, m - 1, d);
+  const [y,m,d] = s.split("-").map(Number);
+  return new Date(y, m-1, d);
 }
 
 export default function EnviosDisponibles() {
   const navigate = useNavigate();
 
   const [fechaHoySimulada, setFechaHoySimulada] = useState(() => getTodayString());
-
   useEffect(() => {
     function onTestDateChanged(e) {
       const nuevaFecha = e?.detail?.TEST_DATE;
-      if (nuevaFecha) setFechaHoySimulada(nuevaFecha);
-      else setFechaHoySimulada(getTodayString());
+      setFechaHoySimulada(nuevaFecha || getTodayString());
     }
     window.addEventListener("test-date-changed", onTestDateChanged);
     return () => window.removeEventListener("test-date-changed", onTestDateChanged);
   }, []);
 
-  const [estadosFiltro, setEstadosFiltro] = useState(new Set()); // vacío = todos
+  const [estadosFiltro, setEstadosFiltro] = useState(new Set());
   const [openEstadoMenu, setOpenEstadoMenu] = useState(false);
   const estadoMenuRef = useRef(null);
   const [q, setQ]                       = useState("");
   const [fechaDesde, setFechaDesde]     = useState("");
   const [fechaHasta, setFechaHasta]     = useState("");
   const [loading, setLoading]           = useState(true);
-  const [rows, setRows]                 = useState([]);
+  const [rows, setRows]                 = useState([]);  // TODOS los envíos del comisionista
 
   const [sortBy, setSortBy]             = useState("fecha_entrega");
   const [sortDir, setSortDir]           = useState("asc");
   const [openSortMenu, setOpenSortMenu] = useState(false);
   const sortMenuRef                     = useRef(null);
 
-  const mostrarArchivados = estadosFiltro.has("archivado");
-
+  // ── Carga unificada: un solo fetch, sin parámetro archivado ───────────────
+  // El backend ahora devuelve TODOS los envíos del comisionista en una llamada.
   async function load() {
     setLoading(true);
     try {
-      const res = await getMyShipments({
-        archivado: mostrarArchivados ? "true" : undefined,
-      });
+      const res = await getMyShipments({});
       const raw = res?.data ?? res;
       const arr =
         Array.isArray(raw?.historial) ? raw.historial :
@@ -189,27 +154,35 @@ export default function EnviosDisponibles() {
     handleEliminar,
   } = useEnvioAcciones({ onSuccess: load, modo: "comisionista" });
 
-  useEffect(() => { load(); }, [mostrarArchivados]); // eslint-disable-line
+  useEffect(() => { load(); }, []); // eslint-disable-line
 
   useEffect(() => {
     function handleClickOutside(event) {
-      if (sortMenuRef.current && !sortMenuRef.current.contains(event.target)) {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(event.target))
         setOpenSortMenu(false);
-      }
-      if (estadoMenuRef.current && !estadoMenuRef.current.contains(event.target)) {
+      if (estadoMenuRef.current && !estadoMenuRef.current.contains(event.target))
         setOpenEstadoMenu(false);
-      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // ── Filtrado ──────────────────────────────────────────────────────────────
+  // "_archivado" es un pseudo-filtro especial: muestra solo archivados.
+  // El resto filtra por estadoId normalmente (incluyendo archivados o no).
+  const soloArchivados = estadosFiltro.has("_archivado");
+
   const filtered = useMemo(() => {
     return rows.filter((s) => {
-      if (mostrarArchivados) {
+      // Filtro de archivados
+      if (soloArchivados) {
         if (!s.archivado) return false;
       } else if (estadosFiltro.size > 0) {
+        // Filtro por estado: aplica sin importar si está archivado o no
         if (!estadosFiltro.has(getEstadoEnvio(s))) return false;
+      } else {
+        // Sin filtro activo: ocultar archivados por defecto
+        if (s.archivado) return false;
       }
 
       if (q.trim()) {
@@ -223,9 +196,7 @@ export default function EnviosDisponibles() {
             s.origenCiudad?.localidadNombre,
             s.direccion_destino?.texto,
             s.direccion_origen?.texto,
-          ]
-            .filter(Boolean)
-            .join(" ")
+          ].filter(Boolean).join(" ")
         );
         if (!haystack.includes(needle)) return false;
       }
@@ -239,47 +210,29 @@ export default function EnviosDisponibles() {
 
       return true;
     });
-  }, [rows, estadosFiltro, q, fechaDesde, fechaHasta, mostrarArchivados]);
+  }, [rows, estadosFiltro, soloArchivados, q, fechaDesde, fechaHasta]);
 
   const sorted = useMemo(() => {
     const copy = [...filtered];
-
     function getValue(s) {
       switch (sortBy) {
-        case "nro_envio":
-          return normalizeText(getShipmentNumber(s));
-        case "cliente":
-          return normalizeText(s.nombreCliente);
-        case "origen":
-          return normalizeText(s.origenCiudad?.localidadNombre);
-        case "destinatario":
-          return normalizeText(s.nombreDestinatario || s.direccion_destino?.texto?.split(",")[0]);
-        case "destino":
-          return normalizeText(s.destinoCiudad?.localidadNombre);
-        case "fecha_entrega":
-          return s.fecha_entrega ? new Date(s.fecha_entrega).getTime() : 0;
-        case "estado":
-          return getEstadoEnvio(s);
-        default:
-          return "";
+        case "nro_envio":     return normalizeText(getShipmentNumber(s));
+        case "cliente":       return normalizeText(s.nombreCliente);
+        case "origen":        return normalizeText(s.origenCiudad?.localidadNombre);
+        case "destinatario":  return normalizeText(s.nombreDestinatario || s.direccion_destino?.texto?.split(",")[0]);
+        case "destino":       return normalizeText(s.destinoCiudad?.localidadNombre);
+        case "fecha_entrega": return s.fecha_entrega ? new Date(s.fecha_entrega).getTime() : 0;
+        case "estado":        return getEstadoEnvio(s);
+        default:              return "";
       }
     }
-
     copy.sort((a, b) => {
-      const aVal = getValue(a);
-      const bVal = getValue(b);
-      let result = 0;
-      if (typeof aVal === "number" && typeof bVal === "number") {
-        result = aVal - bVal;
-      } else {
-        result = String(aVal).localeCompare(String(bVal), "es", {
-          numeric: true,
-          sensitivity: "base",
-        });
-      }
+      const aVal = getValue(a), bVal = getValue(b);
+      let result = typeof aVal === "number" && typeof bVal === "number"
+        ? aVal - bVal
+        : String(aVal).localeCompare(String(bVal), "es", { numeric: true, sensitivity: "base" });
       return sortDir === "asc" ? result : -result;
     });
-
     return copy;
   }, [filtered, sortBy, sortDir]);
 
@@ -315,6 +268,8 @@ export default function EnviosDisponibles() {
 
       {/* Filtros */}
       <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+
+        {/* Filtro estado */}
         <div ref={estadoMenuRef} className="relative">
           <button
             type="button"
@@ -352,7 +307,7 @@ export default function EnviosDisponibles() {
                 )}
               </div>
               <div className="p-2">
-                {ESTADOS.filter((e) => e.value !== "todos").map((option) => {
+                {ESTADOS.map((option) => {
                   const active = estadosFiltro.has(option.value);
                   return (
                     <button
@@ -424,6 +379,7 @@ export default function EnviosDisponibles() {
           </div>
         </FilterBox>
 
+        {/* Ordenar */}
         <div ref={sortMenuRef} className="relative">
           <button
             type="button"
@@ -464,9 +420,7 @@ export default function EnviosDisponibles() {
                     </button>
                   );
                 })}
-
                 <div className="my-2 border-t border-slate-100" />
-
                 <div className="grid grid-cols-2 gap-2 px-1 pb-1">
                   <button
                     type="button"
@@ -515,14 +469,14 @@ export default function EnviosDisponibles() {
         <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white shadow-sm">
           <table className="w-full text-left text-sm" style={{ tableLayout: "fixed" }}>
             <colgroup>
-              <col style={{ width: "11%" }} />  {/* Nro. envío — se apila, ok */}
-              <col style={{ width: "11%" }} />  {/* Cliente — se apila, ok */}
-              <col style={{ minWidth: "110px", width: "13%" }} />  {/* Origen */}
-              <col style={{ width: "13%" }} />  {/* Destinatario */}
-              <col style={{ minWidth: "110px", width: "13%" }} />  {/* Destino */}
-              <col style={{ width: "10%" }} />  {/* Fecha entrega */}
-              <col style={{ width: "11%" }} />  {/* Estado */}
-              <col style={{ width: "18%" }} />  {/* Acciones — suficiente para 5 botones */}
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ minWidth: "110px", width: "13%" }} />
+              <col style={{ width: "13%" }} />
+              <col style={{ minWidth: "110px", width: "13%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "18%" }} />
             </colgroup>
             <thead className="bg-slate-50 text-slate-600">
               <tr className="border-b border-slate-300 font-semibold">
@@ -546,17 +500,37 @@ export default function EnviosDisponibles() {
                 const isActioning = (k) => actionLoading === envioId + "_" + k;
 
                 return (
-                  <tr key={envioId} className="border-b border-slate-200 transition-colors hover:bg-slate-50">
+                  <tr
+                    key={envioId}
+                    className={`border-b border-slate-200 transition-colors hover:bg-slate-50 ${
+                      s.archivado ? "opacity-60" : ""
+                    }`}
+                  >
                     <td className="px-3 py-4 align-middle">
-                      <Link to={`/comisionista/envios/${envioId}`} className="font-bold text-blue-700 hover:underline block truncate">
+                      <Link
+                        to={`/comisionista/envios/${envioId}`}
+                        className="font-bold text-blue-700 hover:underline block truncate"
+                      >
                         #{getShipmentNumber(s)}
                       </Link>
                     </td>
-                    <td className="px-3 py-4 align-middle text-slate-700"><span className="block truncate">{s.nombreCliente || "—"}</span></td>
-                    <td className="px-3 py-4 align-middle text-slate-700"><span className="block truncate">{s.origenCiudad?.localidadNombre || "—"}</span></td>
-                    <td className="px-3 py-4 align-middle text-slate-700"><span className="block truncate">{s.nombreDestinatario || s.direccion_destino?.texto?.split(",")[0] || "—"}</span></td>
-                    <td className="px-3 py-4 align-middle text-slate-700"><span className="block truncate">{destino}</span></td>
-                    <td className="px-3 py-4 align-middle text-slate-700">{formatFechaEntrega(s.fecha_entrega)}</td>
+                    <td className="px-3 py-4 align-middle text-slate-700">
+                      <span className="block truncate">{s.nombreCliente || "—"}</span>
+                    </td>
+                    <td className="px-3 py-4 align-middle text-slate-700">
+                      <span className="block truncate">{s.origenCiudad?.localidadNombre || "—"}</span>
+                    </td>
+                    <td className="px-3 py-4 align-middle text-slate-700">
+                      <span className="block truncate">
+                        {s.nombreDestinatario || s.direccion_destino?.texto?.split(",")[0] || "—"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-4 align-middle text-slate-700">
+                      <span className="block truncate">{destino}</span>
+                    </td>
+                    <td className="px-3 py-4 align-middle text-slate-700">
+                      {formatFechaEntrega(s.fecha_entrega)}
+                    </td>
                     <td className="px-3 py-4 align-middle">
                       <StatusBadge estado={estadoKey} label={estadoLabel(estadoRaw)} />
                     </td>
@@ -578,7 +552,11 @@ export default function EnviosDisponibles() {
                         />
                         <ActionBtn
                           icon={<X className="h-4 w-4" />}
-                          title={puedeCancel(estadoRaw) ? (estadoRaw === "PENDIENTE" ? "Rechazar envío" : "Cancelar envío") : mensajeBloqueo("cancelar", estadoRaw)}
+                          title={
+                            puedeCancel(estadoRaw)
+                              ? estadoRaw === "PENDIENTE" ? "Rechazar envío" : "Cancelar envío"
+                              : mensajeBloqueo("cancelar", estadoRaw)
+                          }
                           onClick={() => handleRechazarOCancelarComisionista(envioId, estadoRaw)}
                           disabled={!puedeCancel(estadoRaw) || isActioning("cancelar")}
                           blocked={!puedeCancel(estadoRaw)}
@@ -586,7 +564,11 @@ export default function EnviosDisponibles() {
                         />
                         <ActionBtn
                           icon={<Archive className="h-4 w-4" />}
-                          title={puedeArchivarComisionista(estadoRaw) ? "Archivar envío" : "Solo disponible si está finalizado"}
+                          title={
+                            puedeArchivarComisionista(estadoRaw)
+                              ? "Archivar envío"
+                              : "Solo disponible si está finalizado"
+                          }
                           onClick={() => handleArchivar(envioId, estadoRaw)}
                           disabled={!puedeArchivarComisionista(estadoRaw) || isActioning("archivar")}
                           blocked={!puedeArchivarComisionista(estadoRaw)}
@@ -594,7 +576,11 @@ export default function EnviosDisponibles() {
                         />
                         <ActionBtn
                           icon={<Trash2 className="h-4 w-4" />}
-                          title={puedeEliminar(estadoRaw) ? "Eliminar del historial" : mensajeBloqueo("eliminar", estadoRaw)}
+                          title={
+                            puedeEliminar(estadoRaw)
+                              ? "Eliminar del historial"
+                              : mensajeBloqueo("eliminar", estadoRaw)
+                          }
                           onClick={() => handleEliminar(envioId, estadoRaw)}
                           disabled={!puedeEliminar(estadoRaw) || isActioning("eliminar")}
                           blocked={!puedeEliminar(estadoRaw)}
@@ -746,7 +732,12 @@ function AceptarEnvioModal({
                     key={f.value}
                     type="button"
                     onClick={() => setFranjaRetiro(f.value)}
-                    className={["rounded-xl border px-2 py-2 text-xs font-semibold text-center transition", franjaRetiro === f.value ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-300 text-slate-600 hover:bg-slate-50"].join(" ")}
+                    className={[
+                      "rounded-xl border px-2 py-2 text-xs font-semibold text-center transition",
+                      franjaRetiro === f.value
+                        ? "border-blue-600 bg-blue-50 text-blue-700"
+                        : "border-slate-300 text-slate-600 hover:bg-slate-50",
+                    ].join(" ")}
                   >
                     {f.label}
                   </button>
@@ -777,7 +768,12 @@ function AceptarEnvioModal({
               type="button"
               onClick={onConfirm}
               disabled={loading || !vehiculoId || !fechaRetiro || !franjaRetiro || list.length === 0}
-              className={["rounded-xl px-4 py-2 text-sm font-extrabold text-white", (loading || !vehiculoId || !fechaRetiro || !franjaRetiro || list.length === 0) ? "bg-slate-300 cursor-not-allowed" : "bg-blue-700 hover:bg-blue-800"].join(" ")}
+              className={[
+                "rounded-xl px-4 py-2 text-sm font-extrabold text-white",
+                (loading || !vehiculoId || !fechaRetiro || !franjaRetiro || list.length === 0)
+                  ? "bg-slate-300 cursor-not-allowed"
+                  : "bg-blue-700 hover:bg-blue-800",
+              ].join(" ")}
             >
               {loading ? "Aceptando..." : "Confirmar"}
             </button>

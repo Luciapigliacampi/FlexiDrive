@@ -2,6 +2,7 @@
 import Envio from '../models/envioModels.js';
 import axios from 'axios';
 import { getDayRange, getNow } from '../utils/testDate.js';
+import { registrarEstadisticaViaje } from '../services/estadisticasService.js';
 
 const AUTH_BASE     = process.env.AUTH_SERVICE_URL     || 'http://localhost:3000';
 const VIAJES_BASE   = process.env.VIAJES_SERVICE_URL   || 'http://localhost:3004';
@@ -139,14 +140,9 @@ export const getAgendaHoy = async (req, res, next) => {
     const envios = await Envio.find({
       comisionistaId,
       $or: [
-        // Envíos del día: asignados con fecha_retiro hoy
         { estadoId: 'ASIGNADO',  fecha_retiro:  { $gte: inicioDia, $lte: finDia } },
-        // Envíos del día: retirados con fecha_entrega hoy
         { estadoId: 'RETIRADO',  fecha_entrega: { $gte: inicioDia, $lte: finDia } },
-        // Envíos activos sin restricción de fecha (en tránsito)
         { estadoId: { $in: ['EN_RETIRO', 'EN_CAMINO', 'CANCELADO_RETORNO'] } },
-        // DEMORADO_RETIRO / DEMORADO_ENTREGA: sin restricción de fecha,
-        // aparecen en la agenda hasta que se completen (pueden ser de días anteriores)
         { estadoId: { $in: ['DEMORADO_RETIRO', 'DEMORADO_ENTREGA'] } },
       ],
       eliminado: { $ne: true },
@@ -268,9 +264,6 @@ export const finalizarViaje = async (req, res, next) => {
     // 1. Marcar envíos pendientes con estados diferenciados según qué falta hacer:
     //    - Falta retirar  → DEMORADO_RETIRO   (buildParadas lo incluye como parada RETIRO)
     //    - Falta entregar → DEMORADO_ENTREGA  (buildParadas lo incluye como parada ENTREGA)
-    //    Guardamos estadoId_previo para referencia histórica
-    // Guardar estadoId_previo y cambiar estado en dos pasos separados
-    // (los pipelines de aggregation requieren configuración especial en algunas versiones de Mongoose)
     const [resRetiro, resCamino] = await Promise.all([
       // Pendientes de retiro → DEMORADO_RETIRO
       Envio.updateMany(
@@ -290,6 +283,17 @@ export const finalizarViaje = async (req, res, next) => {
       {},
       { headers: { Authorization: token } }
     ).catch(e => console.warn('⚠️ No se pudo desactivar ruta:', e.message));
+
+    // 3. FIX: Registrar estadísticas del viaje finalizado.
+    //    Se hace en fire-and-forget para no bloquear la respuesta al cliente
+    //    si falla (ej: colección vacía, error de DB). El error se loguea pero
+    //    no se propaga.
+    registrarEstadisticaViaje({
+      comisionistaId: String(comisionistaId),
+      fecha: inicioDia,
+    }).catch(e =>
+      console.error('⚠️ No se pudo registrar estadística de viaje:', e.message)
+    );
 
     return res.status(200).json({
       message: 'Viaje finalizado.',

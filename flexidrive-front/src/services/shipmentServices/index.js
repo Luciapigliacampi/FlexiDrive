@@ -100,3 +100,7 @@ export async function confirmarPago(id, metodo) {
 }
 
 export const __USE_MOCK__ = USE_MOCK;
+
+export async function archivarEnvioComisionista(id) {
+  return unwrap(svc.archivarEnvioComisionista(id));
+}

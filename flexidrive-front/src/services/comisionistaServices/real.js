@@ -111,16 +111,25 @@ export const deleteRutaApi = async (id) => {
 
 export const toggleRutaActivaApi = async (id, activa) => {
   const res = await api.patch(`${VIAJES_BASE}/api/trip/${id}/activo`, {
-    activo: activa,   // backend espera "activo", no "activa"
+    activo: activa,
   });
   return res.data;
 };
 
-// ─── Estadísticas ────────────────────────────────────────────────────────────
+// ─── Estadísticas ─────────────────────────────────────────────────────────────
 
-export const getEstadisticasComisionistaApi = async (comisionistaId) => {
+// Acepta un segundo argumento opcional { desde, hasta } para filtrar por rango
+export const getEstadisticasComisionistaApi = async (
+  comisionistaId,
+  { desde, hasta } = {}
+) => {
+  const params = {};
+  if (desde) params.desde = desde;
+  if (hasta) params.hasta = hasta;
+
   const { data } = await axios.get(
-    `${ENVIO_BASE}/api/estadisticas/comisionista/${comisionistaId}`
+    `${ENVIO_BASE}/api/estadisticas/comisionista/${comisionistaId}`,
+    { params }
   );
   return data;
 };
@@ -129,52 +138,34 @@ export const getEstadisticasComisionistaApi = async (comisionistaId) => {
 
 function tripPlanToRutaUI(tp = {}) {
   return {
-    // Identidad
     id:    tp._id || tp.id,
     _id:   tp._id || tp.id,
-
-    // Nombre legacy (algunos mocks lo usan)
     nombre: tp.nombre || tp.title || "",
-
-    // Lugares
     origen:      tp.origen      || null,
     destino:     tp.destino     || null,
     intermedias: Array.isArray(tp.intermedias) ? tp.intermedias : [],
-
-    // Días operativos (el backend guarda diasSemana como números)
     dias:        Array.isArray(tp.dias)       ? tp.dias
                : Array.isArray(tp.diasSemana) ? diasSemanaToLabels(tp.diasSemana)
                : [],
-
-    // Estado
-activa: tp.activo ?? tp.activa ?? tp.isActive ?? false,
-
-    // Precios — normalizar precio → precioPorBulto para RutaCard
+    activa: tp.activo ?? tp.activa ?? tp.isActive ?? false,
     preciosPorLocalidad: Array.isArray(tp.preciosPorLocalidad)
       ? tp.preciosPorLocalidad.map((p) => ({
           ...p,
           precioPorBulto: p.precioPorBulto ?? p.precio ?? 0,
         }))
       : [],
-
-    // Descuento
     descuentoPorBultos: tp.descuentoPorBultos ?? {
       minBultos: 0,
       tipo: "porcentaje",
       valor: 0,
     },
-
-    // Campos legacy que algunos mocks / RutaModal pueden usar
     horarioSalida: tp.horarioSalida || tp.departureTime || "",
     vehiculoId:    tp.vehiculoId    || "",
     precioBase:    tp.precioBase    || tp.basePrice     || null,
-
-    // Raw por si algún componente necesita campos extra
     raw: tp,
   };
 }
 
-// Convierte [1,2,3,4,5] → ["Lun","Mar","Mié","Jue","Vie"]
 const DIA_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 function diasSemanaToLabels(nums) {
   return nums.map((n) => DIA_LABELS[n] ?? String(n));

@@ -513,24 +513,53 @@ export const completarParada = async (req, res) => {
       ).catch(e => console.warn('⚠️ No se pudo marcar entregado:', e.message));
     }
 
+    // ── Verificar si el viaje está realmente completo ─────────────────────
+    // Una parada de RETIRO completada no significa viaje completo: el envío
+    // ahora está EN_CAMINO y necesita su parada de ENTREGA. Solo finalizamos
+    // cuando no queda ninguna parada pendiente Y no hay envíos en estado
+    // EN_CAMINO o RETIRADO sin parada de entrega en la ruta actual.
     const pendientes = ruta.orden_entregas.filter(p => !p.completada);
 
     if (pendientes.length === 0) {
-      await RutaOptima.updateMany({ comisionistaId, activo: true }, { activo: false });
+      // Verificar en el envio-service si quedó algún envío sin entregar.
+      // Esto cubre el caso donde un retiro genera implícitamente una entrega
+      // pendiente que aún no figura como parada en la ruta (se agregará en la
+      // re-optimización), por lo que no debemos finalizar el viaje todavía.
+      let hayEnviosPendientesDeEntrega = false;
+      try {
+        const { data: envioActual } = await axios.get(
+          `${ENVIO_BASE}/api/envios/interno/${envioId}`,
+          { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY } }
+        );
+        // Si el envío recién "retirado" quedó en EN_CAMINO, aún falta entregarlo
+        if (['EN_CAMINO', 'RETIRADO'].includes(envioActual?.estadoId)) {
+          hayEnviosPendientesDeEntrega = true;
+        }
+      } catch (e) {
+        console.warn('⚠️ No se pudo verificar estado del envío:', e.message);
+        // En caso de error, ser conservador y no finalizar el viaje
+        hayEnviosPendientesDeEntrega = true;
+      }
 
-      await axios.post(
-        `${ENVIO_BASE}/api/envios/comisionista/dashboard/finalizar-viaje`,
-        { fecha },
-        { headers: { Authorization: token } }
-      ).catch(e => console.warn('⚠️ No se pudo finalizar viaje automáticamente:', e.message));
+      if (!hayEnviosPendientesDeEntrega) {
+        // Viaje realmente completo: finalizar
+        await RutaOptima.updateMany({ comisionistaId, activo: true }, { activo: false });
 
-      return res.status(200).json({
-        message: 'Parada completada. ¡Todas las paradas completadas! Viaje finalizado.',
-        ruta: { ...ruta.toObject(), activo: false },
-        viajeCompletado: true,
-      });
+        await axios.post(
+          `${ENVIO_BASE}/api/envios/comisionista/dashboard/finalizar-viaje`,
+          { fecha },
+          { headers: { Authorization: token } }
+        ).catch(e => console.warn('⚠️ No se pudo finalizar viaje automáticamente:', e.message));
+
+        return res.status(200).json({
+          message: 'Parada completada. ¡Todas las paradas completadas! Viaje finalizado.',
+          ruta: { ...ruta.toObject(), activo: false },
+          viajeCompletado: true,
+        });
+      }
     }
 
+    // Hay paradas pendientes (o envíos que aún necesitan entrega): re-optimizar
     const params = new URLSearchParams({
       fecha,
       latActual: parada.lat,
@@ -672,9 +701,9 @@ export const getSeguimientoEnvio = async (req, res) => {
 
     res.json({
       nro_envio:           envio.nro_envio,
-      createdAt:           envio.createdAt,                          // FIX: fecha de creación del envío
+      createdAt:           envio.createdAt,
       estado:              envio.estadoId,
-      es_demorado:         ['DEMORADO', 'DEMORADO_ENTREGA', 'DEMORADO_RETIRO'].includes(envio.estadoId), // FIX: cubre todos los estados demorados
+      es_demorado:         ['DEMORADO', 'DEMORADO_ENTREGA', 'DEMORADO_RETIRO'].includes(envio.estadoId),
       es_retorno:          envio.estadoId === 'CANCELADO_RETORNO',
       fechas: {
         entrega_estimada:  envio.fecha_entrega,
@@ -688,8 +717,8 @@ export const getSeguimientoEnvio = async (req, res) => {
         notas:    envio.notas_adicionales,
         paquetes: envio.paquetes.length,
       },
-      pago:                envio.pago ?? { confirmado: false, metodo: null, fecha: null }, // FIX: exponer campo pago
-      metodo_pago_cliente: envio.metodo_pago_cliente ?? null,        // FIX: exponer método elegido por el cliente
+      pago:                envio.pago ?? { confirmado: false, metodo: null, fecha: null },
+      metodo_pago_cliente: envio.metodo_pago_cliente ?? null,
       comisionista: datosComisionista,
       mapa: {
         lat_origen:  envio.direccion_origen.lat,

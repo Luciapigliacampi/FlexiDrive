@@ -95,3 +95,7 @@ export async function actualizarCalificacion({ id, rating, comment }) {
   });
   return res?.data ?? res;
 }
+
+export const archivarEnvioComisionista = (id) =>
+  api.patch(`${ENVIO_BASE}/api/envios/${id}/archivar-comisionista`);
+

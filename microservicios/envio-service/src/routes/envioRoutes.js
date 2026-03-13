@@ -20,7 +20,7 @@ import {
   marcarEntregado,
   iniciarViaje,
   cancelarPorComisionista,
-  confirmarPago,
+  confirmarPago, archivarEnvioComisionista,
 } from '../controllers/envioControllers.js';
 
 import {
@@ -68,6 +68,7 @@ router.patch('/:id/confirmar-pago',           authMiddleware, isComisionista, co
 router.patch('/:id/archivar',                 authMiddleware, isCliente,      archivarEnvio);
 router.patch('/:id/eliminar',                 authMiddleware, isCliente,      eliminarEnvioLogico);
 router.patch('/:id/confirmar-comisionista',   authMiddleware, isCliente,      confirmarComisionista);
+router.patch('/:id/archivar-comisionista', authMiddleware, isComisionista, archivarEnvioComisionista);
 
 // ── Ruta interna para microservicios ──────────────────────────────────────
 router.get('/interno/:id', isInternal, getEnvioById);

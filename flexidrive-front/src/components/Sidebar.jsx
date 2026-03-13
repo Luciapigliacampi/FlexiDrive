@@ -16,7 +16,7 @@ export default function SidebarComisionista() {
         { to: "/comisionista/medios-pago", label: "Medios de pago", icon: Wallet },
         // { to: "/comisionista/calendario", label: "Calendario", icon: CalendarDays },
         { to: "/comisionista/perfil",    label: "Perfil",            icon: User    },
-        { to: "/comisionista/ajustes",   label: "Ajustes",           icon: Settings},
+        // { to: "/comisionista/ajustes",   label: "Ajustes",           icon: Settings},
     ];
 
     const rol = localStorage.getItem("rol") || "";

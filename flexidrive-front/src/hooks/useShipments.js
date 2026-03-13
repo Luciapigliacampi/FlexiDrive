@@ -7,7 +7,7 @@ import {
   aceptarEnvio,
   marcarRetirado,
   marcarEntregado,
-  cancelarPorComisionista,
+  cancelarPorComisionista, archivarEnvioComisionista
 } from "../services/shipmentServices";
 import { getMyVehicles } from "../services/authService";
 import { getTodayString } from "../utils/testDate";
@@ -244,26 +244,31 @@ export function useEnvioAcciones({ onSuccess, modo = "cliente" } = {}) {
   }
 
   async function handleArchivar(id, estado) {
-    if (!puedeArchivar(estado)) {
-      const msg = mensajeBloqueo("archivar", estado);
-      setActionError(msg);
-      toast.warning(msg);
-      return;
-    }
-    setActionLoading(id + "_archivar");
-    setActionError("");
-    try {
-      await archivarEnvio(id);
-      toast.success("Envío archivado correctamente.");
-      onSuccess?.();
-    } catch (e) {
-      const msg = e?.response?.data?.message || "No se pudo archivar.";
-      setActionError(msg);
-      toast.error(msg);
-    } finally {
-      setActionLoading(null);
-    }
+  if (!puedeArchivar(estado)) {
+    const msg = mensajeBloqueo("archivar", estado);
+    setActionError(msg);
+    toast.warning(msg);
+    return;
   }
+  setActionLoading(id + "_archivar");
+  setActionError("");
+  try {
+    if (modo === "comisionista") {
+      await archivarEnvioComisionista(id);
+    } else {
+      await archivarEnvio(id);
+    }
+    toast.success("Envío archivado correctamente.");
+    onSuccess?.();
+  } catch (e) {
+    const msg = e?.response?.data?.message || "No se pudo archivar.";
+    setActionError(msg);
+    toast.error(msg);
+  } finally {
+    setActionLoading(null);
+  }
+}
+
 
   function handleEliminar(id, estado) {
     if (!puedeEliminar(estado)) {

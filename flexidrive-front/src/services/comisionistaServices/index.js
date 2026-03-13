@@ -63,7 +63,9 @@ export const deleteRuta = (id) =>
 export const toggleRutaActiva = (id, activa) =>
   USE_MOCK ? updateRutaMock(id, { activo: activa }) : toggleRutaActivaApi(id, activa);
 
-export const getEstadisticasComisionista = (comisionistaId) =>
+// FIX: se agrega el segundo argumento `params` ({ desde, hasta }) para que
+// el rango de fechas seleccionado en el dashboard llegue al servicio real.
+export const getEstadisticasComisionista = (comisionistaId, params) =>
   USE_MOCK
-    ? getEstadisticasComisionistaMock(comisionistaId)
-    : getEstadisticasComisionistaApi(comisionistaId);
+    ? getEstadisticasComisionistaMock(comisionistaId, params)
+    : getEstadisticasComisionistaApi(comisionistaId, params);
