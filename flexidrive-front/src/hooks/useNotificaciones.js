@@ -1,3 +1,4 @@
+// flexidrive-front/src/hooks/useNotificaciones.js
 import { useEffect, useRef, useState, useCallback } from 'react';
 import api from '../services/api'; // axios instance con baseURL y token
 
@@ -5,14 +6,16 @@ const NOTIF_BASE = import.meta.env.VITE_NOTIFICATION_SERVICE_URL || 'http://loca
 const WS_BASE    = NOTIF_BASE.replace(/^http/, 'ws');
 
 export default function useNotificaciones() {
-  const [notificaciones, setNotificaciones]   = useState([]);
-  const [loading, setLoading]                 = useState(true);
-  const wsRef = useRef(null);
+  const [notificaciones, setNotificaciones] = useState([]);
+  const [loading, setLoading]               = useState(true);
+  const wsRef       = useRef(null);
+  const borradasRef = useRef(new Set()); // IDs eliminados — filtra repush del WS
 
   const fetchNotificaciones = useCallback(async () => {
     try {
       const { data } = await api.get(`${NOTIF_BASE}/api/notificaciones`);
-      setNotificaciones(data);
+      const visibles = Array.isArray(data) ? data.filter((n) => n.visible !== false) : [];
+      setNotificaciones(visibles);
     } catch (err) {
       console.error('[useNotificaciones] fetch error:', err.message);
     } finally {
@@ -40,7 +43,14 @@ export default function useNotificaciones() {
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'NOTIFICACION') {
-            setNotificaciones((prev) => [msg.data, ...prev]);
+            const id = msg.data?._id;
+            // Ignorar notificaciones que el usuario ya borró en esta sesión
+            if (id && borradasRef.current.has(id)) return;
+            setNotificaciones((prev) => {
+              // Evitar duplicados si el WS la reenvía antes de que llegue el fetch
+              if (id && prev.some((n) => n._id === id)) return prev;
+              return [msg.data, ...prev];
+            });
           }
         } catch {}
       };
@@ -89,7 +99,42 @@ export default function useNotificaciones() {
     }
   }, []);
 
+  const eliminarNotificacion = useCallback(async (id) => {
+    borradasRef.current.add(id); // marcar como borrada antes del optimistic update
+    setNotificaciones((prev) => prev.filter((n) => n._id !== id));
+    try {
+      await api.patch(`${NOTIF_BASE}/api/notificaciones/${id}/ocultar`);
+    } catch (err) {
+      console.error('[useNotificaciones] eliminarNotificacion error:', err.message);
+      borradasRef.current.delete(id); // revertir si falla
+      fetchNotificaciones();
+    }
+  }, [fetchNotificaciones]);
+
+  const eliminarTodas = useCallback(async () => {
+    // Registrar todos los IDs actuales como borrados
+    setNotificaciones((prev) => {
+      prev.forEach((n) => borradasRef.current.add(n._id));
+      return [];
+    });
+    try {
+      await api.patch(`${NOTIF_BASE}/api/notificaciones/ocultar-todas`);
+    } catch (err) {
+      console.error('[useNotificaciones] eliminarTodas error:', err.message);
+      borradasRef.current.clear();
+      fetchNotificaciones();
+    }
+  }, [fetchNotificaciones]);
+
   const noLeidasCount = notificaciones.filter((n) => !n.leida).length;
 
-  return { notificaciones, loading, noLeidasCount, marcarLeida, marcarTodasLeidas };
+  return {
+    notificaciones,
+    loading,
+    noLeidasCount,
+    marcarLeida,
+    marcarTodasLeidas,
+    eliminarNotificacion,
+    eliminarTodas,
+  };
 }

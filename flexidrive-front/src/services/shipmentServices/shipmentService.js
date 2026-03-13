@@ -11,7 +11,6 @@ const VIAJES_BASE = import.meta.env.VITE_VIAJES_API_URL || "http://localhost:300
 
 export const crearEnvio = (data) => api.post(`${ENVIO_BASE}/api/envios`, data);
 
-// back: GET /api/envios/historial => { totalEnvios, historial }
 export const getMyShipments = (params) =>
   api.get(`${ENVIO_BASE}/api/envios/historial`, { params });
 
@@ -41,30 +40,26 @@ export const actualizarEstadoEnvio = (data) =>
 export const cancelarPorComisionista = (id) =>
   api.patch(`${ENVIO_BASE}/api/envios/${id}/cancelar-comisionista`);
 
+export const confirmarPago = (id, metodo) =>
+  api.patch(`${ENVIO_BASE}/api/envios/${id}/confirmar-pago`, { metodo });
+
 /* =========================
-   Buscar comisionistas (auth-service)
-   GET /api/auth/comisionistas/habilitados (público)
+   Buscar comisionistas
 ========================= */
 
 export async function searchComisionistas(params) {
   const clean = Object.fromEntries(
     Object.entries(params || {}).filter(([, v]) => v !== undefined && v !== null && v !== "")
   );
-
-  const res = await api.get(`${VIAJES_BASE}/api/search/comisionistas`, {
-    params: clean,
-  });
-
+  const res = await api.get(`${VIAJES_BASE}/api/search/comisionistas`, { params: clean });
   return res.data;
 }
 
 /* =========================
-   CALIFICACIONES (calificaciones-service)
-   POST /api/calificaciones  (requiere token + rol cliente)
+   CALIFICACIONES
 ========================= */
 
 export async function calificarEnvio({ id, rating, comment }) {
-  const CAL_BASE = import.meta.env.VITE_CALIFICACIONES_API_URL || "http://localhost:3003";
   const res = await api.post(`${CAL_BASE}/api/calificaciones`, {
     envioId: id,
     puntuacion: rating,
@@ -73,9 +68,6 @@ export async function calificarEnvio({ id, rating, comment }) {
   return res?.data ?? res;
 }
 
-/* =========================
-   PAGO (todavía mock si no hay servicio pago)
-========================= */
 export const mockPay = ({ method }) =>
   Promise.resolve({
     data: { ok: true, status: method === "mercadopago" ? "approved" : "registered" },
@@ -97,7 +89,6 @@ export const finalizarViaje = (fecha) =>
   api.post(`${ENVIO_BASE}/api/envios/comisionista/dashboard/finalizar-viaje`, { fecha });
 
 export async function actualizarCalificacion({ id, rating, comment }) {
-  const CAL_BASE = import.meta.env.VITE_CALIFICACIONES_API_URL || "http://localhost:3003";
   const res = await api.put(`${CAL_BASE}/api/calificaciones/envio/${id}`, {
     puntuacion: rating,
     comentario: comment,

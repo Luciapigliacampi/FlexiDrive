@@ -1,4 +1,4 @@
-//microservicios\notificaciones-service\src\controllers\notificacionControllers.js
+//microservicios/notificaciones-service/src/controllers/notificacionControllers.js
 import Notificacion from '../models/notificacionModel.js';
 import { pushNotificacion } from '../utils/wsManager.js';
 
@@ -24,7 +24,7 @@ export const crearNotificacion = async (req, res, next) => {
 // GET /api/notificaciones  (usuario autenticado)
 export const getNotificaciones = async (req, res, next) => {
   try {
-    const notifs = await Notificacion.find({ userId: req.userId })
+    const notifs = await Notificacion.find({ userId: req.userId, visible: { $ne: false } })
       .sort({ createdAt: -1 })
       .limit(50)
       .lean();
@@ -63,8 +63,33 @@ export const marcarTodasLeidas = async (req, res, next) => {
 // GET /api/notificaciones/no-leidas-count
 export const contarNoLeidas = async (req, res, next) => {
   try {
-    const count = await Notificacion.countDocuments({ userId: req.userId, leida: false });
+    const count = await Notificacion.countDocuments({ userId: req.userId, leida: false, visible: { $ne: false } });
     return res.status(200).json({ count });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// PATCH /api/notificaciones/:id/ocultar  — borrado lógico individual
+export const ocultarNotificacion = async (req, res, next) => {
+  try {
+    const notif = await Notificacion.findOneAndUpdate(
+      { _id: req.params.id, userId: req.userId },
+      { visible: false },
+      { new: true }
+    );
+    if (!notif) return res.status(404).json({ message: 'Notificación no encontrada.' });
+    return res.status(200).json(notif);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// PATCH /api/notificaciones/ocultar-todas  — borrado lógico masivo
+export const ocultarTodasNotificaciones = async (req, res, next) => {
+  try {
+    await Notificacion.updateMany({ userId: req.userId, visible: { $ne: false } }, { visible: false });
+    return res.status(200).json({ message: 'Todas las notificaciones ocultadas.' });
   } catch (err) {
     next(err);
   }

@@ -60,6 +60,18 @@ const envioSchema = new mongoose.Schema({
 
   archivado: { type: Boolean, default: false },
   eliminado: { type: Boolean, default: false },
+
+  metodo_pago_cliente: {
+    type: String,
+    enum: ['efectivoOrigen', 'efectivoDestino', 'transferencia', null],
+    default: null,
+  },
+
+  pago: {
+    confirmado:  { type: Boolean, default: false },
+    metodo:      { type: String, enum: ['efectivo', 'transferencia'], default: null },
+    fecha:       { type: Date, default: null },
+  },
 }, { timestamps: true });
 
 export default mongoose.model('Envio', envioSchema, 'envios');

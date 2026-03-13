@@ -1,3 +1,4 @@
+// src/pages/cliente/ConfirmacionEnvio.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, Button } from "../../components/UI";
@@ -71,8 +72,24 @@ export default function ConfirmacionEnvio() {
 
   const mediosPago = useMemo(() => resolveMediosPago(comi), [comi]);
 
-  const tieneMediosDisponibles =
-    mediosPago.aceptaEfectivo || mediosPago.aceptaTransferencia;
+  const metodosDisponibles = useMemo(() => {
+    const items = [];
+
+    if (mediosPago.aceptaEfectivo) {
+      items.push(
+        { value: "efectivoOrigen", title: "Efectivo en origen" },
+        { value: "efectivoDestino", title: "Efectivo en destino" }
+      );
+    }
+
+    if (mediosPago.aceptaTransferencia) {
+      items.push({ value: "transferencia", title: "Transferencia" });
+    }
+
+    return items;
+  }, [mediosPago]);
+
+  const tieneMediosDisponibles = metodosDisponibles.length > 0;
 
   const origen = payload.direccion_origen?.texto || "—";
   const destino = payload.direccion_destino?.texto || "—";
@@ -80,25 +97,17 @@ export default function ConfirmacionEnvio() {
   const destinoCiudad = payload.destinoCiudad?.localidadNombre || "";
 
   useEffect(() => {
-    if (mediosPago.aceptaEfectivo && !mediosPago.aceptaTransferencia) {
-      setMethod("efectivo");
-      return;
-    }
-
-    if (!mediosPago.aceptaEfectivo && mediosPago.aceptaTransferencia) {
-      setMethod("transferencia");
-      return;
-    }
-
-    if (mediosPago.aceptaEfectivo && mediosPago.aceptaTransferencia && !method) {
-      setMethod("efectivo");
-      return;
-    }
-
-    if (!mediosPago.aceptaEfectivo && !mediosPago.aceptaTransferencia) {
+    if (!tieneMediosDisponibles) {
       setMethod("");
+      return;
     }
-  }, [mediosPago, method]);
+
+    const methodDisponible = metodosDisponibles.some((m) => m.value === method);
+
+    if (!methodDisponible) {
+      setMethod(metodosDisponibles[0].value);
+    }
+  }, [tieneMediosDisponibles, metodosDisponibles, method]);
 
   useEffect(() => {
     function onKeyDown(e) {
@@ -139,13 +148,18 @@ export default function ConfirmacionEnvio() {
         localStorage.getItem("draftEnvioPayloadBase"),
         {}
       );
-      const comiData = safeJsonParse(localStorage.getItem("draftComisionista"), {});
+      const comiData = safeJsonParse(
+        localStorage.getItem("draftComisionista"),
+        {}
+      );
 
       if (!payloadBase?.direccion_origen || !payloadBase?.direccion_destino) {
         throw new Error(
           "No se encontró el payload del envío. Volvé a Solicitar envío."
         );
       }
+
+      payloadBase.metodo_pago_cliente = method;
 
       const created = await crearEnvio(payloadBase);
       const createdObj = created?.data ?? created;
@@ -224,21 +238,14 @@ export default function ConfirmacionEnvio() {
           </div>
         ) : (
           <div className="space-y-4">
-            {mediosPago.aceptaEfectivo && (
+            {metodosDisponibles.map((item) => (
               <PayOption
-                checked={method === "efectivo"}
-                onSelect={() => setMethod("efectivo")}
-                title="Efectivo"
+                key={item.value}
+                checked={method === item.value}
+                onSelect={() => setMethod(item.value)}
+                title={item.title}
               />
-            )}
-
-            {mediosPago.aceptaTransferencia && (
-              <PayOption
-                checked={method === "transferencia"}
-                onSelect={() => setMethod("transferencia")}
-                title="Transferencia"
-              />
-            )}
+            ))}
           </div>
         )}
       </Card>
