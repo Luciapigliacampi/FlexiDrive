@@ -24,4 +24,4 @@ const DireccionFrecuenteSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export default mongoose.model("DireccionFrecuente", DireccionFrecuenteSchema);
+export default mongoose.model("DireccionFrecuente", DireccionFrecuenteSchema, "direccionesFrecuentes");

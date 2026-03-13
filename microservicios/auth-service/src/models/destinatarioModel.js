@@ -32,4 +32,4 @@ const DestinatarioSchema = new mongoose.Schema(
 // opcional: evitar duplicados exactos de DNI por usuario
 DestinatarioSchema.index({ userId: 1, dni: 1 }, { unique: false });
 
-export default mongoose.model("Destinatario", DestinatarioSchema);
+export default mongoose.model("Destinatario", DestinatarioSchema, "destinatarios");

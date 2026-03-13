@@ -47,5 +47,6 @@ const EstadisticaComisionistaSchema = new mongoose.Schema({
 
 export default mongoose.model(
   "EstadisticaComisionista",
-  EstadisticaComisionistaSchema
+  EstadisticaComisionistaSchema,
+  "estadisticacomisionistas"
 );

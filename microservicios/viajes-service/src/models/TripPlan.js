@@ -44,4 +44,4 @@ const TripPlanSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export default mongoose.model("TripPlan", TripPlanSchema);
+export default mongoose.model("TripPlan", TripPlanSchema, "tripplans");
