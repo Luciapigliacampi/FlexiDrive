@@ -29,6 +29,7 @@ export const createEnvio = async (req, res, next) => {
       origenCiudad, destinoCiudad,
       paquetes, fecha_entrega, franja_horaria_retiro,
       notas_adicionales, comisionistaId, tripPlanId, destinatarioId,
+      metodo_pago_cliente,
     } = req.body;
 
     if (!paquetes || !Array.isArray(paquetes) || paquetes.length === 0)
@@ -83,6 +84,7 @@ export const createEnvio = async (req, res, next) => {
       fecha_retiro:          null,
       notas_adicionales:     notas_adicionales || '',
       comisionistaId:        comisionistaId || null,
+      metodo_pago_cliente:   metodo_pago_cliente || null,
       ...(tripPlanId ? { tripPlanId } : {}),
     });
 
@@ -736,6 +738,37 @@ export const cancelarPorComisionista = async (req, res, next) => {
     }
 
     return res.status(400).json({ message: `No se puede cancelar en estado ${envio.estadoId}.` });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+export const confirmarPago = async (req, res, next) => {
+  try {
+    const { id }         = req.params;
+    const comisionistaId = req.userId;
+    const { metodo }     = req.body;
+
+    const revertir = metodo === null || metodo === undefined;
+
+    if (!revertir && !['efectivo', 'transferencia'].includes(metodo))
+      return res.status(400).json({ message: 'Método de pago inválido. Usá "efectivo", "transferencia" o null para revertir.' });
+
+    const envio = await Envio.findById(id);
+    if (!envio) return res.status(404).json({ message: 'Envío no encontrado.' });
+    if (String(envio.comisionistaId) !== comisionistaId)
+      return res.status(403).json({ message: 'No tenés permiso.' });
+
+    envio.pago = revertir
+      ? { confirmado: false, metodo: null, fecha: null }
+      : { confirmado: true, metodo, fecha: getNow() };
+    await envio.save();
+
+    return res.status(200).json({
+      message: revertir ? 'Pago revertido a pendiente.' : 'Pago confirmado.',
+      pago: envio.pago,
+    });
   } catch (err) {
     next(err);
   }

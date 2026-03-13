@@ -12,6 +12,7 @@ import {
 import { toEstadoKey, estadoLabel } from "../../utils/estadoUtils";
 import { Card } from "../../components/UI";
 import { useToast } from "../../components/toast/useToast";
+import { useConfirm } from "../../components/ConfirmDialog";
 import StatusBadge from "../../components/StatusBadge";
 import MapaRutaOptimizada from "../../components/MapaRutaOptimizada";
 import { getTodayString } from "../../utils/testDate";
@@ -39,6 +40,7 @@ const IA_ROUTE_BASE = import.meta.env.VITE_IA_API_URL || "http://localhost:3002"
 
 export default function DashboardComisionista() {
   const { toast } = useToast();
+  const confirm   = useConfirm();
 
   const username = localStorage.getItem("username") || "Usuario";
   const userRaw = localStorage.getItem("user");
@@ -55,6 +57,7 @@ export default function DashboardComisionista() {
   const [agenda,         setAgenda]          = useState([]);
   const [ruta,           setRuta]            = useState(null);
   const [estadisticas,   setEstadisticas]    = useState(null);
+  const [calificacion,   setCalificacion]    = useState(null);
   const [viajeIniciado,  setViajeIniciado]   = useState(() => {
     // Persistir entre recargas y cambios de fecha simulada
     const uid = (() => { try { return JSON.parse(localStorage.getItem("user"))?.id || ""; } catch { return ""; } })();
@@ -99,11 +102,17 @@ export default function DashboardComisionista() {
     }
   }, [fechaHoy]);
 
+  const CAL_BASE = import.meta.env.VITE_CALIFICACIONES_API_URL || "http://localhost:3003";
+
   const cargarEstadisticas = useCallback(async () => {
     if (!userId) return;
     try {
-      const data = await getEstadisticasComisionista(userId);
-      setEstadisticas(data || null);
+      const [dataStats, dataCal] = await Promise.all([
+        getEstadisticasComisionista(userId),
+        api.get(`${CAL_BASE}/api/calificaciones/${userId}`).then(r => r.data).catch(() => null),
+      ]);
+      setEstadisticas(dataStats || null);
+      setCalificacion(dataCal || null);
     } catch (e) {
       console.error("No se pudieron cargar las estadísticas", e);
       setEstadisticas(null);
@@ -233,26 +242,33 @@ export default function DashboardComisionista() {
 
   // ── Acciones ───────────────────────────────────────────────────────────────
   const handleRetirar = useCallback(
-    (id) => withLoading(`${id}_retirar`, async () => {
-      await marcarRetirado(id);
-      const result = await completarParada({
-        envioId: id,
-        tipo: "RETIRO",
-        comisionistaId: userId,
-        fecha: fechaHoy,
-      }).catch(() => null);
-      if (result?.viajeCompletado) {
-        await handleViajeCompletado();
-      }
-      toast.success("Paquete marcado como retirado.");
-    }),
-    [withLoading, userId, fechaHoy, toast, handleViajeCompletado]
+    (id) => {
+      confirm("¿Confirmar retiro de este paquete?", {
+        labelConfirm: "Retirar",
+        onConfirm: async () => {
+          await withLoading(`${id}_retirar`, async () => {
+            await marcarRetirado(id);
+            const result = await completarParada({
+              envioId: id,
+              tipo: "RETIRO",
+              comisionistaId: userId,
+              fecha: fechaHoy,
+            }).catch(() => null);
+            if (result?.viajeCompletado) {
+              await handleViajeCompletado();
+            }
+            toast.success("Paquete marcado como retirado.");
+          });
+        },
+      });
+    },
+    [withLoading, userId, fechaHoy, toast, confirm, handleViajeCompletado]
   );
 
   const handleEntregar = useCallback(
     (id) => {
-      toast.confirm("¿Confirmar entrega de este paquete?", {
-        label: "Entregar",
+      confirm("¿Confirmar entrega de este paquete?", {
+        labelConfirm: "Entregar",
         onConfirm: async () => {
           await withLoading(`${id}_entregar`, async () => {
             await marcarEntregado(id);
@@ -270,12 +286,12 @@ export default function DashboardComisionista() {
         },
       });
     },
-    [withLoading, userId, fechaHoy, toast, handleViajeCompletado]
+    [withLoading, userId, fechaHoy, toast, confirm, handleViajeCompletado]
   );
 
   const handleIniciarViaje = useCallback(() => {
-    toast.confirm("¿Iniciar el viaje del día? Esto actualizará el estado de todos los envíos.", {
-      label: "Iniciar",
+    confirm("¿Iniciar el viaje del día? Esto actualizará el estado de todos los envíos.", {
+      labelConfirm: "Iniciar",
       onConfirm: async () => {
         await withLoading("iniciar_viaje", async () => {
           // 1. Cambiar estados de envíos a EN_RETIRO
@@ -299,11 +315,11 @@ export default function DashboardComisionista() {
         });
       },
     });
-  }, [withLoading, fechaHoy, userId, ubicacionPartida, toast]);
+  }, [withLoading, fechaHoy, userId, ubicacionPartida, toast, confirm]);
 
   const handleFinalizarViaje = useCallback(() => {
-    toast.confirm("¿Finalizar el viaje del día? Los envíos pendientes quedarán como demorados.", {
-      label: "Finalizar",
+    confirm("¿Finalizar el viaje del día? Los envíos pendientes quedarán como demorados.", {
+      labelConfirm: "Finalizar",
       onConfirm: async () => {
         await withLoading("finalizar_viaje", async () => {
           await finalizarViaje(fechaHoy);
@@ -390,7 +406,7 @@ export default function DashboardComisionista() {
       { value: loading ? "—" : String(r.enviosHoy ?? 0),       label: "Envíos hoy" },
       { value: loading ? "—" : String(r.enRuta ?? 0),           label: "En ruta" },
       { value: loading ? "—" : String(r.pendientesRetiro ?? 0), label: "Pendientes de retiro" },
-      { value: loading ? "—" : String(r.calificacion ?? "—"),   label: "Calificación" },
+      { value: loading ? "—" : calificacion ? `${calificacion.promedio} ★` : "—", label: "Calificación" },
     ];
   }, [resumen, loading]);
 

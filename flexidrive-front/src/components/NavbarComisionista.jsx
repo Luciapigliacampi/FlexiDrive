@@ -1,19 +1,46 @@
+// flexidrive-front/src/components/NavbarComisionista.jsx
 import { useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
-import { Bell, Mail, Search, User, ChevronDown, CheckCheck, Package, XCircle, Truck, MapPin, Tag, Info } from "lucide-react";
+import {
+  Bell, /* Mail, */ Search, User, ChevronDown,
+  CheckCheck, Package, XCircle, Truck, MapPin, Tag, Info, Trash2,
+} from "lucide-react";
 import useNotificaciones from "../hooks/useNotificaciones";
 
 const TIPO_ICON = {
-  ENVIO_ACEPTADO:                   { icon: CheckCheck, color: "text-green-600"  },
-  ESTADO_ACTUALIZADO:               { icon: Truck,      color: "text-blue-600"   },
-  RETIRO_CONFIRMADO:                { icon: Package,    color: "text-indigo-600" },
-  ENVIO_CANCELADO_POR_COMISIONISTA: { icon: XCircle,    color: "text-red-600"    },
-  ENVIO_CANCELADO_POR_CLIENTE:      { icon: XCircle,    color: "text-red-600"    },
-  PAGO_CONFIRMADO:                  { icon: CheckCheck, color: "text-emerald-600"},
-  PROMOCION:                        { icon: Tag,        color: "text-amber-600"  },
-  NUEVO_ENVIO_DISPONIBLE:           { icon: MapPin,     color: "text-blue-600"   },
-  RECORDATORIO_ENTREGAS:            { icon: Bell,       color: "text-orange-600" },
+  ENVIO_ACEPTADO:                   { icon: CheckCheck, color: "text-green-600"   },
+  ESTADO_ACTUALIZADO:               { icon: Truck,      color: "text-blue-600"    },
+  RETIRO_CONFIRMADO:                { icon: Package,    color: "text-indigo-600"  },
+  ENVIO_CANCELADO_POR_COMISIONISTA: { icon: XCircle,    color: "text-red-600"     },
+  ENVIO_CANCELADO_POR_CLIENTE:      { icon: XCircle,    color: "text-red-600"     },
+  PAGO_CONFIRMADO:                  { icon: CheckCheck, color: "text-emerald-600" },
+  PROMOCION:                        { icon: Tag,        color: "text-amber-600"   },
+  NUEVO_ENVIO_DISPONIBLE:           { icon: MapPin,     color: "text-blue-600"    },
+  RECORDATORIO_ENTREGAS:            { icon: Bell,       color: "text-orange-600"  },
 };
+
+// Determina la ruta de navegación según el tipo y los datos de la notificación
+function getNotifRoute(notif) {
+  const ref = notif.referenciaId || notif.envioId || notif.referencia;
+  switch (notif.tipo) {
+    case "ENVIO_ACEPTADO":
+    case "ESTADO_ACTUALIZADO":
+    case "RETIRO_CONFIRMADO":
+    case "ENVIO_CANCELADO_POR_COMISIONISTA":
+    case "ENVIO_CANCELADO_POR_CLIENTE":
+      return ref ? `/comisionista/envios/${ref}` : "/comisionista/envios";
+    case "NUEVO_ENVIO_DISPONIBLE":
+      return ref ? `/comisionista/envios/${ref}` : "/comisionista/envios";
+    case "RECORDATORIO_ENTREGAS":
+      return "/comisionista/dashboard";
+    case "PAGO_CONFIRMADO":
+      return "/comisionista/ganancias";
+    case "PROMOCION":
+      return "/comisionista/notificaciones";
+    default:
+      return "/comisionista/notificaciones";
+  }
+}
 
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -29,15 +56,23 @@ export default function NavbarComisionista() {
   const navigate = useNavigate();
   const username = localStorage.getItem("username") || "Usuario";
 
-  const [q, setQ] = useState("");
+  const [q, setQ]               = useState("");
   const [openUser, setOpenUser] = useState(false);
   const [openNotif, setOpenNotif] = useState(false);
 
-  const userRef = useRef(null);
+  const userRef  = useRef(null);
   const notifRef = useRef(null);
 
-  const { notificaciones, noLeidasCount, marcarLeida, marcarTodasLeidas } = useNotificaciones();
-  const latestNotifications = notificaciones.slice(0, 3);
+  const {
+    notificaciones,
+    noLeidasCount,
+    marcarLeida,
+    marcarTodasLeidas,
+    eliminarNotificacion,
+    eliminarTodas,
+  } = useNotificaciones();
+
+  const latestNotifications = notificaciones.slice(0, 5);
 
   function onSearch(e) {
     e.preventDefault();
@@ -53,6 +88,23 @@ export default function NavbarComisionista() {
   function goToNotifications() {
     setOpenNotif(false);
     navigate("/comisionista/notificaciones");
+  }
+
+  function handleNotifClick(notif) {
+    if (!notif.leida) marcarLeida(notif._id);
+    const route = getNotifRoute(notif);
+    setOpenNotif(false);
+    navigate(route);
+  }
+
+  function handleEliminar(e, notifId) {
+    e.stopPropagation(); // no disparar el click de navegación
+    eliminarNotificacion?.(notifId);
+  }
+
+  function handleEliminarTodas(e) {
+    e.stopPropagation();
+    eliminarTodas?.();
   }
 
   useEffect(() => {
@@ -97,6 +149,7 @@ export default function NavbarComisionista() {
 
           {openNotif && (
             <div className="absolute right-0 mt-2 w-96 rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden z-50">
+              {/* Header del panel */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
                 <h3 className="text-sm font-semibold text-slate-800">Notificaciones</h3>
                 <div className="flex items-center gap-3">
@@ -109,6 +162,16 @@ export default function NavbarComisionista() {
                       <CheckCheck className="w-3.5 h-3.5" /> Leídas
                     </button>
                   )}
+                  {notificaciones.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleEliminarTodas}
+                      className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1"
+                      title="Borrar todas las notificaciones"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Borrar todas
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={goToNotifications}
@@ -119,6 +182,7 @@ export default function NavbarComisionista() {
                 </div>
               </div>
 
+              {/* Lista */}
               <div className="max-h-80 overflow-y-auto">
                 {latestNotifications.length === 0 ? (
                   <div className="px-4 py-6 text-sm text-slate-500 text-center">
@@ -132,8 +196,8 @@ export default function NavbarComisionista() {
                       <button
                         key={item._id}
                         type="button"
-                        onClick={() => { marcarLeida(item._id); goToNotifications(); }}
-                        className={`w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-b-0 transition ${!item.leida ? "bg-blue-50/40" : ""}`}
+                        onClick={() => handleNotifClick(item)}
+                        className={`w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-b-0 transition group ${!item.leida ? "bg-blue-50/40" : ""}`}
                       >
                         <div className="flex items-start gap-3">
                           <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${cfg.color}`} />
@@ -148,9 +212,20 @@ export default function NavbarComisionista() {
                             </div>
                             <p className="mt-0.5 text-sm text-slate-600 line-clamp-2">{item.contenido}</p>
                           </div>
-                          {!item.leida && (
-                            <span className="mt-1.5 block h-2 w-2 rounded-full bg-blue-600 shrink-0" />
-                          )}
+                          <div className="flex flex-col items-center gap-1.5 shrink-0">
+                            {!item.leida && (
+                              <span className="block h-2 w-2 rounded-full bg-blue-600" />
+                            )}
+                            {/* Botón borrar — visible al hover */}
+                            <button
+                              type="button"
+                              title="Borrar notificación"
+                              onClick={(e) => handleEliminar(e, item._id)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:text-red-500 text-slate-400"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       </button>
                     );
@@ -161,9 +236,10 @@ export default function NavbarComisionista() {
           )}
         </div>
 
-        <button className="p-2 rounded-md hover:bg-slate-100">
+        {/* Mail — comentado hasta implementar mensajería */}
+        {/* <button className="p-2 rounded-md hover:bg-slate-100">
           <Mail className="h-5 w-5 text-slate-600" />
-        </button>
+        </button> */}
 
         {/* User */}
         <div className="relative" ref={userRef}>

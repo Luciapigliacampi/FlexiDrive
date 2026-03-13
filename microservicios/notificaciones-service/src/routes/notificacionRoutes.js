@@ -1,4 +1,4 @@
-//microservicios\notificaciones-service\src\routes\notificacionRoutes.js
+//microservicios/notificaciones-service/src/routes/notificacionRoutes.js
 import { Router } from 'express';
 import {
   crearNotificacion,
@@ -6,6 +6,8 @@ import {
   marcarLeida,
   marcarTodasLeidas,
   contarNoLeidas,
+  ocultarNotificacion,
+  ocultarTodasNotificaciones,
 } from '../controllers/notificacionControllers.js';
 import { authMiddleware, isInternal } from '../middlewares/authMiddlewares.js';
 
@@ -15,9 +17,11 @@ const router = Router();
 router.post('/', isInternal, crearNotificacion);
 
 // Autenticadas (frontend)
-router.get('/',                  authMiddleware, getNotificaciones);
-router.get('/no-leidas-count',   authMiddleware, contarNoLeidas);
-router.patch('/leer-todas',      authMiddleware, marcarTodasLeidas);
-router.patch('/:id/leer',        authMiddleware, marcarLeida);
+router.get('/',                        authMiddleware, getNotificaciones);
+router.get('/no-leidas-count',         authMiddleware, contarNoLeidas);
+router.patch('/leer-todas',            authMiddleware, marcarTodasLeidas);
+router.patch('/ocultar-todas',         authMiddleware, ocultarTodasNotificaciones);
+router.patch('/:id/leer',              authMiddleware, marcarLeida);
+router.patch('/:id/ocultar',           authMiddleware, ocultarNotificacion);
 
 export default router;

@@ -25,6 +25,7 @@ const notificacionSchema = new mongoose.Schema(
     titulo:   { type: String, required: true },
     contenido:{ type: String, required: true },
     leida:    { type: Boolean, default: false },
+    visible:    { type: Boolean, default: true },
     envioId:  { type: mongoose.Schema.Types.ObjectId, default: null },
   },
   { timestamps: true }

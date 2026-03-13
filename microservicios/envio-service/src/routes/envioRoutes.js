@@ -20,6 +20,7 @@ import {
   marcarEntregado,
   iniciarViaje,
   cancelarPorComisionista,
+  confirmarPago,
 } from '../controllers/envioControllers.js';
 
 import {
@@ -63,13 +64,12 @@ router.get('/agenda/:comisionistaId', authMiddleware, isComisionista, getEnviosP
 router.patch('/:id/marcar-retirado',          authMiddleware, isComisionista, marcarRetirado);
 router.patch('/:id/marcar-entregado',         authMiddleware, isComisionista, marcarEntregado);
 router.patch('/:id/cancelar-comisionista',    authMiddleware, isComisionista, cancelarPorComisionista);
+router.patch('/:id/confirmar-pago',           authMiddleware, isComisionista, confirmarPago);
 router.patch('/:id/archivar',                 authMiddleware, isCliente,      archivarEnvio);
 router.patch('/:id/eliminar',                 authMiddleware, isCliente,      eliminarEnvioLogico);
 router.patch('/:id/confirmar-comisionista',   authMiddleware, isCliente,      confirmarComisionista);
 
 // ── Ruta interna para microservicios ──────────────────────────────────────
-// Usada por ia-route-service/getSeguimientoEnvio (ruta pública que no tiene JWT).
-// Protegida por isInternal (x-internal-key), mismo patrón que isCliente/isComisionista.
 router.get('/interno/:id', isInternal, getEnvioById);
 
 // ── CRUD genérico (al final para no interceptar rutas específicas) ─────────
