@@ -250,8 +250,8 @@ export default function PerfilComisionista() {
         setWarning("");
 
         const perfilData = await getMyProfile();
-        console.log("perfil completo:", perfilData);
-console.log("comisionista:", perfilData?.comisionista);
+console.log("vehiculo en perfil:", perfilData?.vehiculo);
+console.log("keys del perfil:", Object.keys(perfilData));
 
         const [
           direccionesData,

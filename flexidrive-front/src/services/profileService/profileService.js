@@ -75,3 +75,21 @@ export async function addDestinatario(payload) {
 export async function deleteDestinatario(id) {
   return _deleteDestinatario(id);
 }
+
+export async function updateDatosBancarios(datosBancarios) {
+  const res = await api.put(`${AUTH_BASE}/api/auth/update`, { datosBancarios });
+  return res?.data || {};
+}
+
+export async function clearDatosBancarios() {
+  const res = await api.put(`${AUTH_BASE}/api/auth/update`, {
+    datosBancarios: {
+      alias: "",
+      cbu: "",
+      entidadBancaria: "",
+      nroCuenta: "",
+      tipoCuenta: "",
+    },
+  });
+  return res?.data || {};
+}
