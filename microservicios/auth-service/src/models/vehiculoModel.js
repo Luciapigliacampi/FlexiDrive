@@ -13,7 +13,7 @@ const vehiculoSchema = new mongoose.Schema({
 
   marca:   { type: String, required: true },
   modelo:  { type: String, required: true },
-  patente: { type: String, required: true, unique: true },
+  patente: { type: String, required: true, unique: false },
   tipo: {
     type: String,
     enum: ['auto', 'camioneta', 'utilitario', 'furgon'],
