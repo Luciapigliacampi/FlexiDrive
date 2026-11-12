@@ -15,6 +15,7 @@ export const authMiddleware = (req, res, next) => {
   try {
     // 2. Verificamos que el token sea nuestro y esté vigente
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.step) throw new Error("Token temporal (2FA pendiente): no sirve como sesión");
     
     // 3. ¡ESTO ES CLAVE! Metemos el userId dentro del objeto 'req'
     // Así, cuando llegue a tu controlador 'updateProfile', el ID ya estará ahí.
@@ -34,7 +35,6 @@ export const isAdmin = async (req, res, next) => {
       rolId: 'admin' // Como tu ID es el string 'admin', buscamos así
     });
 
-    console.log('Relación encontrada:', relacion);
 
     if (!relacion) {
       return res.status(403).json({ 
@@ -46,4 +46,14 @@ export const isAdmin = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+// ── Uso interno entre microservicios ──────────────────────────────────────
+// Requiere el header: x-internal-key: <INTERNAL_API_KEY del .env>
+export const isInternal = (req, res, next) => {
+  const apiKey = req.headers['x-internal-key'];
+  if (!apiKey || !process.env.INTERNAL_API_KEY || apiKey !== process.env.INTERNAL_API_KEY) {
+    return res.status(403).json({ message: 'Acceso interno denegado.' });
+  }
+  next();
 };

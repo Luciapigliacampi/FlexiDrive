@@ -14,7 +14,8 @@ export const registroSchema = z.object({
     // .transform() ayuda a limpiar si mandan espacios o un "+"
     .transform(val => val.replace(/\D/g, '')),
   fecha_nacimiento: z.string().or(z.date()), // Acepta string de fecha o fecha
-  rol: z.string().min(1, "El rol es obligatorio")
+  // Solo roles públicos: "admin" nunca se puede elegir al registrarse
+  rol: z.enum(["cliente", "comisionista"], { message: "El rol debe ser cliente o comisionista" })
 });
 
 export const loginSchema = z.object({

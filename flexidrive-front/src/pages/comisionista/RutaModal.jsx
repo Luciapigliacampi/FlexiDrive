@@ -203,7 +203,7 @@ console.log("locDestino IDs completos:", locsDestino.slice(0, 5).map(l => l.id))
   getLocalidadesByProvincia(pid)
     .then((locs) => setLocOrigen(Array.isArray(locs) ? locs : []))
     .catch(() => setLocOrigen([]));
-}, [form.origen.provinciaId, open]);  // eslint-disable-line
+}, [form.origen.provinciaId, open]);
 
 useEffect(() => {
   if (!open) return;
@@ -214,7 +214,7 @@ useEffect(() => {
   getLocalidadesByProvincia(pid)
     .then((locs) => setLocDestino(Array.isArray(locs) ? locs : []))
     .catch(() => setLocDestino([]));
-}, [form.destino.provinciaId, open]);  // eslint-disable-line
+}, [form.destino.provinciaId, open]);
 
   function toggleDia(d) {
     setForm((p) => ({

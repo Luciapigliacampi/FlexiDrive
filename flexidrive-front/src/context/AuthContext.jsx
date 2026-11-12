@@ -2,6 +2,7 @@
 import { createContext, useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
+// eslint-disable-next-line react-refresh/only-export-components -- contexto junto a su Provider (solo afecta HMR en dev)
 export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {

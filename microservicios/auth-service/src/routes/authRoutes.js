@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import { register, login, verifyTotp, enableTotp, confirmTotp, resetTotp, googleLogin, updateProfile, updateComisionistaData, updateComisionistaDataTemp, approveComisionista, getMyFullProfile, updateFullProfile, disableAccount, adminDisableUser, registerVehiculo, getMyVehicles, approveVehiculo, getComisionistasHabilitados, getUserPublicInfo, getMyStatus, getPublicComisionistaProfile, updateReputacionComisionista, getMisDirecciones, addMiDireccion, deleteMiDireccion,
   getMisDestinatarios, addMiDestinatario, deleteMiDestinatario, updateVehiculo, deleteVehiculo, getDestinatarioById } from '../controllers/authControllers.js';
-import { authMiddleware, isAdmin } from '../middlewares/authMiddleware.js'; // <-- Importalo acá
+import { authMiddleware, isAdmin, isInternal } from '../middlewares/authMiddleware.js'; // <-- Importalo acá
 import { upload } from '../middlewares/uploadMiddleware.js'; // <-- 1. Importá el middleware de subida
 const router = Router();
 
@@ -13,7 +13,7 @@ router.post('/verify-totp', verifyTotp);
 // Nuevas rutas para gestión de 2FA
 router.post('/enable-totp', enableTotp);
 router.post('/confirm-totp', confirmTotp);
-router.post('/reset-totp', resetTotp); // <--- Botón "Perdí mi TOTP"
+router.post('/reset-totp', authMiddleware, isAdmin, resetTotp); // Solo admin: resetea el 2FA de un usuario
 
 router.post('/google', googleLogin);
 router.put('/update-profile', updateProfile); // Protegida con token
@@ -60,7 +60,7 @@ router.get('/status', authMiddleware, getMyStatus);
 router.get('/public-profile/:id', getPublicComisionistaProfile);
 
 // Actualizar reputación (Llamado desde el Micro de Calificaciones)
-router.patch('/update-reputacion/:id', authMiddleware, updateReputacionComisionista);
+router.patch('/update-reputacion/:id', isInternal, updateReputacionComisionista); // solo calificaciones-service
 
 // ===============================
 // Direcciones frecuentes (ORIGEN)
@@ -76,8 +76,10 @@ router.get("/destinatarios", authMiddleware, getMisDestinatarios);
 router.post("/destinatarios", authMiddleware, addMiDestinatario);
 router.delete("/destinatarios/:id", authMiddleware, deleteMiDestinatario);
 router.get("/destinatarios/:id", authMiddleware, getDestinatarioById);
+router.get("/interno/destinatarios/:id", isInternal, getDestinatarioById); // envio-service
 
 //obtener datos para micro envio
-router.get('/:id', authMiddleware, getUserPublicInfo);
+// Solo entre microservicios: devuelve nombre/teléfono/email de un usuario
+router.get('/interno/usuarios/:id', isInternal, getUserPublicInfo);
 
 export default router;

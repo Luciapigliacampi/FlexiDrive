@@ -65,6 +65,7 @@ export function ToastProvider({ children }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook junto a su Provider (solo afecta HMR en dev)
 export function useToast() {
   const ctx = useContext(ToastContext);
   if (!ctx) throw new Error("useToast debe usarse dentro de <ToastProvider>");

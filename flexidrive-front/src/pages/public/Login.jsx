@@ -1,6 +1,6 @@
 // flexidrive-front/src/pages/public/Login.jsx
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Clock, Truck, Sparkles } from "lucide-react";
+import { Clock, Truck, Sparkles, Eye, EyeOff } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { GoogleLogin } from "@react-oauth/google";
 import heroImg from "../../assets/hero.svg";
@@ -24,15 +24,20 @@ function getApiErrorMessage(err, fallback = "Ocurrió un error.") {
 export default function Login() {
   const location = useLocation();
   const avisoSesion = location.state?.aviso || "";
+  // Mensaje que manda Register al terminar: se guarda en estado para que no se pierda
+  const [avisoRegistro, setAvisoRegistro] = useState(() =>
+    location.state?.registered ? location.state?.message || "Cuenta creada correctamente." : ""
+  );
   const navigate = useNavigate();
 
   // ✅ Todos los modales arrancan cerrados — el useEffect los abre si corresponde
   const [totpOpen, setTotpOpen] = useState(false);
   const [tempToken, setTempToken] = useState("");
   const [setup2FAOpen, setSetup2FAOpen] = useState(false);
-  const [setupUserId, setSetupUserId] = useState("");
+  const [, setSetupUserId] = useState("");
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => location.state?.email || "");
+  const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -187,8 +192,7 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      if (!setupUserId) throw new Error("No se pudo identificar el usuario para generar el QR.");
-      const data = await enableTotp({ userId: setupUserId });
+      const data = await enableTotp();
       setOtpauthUrl(data?.otpauthUrl || "");
     } catch (err) {
       setError(getApiErrorMessage(err, "No se pudo generar el QR."));
@@ -203,8 +207,7 @@ export default function Login() {
   setError("");
   setLoading(true);
   try {
-    if (!setupUserId) throw new Error("No se pudo identificar el usuario.");
-    const data = await confirmTotp({ userId: setupUserId, codigoIngresado: setupCode });
+    const data = await confirmTotp({ codigoIngresado: setupCode });
 
     if (data?.requiresTotp && data?.tempToken) {
       localStorage.setItem("tempToken", data.tempToken);
@@ -262,6 +265,20 @@ export default function Login() {
                   </div>
                 )}
 
+                {avisoRegistro && (
+                  <div className="mb-4 flex items-start justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    <span>✅ {avisoRegistro}</span>
+                    <button
+                      type="button"
+                      onClick={() => setAvisoRegistro("")}
+                      className="shrink-0 text-emerald-700/70 hover:text-emerald-900"
+                      aria-label="Cerrar aviso"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
                 {avisoSesion && (
                   <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                     {avisoSesion}
@@ -276,11 +293,21 @@ export default function Login() {
                     className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
                   />
                   <label className="block text-base text-slate-700 mt-6 mb-2">Contraseña</label>
-                  <input
-                    value={password} onChange={(e) => setPassword(e.target.value)}
-                    type="password" required
-                    className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
-                  />
+                  <div className="relative">
+                    <input
+                      value={password} onChange={(e) => setPassword(e.target.value)}
+                      type={showPassword ? "text" : "password"} required
+                      className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 pr-14 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center rounded-md p-2 text-slate-600 hover:text-blue-700 hover:bg-slate-100 transition"
+                      aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                   <div className="mt-4 text-right">
                     <Link to="/auth/forgot" className="text-sm text-blue-700 hover:underline">
                       Olvidé mi contraseña

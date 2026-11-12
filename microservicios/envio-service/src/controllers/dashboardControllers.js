@@ -31,7 +31,7 @@ async function lazyUpdateFranjaTarde(comisionistaId, inicioDia, finDia) {
     .filter(e => franjaIniciada(e.franja_horaria_retiro, horaActual))
     .map(e => e._id);
   if (idsParaActivar.length > 0) {
-    await Envio.updateMany({ _id: { $in: idsParaActivar } }, { $set: { estadoId: 'EN_RETIRO' } });
+    await Envio.updateMany({ _id: { $in: idsParaActivar } }, { $set: { estadoId: 'EN_RETIRO', en_viaje_fecha: inicioDia } });
   }
   return idsParaActivar.length;
 }
@@ -108,12 +108,12 @@ export const getDashboardResumen = async (req, res, next) => {
           { estadoId: { $in: ESTADOS_ACTIVOS } },
         ],
       }),
+      // "En ruta": solo lo que es parte de un viaje en curso (tabla de estados).
+      // Demorados y retirados esperando su fecha NO están en ruta.
       Envio.countDocuments({
         comisionistaId,
-        $or: [
-          { estadoId: { $in: ESTADOS_ACTIVOS } },
-          { estadoId: 'RETIRADO', fecha_entrega: { $gte: inicioDia, $lte: finDia } },
-        ],
+        estadoId: { $in: ['EN_RETIRO', 'EN_CAMINO', 'CANCELADO_RETORNO'] },
+        eliminado: { $ne: true },
       }),
       Envio.countDocuments({
         comisionistaId,
@@ -144,6 +144,8 @@ export const getAgendaHoy = async (req, res, next) => {
         { estadoId: 'RETIRADO',  fecha_entrega: { $gte: inicioDia, $lte: finDia } },
         { estadoId: { $in: ['EN_RETIRO', 'EN_CAMINO', 'CANCELADO_RETORNO'] } },
         { estadoId: { $in: ['DEMORADO_RETIRO', 'DEMORADO_ENTREGA'] } },
+        // Cancelados con el paquete en mano: pendientes de devolución al origen
+        { estadoId: 'CANCELADO', requiere_devolucion: true },
       ],
       eliminado: { $ne: true },
     });
@@ -156,9 +158,7 @@ export const getAgendaHoy = async (req, res, next) => {
       getTripPlanActivo(comisionistaId, token),
       ...usuarioIds.map(async (uid) => {
         try {
-          const { data } = await axios.get(`${AUTH_BASE}/api/auth/${uid}`, {
-            headers: { Authorization: token },
-          });
+          const { data } = await axios.get(`${AUTH_BASE}/api/auth/interno/usuarios/${uid}`, { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY } });
           return [uid, `${data.nombre} ${data.apellido}`.trim()];
         } catch {
           return [uid, null];
@@ -266,13 +266,42 @@ export const finalizarViaje = async (req, res, next) => {
     //    - Falta entregar → DEMORADO_ENTREGA  (buildParadas lo incluye como parada ENTREGA)
     const [resRetiro, resCamino] = await Promise.all([
       // Pendientes de retiro → DEMORADO_RETIRO
+      // EN_RETIRO siempre (era parte del viaje); ASIGNADO solo si el retiro era
+      // para hoy o antes — los programados para días futuros siguen a tiempo.
       Envio.updateMany(
-        { comisionistaId, estadoId: { $in: ['EN_RETIRO', 'ASIGNADO'] } },
+        {
+          comisionistaId,
+          $or: [
+            { estadoId: 'EN_RETIRO' },
+            {
+              estadoId: 'ASIGNADO',
+              $or: [
+                { fecha_retiro: { $lte: finDia } },
+                { fecha_retiro: null },
+                { fecha_retiro: { $exists: false } },
+              ],
+            },
+          ],
+        },
         { $set: { estadoId: 'DEMORADO_RETIRO', estadoId_previo: 'EN_RETIRO' } }
       ),
       // Pendientes de entrega → DEMORADO_ENTREGA
+      // EN_CAMINO siempre; RETIRADO solo si la entrega era para hoy o antes.
       Envio.updateMany(
-        { comisionistaId, estadoId: { $in: ['EN_CAMINO', 'RETIRADO'] } },
+        {
+          comisionistaId,
+          $or: [
+            { estadoId: 'EN_CAMINO' },
+            {
+              estadoId: 'RETIRADO',
+              $or: [
+                { fecha_entrega: { $lte: finDia } },
+                { fecha_entrega: null },
+                { fecha_entrega: { $exists: false } },
+              ],
+            },
+          ],
+        },
         { $set: { estadoId: 'DEMORADO_ENTREGA', estadoId_previo: 'EN_CAMINO' } }
       ),
     ]);

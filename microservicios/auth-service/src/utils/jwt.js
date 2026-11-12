@@ -1,7 +1,8 @@
 //microservicios\auth-service\src\utils\jwt.js
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretoflexidrive123';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error("Falta JWT_SECRET en el .env");
 
 export const generarTokenTemporal = (payload) => {
   // Token de 5 minutos para el flujo de 2FA

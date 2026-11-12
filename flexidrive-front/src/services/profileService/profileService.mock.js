@@ -60,7 +60,7 @@ function readJSON(key, fallback) {
 function writeJSON(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
-  } catch {}
+  } catch { /* localStorage no disponible: se ignora */ }
 }
 
 export async function getMyProfile() {

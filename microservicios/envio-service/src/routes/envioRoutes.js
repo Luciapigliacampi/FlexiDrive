@@ -12,6 +12,7 @@ import {
   getEnviosPorFecha,
   getEnvioById,
   patchEnvioTecnico,
+  patchEnvioInterno,
   confirmarComisionista,
   archivarEnvio,
   eliminarEnvioLogico,
@@ -21,6 +22,7 @@ import {
   iniciarViaje,
   cancelarPorComisionista,
   confirmarPago, archivarEnvioComisionista,
+  marcarEnDevolucion, marcarDevuelto,
 } from '../controllers/envioControllers.js';
 
 import {
@@ -63,6 +65,8 @@ router.get('/agenda/:comisionistaId', authMiddleware, isComisionista, getEnviosP
 // ── Acciones de estado específicas (ANTES de /:id para no ser interceptadas)
 router.patch('/:id/marcar-retirado',          authMiddleware, isComisionista, marcarRetirado);
 router.patch('/:id/marcar-entregado',         authMiddleware, isComisionista, marcarEntregado);
+router.patch('/:id/marcar-en-devolucion',     authMiddleware, isComisionista, marcarEnDevolucion);
+router.patch('/:id/marcar-devuelto',          authMiddleware, isComisionista, marcarDevuelto);
 router.patch('/:id/cancelar-comisionista',    authMiddleware, isComisionista, cancelarPorComisionista);
 router.patch('/:id/confirmar-pago',           authMiddleware, isComisionista, confirmarPago);
 router.patch('/:id/archivar',                 authMiddleware, isCliente,      archivarEnvio);
@@ -72,6 +76,7 @@ router.patch('/:id/archivar-comisionista', authMiddleware, isComisionista, archi
 
 // ── Ruta interna para microservicios ──────────────────────────────────────
 router.get('/interno/:id', isInternal, getEnvioById);
+router.patch('/interno/:id', isInternal, patchEnvioInterno);
 
 // ── CRUD genérico (al final para no interceptar rutas específicas) ─────────
 router.get('/:id',    authMiddleware, getEnvioById);

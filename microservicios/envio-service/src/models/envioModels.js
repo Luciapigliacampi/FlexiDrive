@@ -59,6 +59,13 @@ const envioSchema = new mongoose.Schema({
   polyline_especifica: { type: String, default: "" },
 
   archivado: { type: Boolean, default: false },
+
+  // Fecha del viaje que puso al envío en curso (EN_RETIRO / EN_CAMINO).
+  // Si es de hoy, el envío es parte del viaje actual y no se marca como demorado.
+  en_viaje_fecha: { type: Date, default: null },
+  // Cancelado con el paquete ya retirado: el comisionista debe devolverlo al origen.
+  requiere_devolucion: { type: Boolean, default: false },
+  estadoId_previo: { type: String, default: null },
   eliminado: { type: Boolean, default: false },
 
   metodo_pago_cliente: {

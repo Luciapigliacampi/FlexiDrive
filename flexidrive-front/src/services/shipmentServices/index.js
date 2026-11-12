@@ -75,6 +75,14 @@ export async function marcarEntregado(envioId) {
   return unwrap(svc.marcarEntregado(envioId));
 }
 
+export async function marcarEnDevolucion(envioId) {
+  return unwrap((svc.marcarEnDevolucion ?? real.marcarEnDevolucion)(envioId));
+}
+
+export async function marcarDevuelto(envioId) {
+  return unwrap((svc.marcarDevuelto ?? real.marcarDevuelto)(envioId));
+}
+
 export async function marcarRetirado(envioId) {
   return unwrap(svc.marcarRetirado(envioId));
 }

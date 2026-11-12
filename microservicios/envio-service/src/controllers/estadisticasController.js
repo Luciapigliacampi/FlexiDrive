@@ -1,6 +1,7 @@
 // controllers/estadisticasController.js
 import EstadisticaComisionista from "../models/estadisticaComisionistaModel.js";
 import Envio from "../models/envioModels.js";
+import { getNow } from "../utils/testDate.js";
 
 // ── Estadísticas del comisionista (tiempo real) ───────────────────────────────
 
@@ -121,7 +122,7 @@ export const getEstadisticasCliente = async (req, res) => {
     );
 
     // Envíos por mes (últimos 6 meses)
-    const ahora = new Date();
+    const ahora = getNow(); // respeta el simulador de fechas
     const meses = Array.from({ length: 6 }, (_, i) => {
       const d = new Date(ahora.getFullYear(), ahora.getMonth() - (5 - i), 1);
       return {

@@ -186,12 +186,21 @@ export const completeComisionistaTemp = async (formData) => {
   }
 };
 
-export const enableTotp = async ({ userId }) => {
-  const res = await api.post(`${AUTH_BASE}/api/auth/enable-totp`, { userId });
+// El backend identifica al usuario por el tempToken de setup (no por userId en el body)
+const setupAuthHeader = () => ({
+  Authorization: `Bearer ${localStorage.getItem("tempToken") || ""}`,
+});
+
+export const enableTotp = async () => {
+  const res = await api.post(`${AUTH_BASE}/api/auth/enable-totp`, {}, { headers: setupAuthHeader() });
   return res.data;
 };
 
-export const confirmTotp = async ({ userId, codigoIngresado }) => {
-  const res = await api.post(`${AUTH_BASE}/api/auth/confirm-totp`, { userId, codigoIngresado });
+export const confirmTotp = async ({ codigoIngresado }) => {
+  const res = await api.post(
+    `${AUTH_BASE}/api/auth/confirm-totp`,
+    { codigoIngresado },
+    { headers: setupAuthHeader() }
+  );
   return res.data;
 };

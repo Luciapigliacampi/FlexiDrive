@@ -3,9 +3,9 @@
  *
  * Inserta 40 envíos (20 por comisionista), distribuidos entre 3 clientes.
  *
- * Regla de estado:
- *   - fecha_entrega < hoy  → ENTREGADO (60%), CANCELADO (25%), DEVUELTO (15%)
- *   - fecha_entrega >= hoy → PENDIENTE (70%), CANCELADO (30%)
+ * Distribución por comisionista:
+ *   - 10 pasados (fecha_entrega < hoy): ENTREGADO (60%), CANCELADO (25%), DEVUELTO (15%)
+ *   - 10 PENDIENTES con fecha_entrega 4/3 o 5/3 (5 cada día)
  *
  * Todas las fechas como objetos Date nativos → MongoDB los guarda como ISODate.
  * NO borra nada existente — solo inserta.
@@ -16,7 +16,15 @@
 import { MongoClient, ObjectId } from "mongodb";
 import { faker } from "@faker-js/faker";
 
-const uri     = "mongodb+srv://flexidrive9098:pabKgmiueWxx57TH@cluster0.j8jsbvb.mongodb.net/?retryWrites=true&w=majority";
+// La URI se toma del .env (nunca escribir credenciales en el código). Ejecutar con:
+//   node --env-file=microservicios/auth-service/.env seed-envios-historicos.js
+import dns from "node:dns";
+dns.setServers(["8.8.8.8", "1.1.1.1"]); // el DNS del router falla con mongodb+srv
+const uri = process.env.MONGODB_URI;
+if (!uri) {
+  console.error("❌ Falta MONGODB_URI. Ejecutá: node --env-file=microservicios/auth-service/.env seed-envios-historicos.js");
+  process.exit(1);
+}
 const DB_NAME = "flexidrive_fake";
 
 faker.seed(20260317);
@@ -92,22 +100,27 @@ const ESTADOS_PASADOS = [
   { weight: 15, value: "DEVUELTO"  },
 ];
 
-const ESTADOS_FUTUROS = [
-  { weight: 70, value: "PENDIENTE" },
-  { weight: 30, value: "CANCELADO" },
-];
-
 // ─── Fechas ───────────────────────────────────────────────────────────────────
 
 const HOY = new Date("2026-03-13T00:00:00.000Z");
 
-// 14 pasados por comisionista: creación entre sept/2025 y 12/3/2026
+// 10 pasados por comisionista: creación entre sept/2025 y 10/3/2026
 const DESDE_PASADO = new Date("2025-09-01T00:00:00.000Z");
-const HASTA_PASADO = new Date("2026-03-10T23:59:59.000Z"); // creación máx 10/3 → entrega cae antes del 13/3
+const HASTA_PASADO = new Date("2026-03-10T23:59:59.000Z");
 
-// 6 futuros por comisionista: creación a partir de hoy
-const DESDE_FUTURO = new Date("2026-03-13T00:00:00.000Z");
-const HASTA_FUTURO = new Date("2026-03-20T23:59:59.000Z");
+// Fechas de entrega fijas para los 10 PENDIENTES (5 el 4/3, 5 el 5/3)
+const FECHAS_PENDIENTES = [
+  new Date("2026-03-04T00:00:00.000Z"),
+  new Date("2026-03-04T00:00:00.000Z"),
+  new Date("2026-03-04T00:00:00.000Z"),
+  new Date("2026-03-04T00:00:00.000Z"),
+  new Date("2026-03-04T00:00:00.000Z"),
+  new Date("2026-03-05T00:00:00.000Z"),
+  new Date("2026-03-05T00:00:00.000Z"),
+  new Date("2026-03-05T00:00:00.000Z"),
+  new Date("2026-03-05T00:00:00.000Z"),
+  new Date("2026-03-05T00:00:00.000Z"),
+];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -140,10 +153,10 @@ function generarNroEnvio() {
 
 // ─── Constantes de cantidad ───────────────────────────────────────────────────
 
-const POR_COMISIONISTA = 20;
-const PASADOS_POR_COM  = 14;
-const FUTUROS_POR_COM  = 6;
-const TOTAL            = COMISIONISTAS.length * POR_COMISIONISTA; // 40
+const POR_COMISIONISTA  = 20;
+const PASADOS_POR_COM   = 10;
+const PENDIENTES_POR_COM = 10;
+const TOTAL             = COMISIONISTAS.length * POR_COMISIONISTA; // 40
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
@@ -156,7 +169,7 @@ async function run() {
     console.log(`Conectado a ${DB_NAME}\n`);
 
     // Evitar nro_envio duplicados
-    const existentes    = await db.collection("envios").find({}, { projection: { nro_envio: 1 } }).toArray();
+    const existentes     = await db.collection("envios").find({}, { projection: { nro_envio: 1 } }).toArray();
     const nrosExistentes = new Set(existentes.map((e) => e.nro_envio));
 
     const nrosSet = new Set();
@@ -173,7 +186,8 @@ async function run() {
 
     for (const comisionista of COMISIONISTAS) {
       for (let i = 0; i < POR_COMISIONISTA; i++) {
-        const esPasado = i < PASADOS_POR_COM;
+        const esPasado    = i < PASADOS_POR_COM;       // primeros 10: históricos
+        const esPendiente = !esPasado;                  // últimos 10: PENDIENTE
 
         const _id      = new ObjectId();
         const cliente  = CLIENTES[i % CLIENTES.length];
@@ -184,21 +198,23 @@ async function run() {
         let fechaCreacion, fechaEntrega;
 
         if (esPasado) {
-          // Creación en el pasado; entrega = creación + 1..4 días (siempre < hoy)
+          // Creación en el pasado; entrega = creación + 1..3 días (siempre < hoy)
           fechaCreacion = iso(faker.date.between({ from: DESDE_PASADO, to: HASTA_PASADO }));
           fechaEntrega  = iso(addDays(fechaCreacion, faker.number.int({ min: 1, max: 3 })));
           // Asegurar que fechaEntrega quede antes de hoy
           if (fechaEntrega >= HOY) fechaEntrega = iso(addDays(HOY, -1));
         } else {
-          // Creación hoy o prox. días; entrega = hoy + 0..30 días (>= hoy)
-          fechaCreacion = iso(faker.date.between({ from: DESDE_FUTURO, to: HASTA_FUTURO }));
-          fechaEntrega  = iso(addDays(HOY, faker.number.int({ min: 0, max: 30 })));
+          // PENDIENTE: creación antes de la fecha de entrega, entrega fija 4/3 o 5/3
+          const pendienteIdx = i - PASADOS_POR_COM; // 0..9
+          fechaEntrega  = iso(FECHAS_PENDIENTES[pendienteIdx]);
+          // Creación entre 1 y 3 días antes de la fecha de entrega
+          fechaCreacion = iso(addDays(fechaEntrega, -faker.number.int({ min: 1, max: 3 })));
         }
 
         // ── Estado ────────────────────────────────────────────────────────────
         const estadoId = esPasado
           ? faker.helpers.weightedArrayElement(ESTADOS_PASADOS)
-          : faker.helpers.weightedArrayElement(ESTADOS_FUTUROS);
+          : "PENDIENTE";
 
         const cantPaquetes = faker.number.int({ min: 1, max: 4 });
         const dirOrigen    = buildDir(comisionista.origen.localidadId, comisionista.origen.localidadNombre, comisionista.origen.provinciaNombre);
@@ -337,7 +353,7 @@ async function run() {
     console.log(`✅ ${enviosToInsert.length} envíos insertados`);
 
     const resumen = enviosToInsert.reduce((acc, e) => {
-      const tipo = e.archivado ? `${e.estadoId} (pasado)` : `${e.estadoId} (futuro)`;
+      const tipo = e.archivado ? `${e.estadoId} (pasado)` : `${e.estadoId} (pendiente)`;
       acc[tipo] = (acc[tipo] || 0) + 1;
       return acc;
     }, {});

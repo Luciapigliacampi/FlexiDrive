@@ -189,7 +189,6 @@ export default function TrackingEnvio() {
     actionError,
     setActionError,
     waLink,
-    setWaLink,
     handleCancelar,
     handleArchivar,
     handleEliminar,

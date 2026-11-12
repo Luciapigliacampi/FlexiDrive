@@ -24,6 +24,7 @@ export function setupWebSocket(server) {
     let userId;
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      if (decoded.step) throw new Error("Token temporal");
       userId = String(decoded.userId || decoded.id || decoded._id);
     } catch {
       ws.close(1008, 'Token inválido');

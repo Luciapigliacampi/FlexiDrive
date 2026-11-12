@@ -82,6 +82,13 @@ export const marcarRetirado = (envioId) =>
 export const marcarEntregado = (envioId) =>
   api.patch(`${ENVIO_BASE}/api/envios/${envioId}/marcar-entregado`);
 
+// Devolución: CANCELADO (con paquete retirado) → RUMBO ORIGEN → DEVUELTO
+export const marcarEnDevolucion = (envioId) =>
+  api.patch(`${ENVIO_BASE}/api/envios/${envioId}/marcar-en-devolucion`);
+
+export const marcarDevuelto = (envioId) =>
+  api.patch(`${ENVIO_BASE}/api/envios/${envioId}/marcar-devuelto`);
+
 export const iniciarViaje = (fecha) =>
   api.post(`${ENVIO_BASE}/api/envios/comisionista/dashboard/iniciar-viaje`, { fecha });
 

@@ -9,6 +9,7 @@ export function auth(req, res, next) {
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (payload.step) throw new Error("Token temporal (2FA pendiente): no sirve como sesión");
 
     // FIX: el auth-service puede generar el token con distintos nombres para el id.
     // Normalizamos a req.user.id sin importar cuál use.

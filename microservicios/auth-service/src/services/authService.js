@@ -6,7 +6,6 @@ import Rol from '../models/roleModel.js';
 import Comisionista from '../models/comisionistaModel.js';
 import Vehiculo from '../models/vehiculoModel.js';
 import speakeasy from 'speakeasy';
-import qrcode from 'qrcode-terminal';
 import { OAuth2Client } from 'google-auth-library';
 import { generarTokenTemporal, generarTokenSesion, verificarToken } from '../utils/jwt.js';
 
@@ -200,6 +199,7 @@ export const verifyTotp = async ({ tempToken, codigoIngresado }) => {
 export const enableTotp = async (userId) => {
   const usuario = await Usuario.findById(userId);
   if (!usuario) throw new Error('Usuario no encontrado');
+  if (usuario.totpSecret) throw new Error('El 2FA ya está activo para este usuario.');
 
   // 1. Generar secreto y ASEGURAR que sea base32 puro
   const secret = speakeasy.generateSecret({ length: 20 });
@@ -211,16 +211,6 @@ export const enableTotp = async (userId) => {
   // 3. Guardar en la DB
   usuario.tempTotpSecret = secretBase32;
   await usuario.save();
-
-  // 4. Mostrar en consola
-  console.log("\n------------------------------------------------");
-  console.log(`💾 Secreto Guardado: ${secretBase32}`);
-  console.log(`🚀 ESCANEA ESTE QR:`);
-
-  // Usamos la URL construida manualmente para evitar errores de la librería
-  qrcode.generate(otpauthUrl, { small: true });
-
-  console.log("------------------------------------------------\n");
 
   return {
     message: 'Escanea el QR para activar 2FA.',

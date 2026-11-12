@@ -70,6 +70,7 @@ export function ConfirmProvider({ children }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook junto a su Provider (solo afecta HMR en dev)
 export function useConfirm() {
   const ctx = useContext(ConfirmContext);
   if (!ctx) throw new Error("useConfirm debe usarse dentro de <ConfirmProvider>");

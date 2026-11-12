@@ -2,7 +2,15 @@ import { MongoClient, ObjectId } from "mongodb";
 import { faker } from "@faker-js/faker";
 import bcrypt from "bcrypt";
 
-const uri = "mongodb+srv://flexidrive9098:pabKgmiueWxx57TH@cluster0.j8jsbvb.mongodb.net/?retryWrites=true&w=majority";
+// Se toma de la variable de entorno. Ejecutar con:
+//   node --env-file=microservicios/auth-service/.env seedDemoData.js
+import dns from "node:dns";
+dns.setServers(["8.8.8.8", "1.1.1.1"]); // el DNS del router falla con mongodb+srv
+const uri = process.env.MONGODB_URI;
+if (!uri) {
+  console.error("❌ Falta MONGODB_URI. Ejecutá: node --env-file=microservicios/auth-service/.env seedDemoData.js");
+  process.exit(1);
+}
 
 const DB_NAME = "flexidrive_fake";
 
@@ -905,7 +913,7 @@ async function seed() {
       "rol", "usuarios", "usuarioxrol", "comisionista", "vehiculos",
       "tripplans", "envios", "envioXComisionista", "rutasOptimas",
       "notificaciones", "estadisticacomisionistas", "calificaciones",
-      "destinatarios", "direccionfrecuentes", "estadisticascliente",
+      "destinatarios", "direccionesFrecuentes", "estadisticascliente",
     ];
 
     console.log("Recreando colecciones...");
@@ -920,16 +928,42 @@ async function seed() {
     console.log("Generando usuarios...");
     const clientes = await generarUsuariosClientes();
     const comisionistas = await generarUsuariosComisionistas();
-    const usuarios = [...clientes, ...comisionistas];
+
+    // Usuarios demo con email fijo (contraseña: 123456)
+    clientes[0].email = "cliente@flexidrive.com";
+    comisionistas[0].email = "comisionista@flexidrive.com";
+    const admin = {
+      _id: new ObjectId(),
+      nombre: "Admin",
+      apellido: "FlexiDrive",
+      email: "admin@flexidrive.com",
+      contraseña_hash: await generarPasswordHashFake(),
+      estado: "activo",
+      dni: generarDni(),
+      fecha_nacimiento: new Date("1990-01-01"),
+      fecha_registro: randomPastDateReal(200),
+      telefono: generarTelefono(),
+      totpSecret: null,
+      tempTotpSecret: null,
+    };
+    const usuarios = [...clientes, ...comisionistas, admin];
 
     console.log("Generando usuarioxrol...");
     const usuarioxrol = generarUsuarioxRol(clientes, comisionistas);
+    usuarioxrol.push({
+      _id: new ObjectId(),
+      usuarioId: admin._id,
+      rolId: "admin",
+      creado_en: admin.fecha_registro,
+    });
 
     console.log("Generando perfiles de comisionista...");
     const perfilesComisionista = generarPerfilesComisionista(comisionistas);
+    perfilesComisionista[0].verificado = true;
 
     console.log("Generando vehículos...");
     const vehiculos = generarVehiculos(comisionistas);
+    vehiculos[0].verificado = true;
     const vehiculosPorComisionista = Object.fromEntries(
       vehiculos.map((v) => [String(v.comisionistaId), v])
     );
@@ -983,7 +1017,7 @@ async function seed() {
     await db.collection("notificaciones").insertMany(notificaciones);
     await db.collection("estadisticacomisionistas").insertMany(estadisticas);
     await db.collection("destinatarios").insertMany(destinatarios);
-    await db.collection("direccionfrecuentes").insertMany(direccionfrecuentes);
+    await db.collection("direccionesFrecuentes").insertMany(direccionfrecuentes);
     await db.collection("calificaciones").insertMany(calificaciones);
     await db.collection("estadisticascliente").insertMany(estadisticasCliente);
 

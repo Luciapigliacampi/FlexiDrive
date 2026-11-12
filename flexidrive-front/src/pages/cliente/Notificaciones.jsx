@@ -68,6 +68,7 @@ export default function PaginaNotificaciones() {
     setCargando(false);
   }, [fetchTodasNotificaciones]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial de datos al montar
   useEffect(() => { cargar(); }, [cargar]);
 
   function handleClick(n) {

@@ -12,7 +12,7 @@ export const crearCalificacion = async (req, res, next) => {
         if (existe) return res.status(400).json({ message: "Este envío ya fue calificado." });
 
         // 2. Consultar datos del envío al Micro de Envíos para obtener el receptorId (Marta)
-        const resEnvio = await axios.get(`http://localhost:3001/api/envios/${envioId}`, {
+        const resEnvio = await axios.get(`${process.env.ENVIO_SERVICE_URL || "http://localhost:3001"}/api/envios/${envioId}`, {
             headers: { Authorization: req.headers.authorization }
         });
         const envio = resEnvio.data;
@@ -46,9 +46,9 @@ export const crearCalificacion = async (req, res, next) => {
 
         // 5. Notificar al Micro de Auth (Puerto 3000)
         try {
-            await axios.patch(`http://localhost:3000/api/auth/update-reputacion/${envio.comisionistaId}`,
+            await axios.patch(`${process.env.AUTH_SERVICE_URL || "http://localhost:3000"}/api/auth/update-reputacion/${envio.comisionistaId}`,
                 { promedio: nuevoPromedio.toFixed(1) },
-                { headers: { Authorization: req.headers.authorization } }
+                { headers: { "x-internal-key": process.env.INTERNAL_API_KEY } }
             );
             console.log("✅ Promedio actualizado en Micro de Auth");
         } catch (error) {
@@ -109,9 +109,9 @@ export const actualizarCalificacion = async (req, res, next) => {
     const promedio = todas.reduce((acc, c) => acc + c.puntuacion, 0) / todas.length;
     try {
       await axios.patch(
-        `http://localhost:3000/api/auth/update-reputacion/${cal.receptorId}`,
+        `${process.env.AUTH_SERVICE_URL || "http://localhost:3000"}/api/auth/update-reputacion/${cal.receptorId}`,
         { promedio: promedio.toFixed(1) },
-        { headers: { Authorization: req.headers.authorization } }
+        { headers: { "x-internal-key": process.env.INTERNAL_API_KEY } }
       );
     } catch {}
 

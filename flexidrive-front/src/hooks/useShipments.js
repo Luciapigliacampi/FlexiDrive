@@ -75,7 +75,7 @@ export function useEnvioAcciones({ onSuccess, modo = "cliente" } = {}) {
         if (!alive) return;
         setVehiculos(arr);
         if (!vehiculoId && arr.length === 1) setVehiculoId(arr[0]._id || arr[0].id || "");
-      } catch {}
+      } catch { /* sin vehículos: se deja la lista vacía */ }
     })();
     return () => { alive = false; };
   }, [modo]);

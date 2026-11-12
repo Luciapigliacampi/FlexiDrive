@@ -9,6 +9,7 @@
 import cron from 'node-cron';
 import Envio from '../models/envioModels.js';
 import { getNow } from '../utils/testDate.js';
+import { marcarDemoradosPorFecha } from '../utils/estadosAutomaticos.js';
 
 export async function cancelarVencidos() {
   const ahora = getNow();
@@ -40,6 +41,15 @@ export async function cancelarVencidos() {
     }
   } catch (error) {
     console.error('❌ [JOB] Error al cancelar envíos vencidos:', error.message);
+  }
+
+  // Demorados por fecha: pasó la fecha de retiro/entrega y no hay viaje iniciado hoy
+  try {
+    const { demoradosRetiro, demoradosEntrega } = await marcarDemoradosPorFecha();
+    if (demoradosRetiro || demoradosEntrega)
+      console.log(`⏰ [JOB] Demorados por fecha → retiro: ${demoradosRetiro}, entrega: ${demoradosEntrega}`);
+  } catch (error) {
+    console.error('❌ [JOB] Error al marcar demorados:', error.message);
   }
 }
 

@@ -66,7 +66,8 @@ const PRESET_RANGES = [
 ];
 
 function calcularRango(preset) {
-  const hoy = new Date();
+  // "Hoy" respeta el simulador de fechas (TestDatePanel) cuando está activo
+  const hoy = new Date(`${getTodayString()}T12:00:00`);
   hoy.setHours(0, 0, 0, 0);
 
   const fmt = (d) => d.toISOString().slice(0, 10);
@@ -133,6 +134,8 @@ export default function DashboardComisionista() {
 
   // ── Filtros de estadísticas ───────────────────────────────────────────────
   const [statsPreset, setStatsPreset] = useState("30d");
+  const statsPresetRef = useRef("30d");
+  useEffect(() => { statsPresetRef.current = statsPreset; }, [statsPreset]);
   const [statsDesde, setStatsDesde] = useState(() => calcularRango("30d").desde);
   const [statsHasta, setStatsHasta] = useState(() => calcularRango("30d").hasta);
   const [showFiltroStats, setShowFiltroStats] = useState(false);
@@ -381,6 +384,16 @@ export default function DashboardComisionista() {
 
       if (nuevaFecha) setFechaHoy(nuevaFecha);
       else setFechaHoy(getTodayString());
+
+      // Recalcular el rango de estadísticas con la nueva fecha simulada
+      const preset = statsPresetRef.current;
+      if (preset !== "custom") {
+        const rango = calcularRango(preset);
+        if (rango) {
+          setStatsDesde(rango.desde);
+          setStatsHasta(rango.hasta);
+        }
+      }
 
       cargarAgenda();
       cargarOGenerarRuta(true);
@@ -1044,7 +1057,7 @@ export default function DashboardComisionista() {
               </div>
             ) : !ruta ? (
               <div className="grid h-[260px] place-items-center rounded-md bg-slate-100 text-sm text-slate-400">
-                Sin envíos para hoy
+                Sin envíos para mostrar
               </div>
             ) : (
               <MapaRutaOptimizada
@@ -1068,12 +1081,9 @@ function AgendaRow({ row, actionLoading, onRetirar, onEntregar }) {
   const estadoKey = toEstadoKey(row.estado);
   const isLoading = (k) => actionLoading === `${row.id}_${k}`;
 
-  const puedeRetirar = ["ASIGNADO", "EN_RETIRO", "DEMORADO_RETIRO"].includes(
-    row.estado
-  );
-  const puedeEntregar = ["RETIRADO", "EN_CAMINO", "DEMORADO_ENTREGA"].includes(
-    row.estado
-  );
+  // Tabla de estados: se retira estando EN RETIRO y se entrega estando EN CAMINO
+  const puedeRetirar = row.estado === "EN_RETIRO";
+  const puedeEntregar = row.estado === "EN_CAMINO";
 
   return (
     <tr className="border-t border-slate-100 text-sm hover:bg-slate-50">

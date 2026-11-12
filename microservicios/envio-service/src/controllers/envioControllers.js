@@ -2,6 +2,7 @@
 import Envio from '../models/envioModels.js';
 import EnvioXComisionista from '../models/envioXcomisionistaModel.js';
 import axios from 'axios';
+import { marcarDemoradosPorFecha } from '../utils/estadosAutomaticos.js';
 import {
   getNow,
   getDayRange,
@@ -115,6 +116,8 @@ export const aceptarEnvio = async (req, res, next) => {
     const envio = await Envio.findById(envioId);
     if (!envio || envio.estadoId !== 'PENDIENTE')
       return res.status(400).json({ message: 'El envío ya no está disponible o no existe.' });
+    if (String(envio.comisionistaId) !== String(comisionistaId))
+      return res.status(403).json({ message: 'Este envío no está dirigido a vos.' });
 
     let viajeYaIniciado = false;
     try {
@@ -145,6 +148,21 @@ export const aceptarEnvio = async (req, res, next) => {
         ? 'EN_RETIRO'
         : 'ASIGNADO';
 
+    // Atómico: solo pasa de PENDIENTE → aceptado si nadie lo cambió entre medio
+    // (evita que dos pedidos simultáneos acepten el mismo envío).
+    const cambios = { estadoId: estadoInicial };
+    if (estadoInicial === 'EN_RETIRO') cambios.en_viaje_fecha = getDayRange().inicioDia;
+    if (fecha_retiro)          cambios.fecha_retiro          = new Date(fecha_retiro + 'T12:00:00');
+    if (franja_horaria_retiro) cambios.franja_horaria_retiro = franja_horaria_retiro;
+
+    const aceptado = await Envio.findOneAndUpdate(
+      { _id: envioId, estadoId: 'PENDIENTE', comisionistaId },
+      { $set: cambios },
+      { new: true }
+    );
+    if (!aceptado)
+      return res.status(409).json({ message: 'El envío ya fue aceptado o dejó de estar disponible.' });
+
     const nuevaAsignacion = new EnvioXComisionista({
       comisionistaId,
       envioId,
@@ -153,12 +171,6 @@ export const aceptarEnvio = async (req, res, next) => {
       tripPlanId: envio.tripPlanId || null,
     });
     await nuevaAsignacion.save();
-
-    envio.comisionistaId = comisionistaId;
-    envio.estadoId       = estadoInicial;
-    if (fecha_retiro)          envio.fecha_retiro          = new Date(fecha_retiro + 'T12:00:00');
-    if (franja_horaria_retiro) envio.franja_horaria_retiro = franja_horaria_retiro;
-    await envio.save();
 
     notifEnvioAceptado({ userId: String(envio.usuarioId), envioId: String(envio._id), nroEnvio: envio.nro_envio, comisionistaNombre: 'un comisionista' });
 
@@ -179,13 +191,12 @@ export const actualizarEstadoEnvio = async (req, res, next) => {
     const { envioId, nuevoEstado } = req.body;
     const comisionistaId = req.userId;
 
+    // Solo las transiciones manuales de la tabla de estados. Las automáticas
+    // (iniciar/finalizar viaje, demorados por fecha) y las cancelaciones
+    // tienen sus propios endpoints.
     const TRANSICIONES_VALIDAS = {
-      ASIGNADO:          ['EN_RETIRO', 'CANCELADO'],
-      EN_RETIRO:         ['RETIRADO', 'EN_CAMINO', 'CANCELADO'],
-      RETIRADO:          ['EN_CAMINO', 'CANCELADO_RETORNO'],
-      EN_CAMINO:         ['ENTREGADO', 'CANCELADO_RETORNO'],
-      DEMORADO_RETIRO:   ['EN_CAMINO', 'CANCELADO'],
-      DEMORADO_ENTREGA:  ['ENTREGADO', 'CANCELADO_RETORNO'],
+      EN_RETIRO:         ['RETIRADO'],
+      EN_CAMINO:         ['ENTREGADO'],
       CANCELADO_RETORNO: ['DEVUELTO'],
     };
 
@@ -255,19 +266,19 @@ export const getHistorial = async (req, res, next) => {
     const [nombresComisionistas, nombresDestinatarios, nombresClientes] = await Promise.all([
       Promise.all(comisionistaIds.map(async (cId) => {
         try {
-          const { data } = await axios.get(`${AUTH_BASE}/api/auth/${cId}`, { headers: { Authorization: token } });
+          const { data } = await axios.get(`${AUTH_BASE}/api/auth/interno/usuarios/${cId}`, { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY } });
           return [cId, `${data.nombre} ${data.apellido}`.trim()];
         } catch { return [cId, null]; }
       })),
       Promise.all(destinatarioIds.map(async (dId) => {
         try {
-          const { data } = await axios.get(`${AUTH_BASE}/api/auth/destinatarios/${dId}`, { headers: { Authorization: token } });
+          const { data } = await axios.get(`${AUTH_BASE}/api/auth/interno/destinatarios/${dId}`, { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY } });
           return [dId, `${data.apellido} ${data.nombre}`.trim()];
         } catch { return [dId, null]; }
       })),
       Promise.all(clienteIds.map(async (uId) => {
         try {
-          const { data } = await axios.get(`${AUTH_BASE}/api/auth/${uId}`, { headers: { Authorization: token } });
+          const { data } = await axios.get(`${AUTH_BASE}/api/auth/interno/usuarios/${uId}`, { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY } });
           return [uId, `${data.nombre} ${data.apellido}`.trim()];
         } catch { return [uId, null]; }
       })),
@@ -356,23 +367,30 @@ export const cancelarEnvio = async (req, res, next) => {
       try {
         const AUTH_BASE = process.env.AUTH_SERVICE_URL || 'http://localhost:3000';
         const { data: comisionista } = await axios.get(
-          `${AUTH_BASE}/api/auth/usuarios/${envio.comisionistaId}`,
-          { headers: { Authorization: req.headers.authorization } }
+          `${AUTH_BASE}/api/auth/interno/usuarios/${envio.comisionistaId}`,
+          { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY } }
         );
         const msj = `Hola ${comisionista.nombre}, el envío ${envio.nro_envio} fue cancelado. ¿Podés coordinar la devolución?`;
         waLink = `https://wa.me/${comisionista.telefono}?text=${encodeURIComponent(msj)}`;
         notasExtra = ` [CANCELADO EN TRÁNSITO - DEVOLVER A: ${comisionista.telefono}]`;
       } catch {}
 
+      // Tabla de estados: pasa a CANCELADO; el comisionista luego lo marca
+      // "en devolución" (RUMBO ORIGEN) con el viaje iniciado, y finalmente DEVUELTO.
+      // (notas_adicionales es texto: se concatena, no se usa $push)
       await Envio.updateOne(
         { _id: id },
-        { $set: { estadoId: 'CANCELADO_RETORNO' }, ...(notasExtra ? { $push: { notas_adicionales: notasExtra } } : {}) }
+        { $set: {
+          estadoId: 'CANCELADO',
+          requiere_devolucion: true,
+          ...(notasExtra ? { notas_adicionales: `${envio.notas_adicionales || ''}${notasExtra}` } : {}),
+        } }
       );
-      await EnvioXComisionista.findOneAndUpdate({ envioId: id }, { $set: { estado_id: 'CANCELADO_RETORNO' } });
+      await EnvioXComisionista.findOneAndUpdate({ envioId: id }, { $set: { estado_id: 'CANCELADO' } });
       if (envio.comisionistaId) {
         notifCanceladoPorCliente({ userId: String(envio.comisionistaId), envioId: String(envio._id), nroEnvio: envio.nro_envio });
       }
-      return res.status(200).json({ message: 'El paquete ya fue retirado. Se marcó como en devolución.', waLink });
+      return res.status(200).json({ message: 'Envío cancelado. Como el paquete ya fue retirado, el comisionista lo devolverá al origen.', waLink });
     }
 
     return res.status(400).json({ message: `No se puede cancelar en estado ${envio.estadoId}.` });
@@ -384,6 +402,8 @@ export const cancelarEnvio = async (req, res, next) => {
 export const getEnviosPorFecha = async (req, res, next) => {
   try {
     const { comisionistaId } = req.params;
+    if (comisionistaId !== req.userId && req.userRol !== 'admin')
+      return res.status(403).json({ message: 'Acceso denegado.' });
     const { fecha } = req.query;
     if (!fecha) return res.status(400).json({ message: 'La fecha es obligatoria.' });
     const { inicioDia, finDia } = getDayRange(fecha);
@@ -413,16 +433,52 @@ export const getEnvioById = async (req, res, next) => {
   try {
     const envio = await Envio.findById(req.params.id);
     if (!envio) return res.status(404).json({ message: 'Envío no encontrado' });
+    // Por la ruta interna (x-internal-key) no hay req.userId: se permite.
+    // Por la pública: solo el cliente dueño o el comisionista asignado.
+    if (req.userId) {
+      const esDueno        = String(envio.usuarioId)      === String(req.userId);
+      const esComisionista = String(envio.comisionistaId) === String(req.userId);
+      if (!esDueno && !esComisionista)
+        return res.status(403).json({ message: 'No tenés permiso para ver este envío.' });
+    }
     res.status(200).json(envio);
   } catch (error) {
     next(error);
   }
 };
 
+// Toma de req.body solo los campos permitidos (el resto se ignora)
+const pickCampos = (body, permitidos) =>
+  Object.fromEntries(Object.entries(body || {}).filter(([k]) => permitidos.includes(k)));
+
+// PATCH /:id (usuario) → solo el comisionista asignado, solo fecha_retiro
 export const patchEnvioTecnico = async (req, res, next) => {
   try {
+    const cambios = pickCampos(req.body, ['fecha_retiro']);
+    if (!Object.keys(cambios).length)
+      return res.status(400).json({ message: 'No hay campos permitidos para actualizar.' });
+
+    const envioActualizado = await Envio.findOneAndUpdate(
+      { _id: req.params.id, comisionistaId: req.userId },
+      { $set: cambios },
+      { new: true, runValidators: true }
+    );
+    if (!envioActualizado) return res.status(404).json({ message: 'Envío no encontrado o no autorizado.' });
+    res.status(200).json(envioActualizado);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PATCH /interno/:id (microservicios, x-internal-key) → solo datos técnicos de ruta
+export const patchEnvioInterno = async (req, res, next) => {
+  try {
+    const cambios = pickCampos(req.body, ['polyline_especifica']);
+    if (!Object.keys(cambios).length)
+      return res.status(400).json({ message: 'No hay campos permitidos para actualizar.' });
+
     const envioActualizado = await Envio.findByIdAndUpdate(
-      req.params.id, { $set: req.body }, { new: true }
+      req.params.id, { $set: cambios }, { new: true, runValidators: true }
     );
     if (!envioActualizado) return res.status(404).json({ message: 'Envío no encontrado.' });
     res.status(200).json(envioActualizado);
@@ -541,8 +597,9 @@ export const marcarRetirado = async (req, res, next) => {
     if (!envio) return res.status(404).json({ message: 'Envío no encontrado.' });
     if (String(envio.comisionistaId) !== comisionistaId)
       return res.status(403).json({ message: 'No tenés permiso.' });
-    if (!['ASIGNADO', 'EN_RETIRO', 'DEMORADO_RETIRO'].includes(envio.estadoId))
-      return res.status(400).json({ message: `No se puede marcar como retirado desde estado ${envio.estadoId}.` });
+    // Tabla de estados: solo EN RETIRO → RETIRADO (el viaje tiene que estar iniciado)
+    if (envio.estadoId !== 'EN_RETIRO')
+      return res.status(400).json({ message: `Solo se puede marcar como retirado un envío EN RETIRO (estado actual: ${envio.estadoId}). Iniciá el viaje del día.` });
 
     // Por defecto RETIRADO; si hay viaje activo siempre pasa a EN_CAMINO.
     // Esto cubre tanto envíos normales como demorados de días anteriores
@@ -554,12 +611,15 @@ export const marcarRetirado = async (req, res, next) => {
         `${RUTA_BASE}/api/rutas/activa/${comisionistaId}`,
         { headers: { Authorization: req.headers.authorization } }
       );
-      if (data?._id && data?.viaje_iniciado === true) {
+      const { finDia } = getDayRange();
+      const entregaEsHoyOAntes = !envio.fecha_entrega || new Date(envio.fecha_entrega) <= finDia;
+      if (data?._id && data?.viaje_iniciado === true && entregaEsHoyOAntes) {
         nuevoEstado = 'EN_CAMINO';
       }
     } catch { /* si no hay ruta activa o falla, queda RETIRADO */ }
 
     envio.estadoId = nuevoEstado;
+    if (nuevoEstado === 'EN_CAMINO') envio.en_viaje_fecha = getDayRange().inicioDia;
     await envio.save();
 
     await EnvioXComisionista.findOneAndUpdate(
@@ -592,8 +652,8 @@ export const marcarEntregado = async (req, res, next) => {
     if (!envio) return res.status(404).json({ message: 'Envío no encontrado.' });
     if (String(envio.comisionistaId) !== comisionistaId)
       return res.status(403).json({ message: 'No tenés permiso.' });
-    if (!['EN_CAMINO', 'RETIRADO', 'DEMORADO_ENTREGA'].includes(envio.estadoId))
-      return res.status(400).json({ message: `No se puede marcar como entregado desde estado ${envio.estadoId}.` });
+    if (envio.estadoId !== 'EN_CAMINO')
+      return res.status(400).json({ message: `Solo se puede marcar como entregado un envío EN CAMINO (estado actual: ${envio.estadoId}).` });
 
     envio.estadoId = 'ENTREGADO';
     await envio.save();
@@ -614,6 +674,9 @@ export const iniciarViaje = async (req, res, next) => {
     const comisionistaId = req.userId;
     const { inicioDia, finDia } = getDayRange(req.body.fecha);
 
+    // Lo vencido de días anteriores pasa primero a DEMORADO (y abajo se reactiva)
+    await marcarDemoradosPorFecha({ comisionistaId });
+
     // Envíos ASIGNADOS de hoy con franja mañana → EN_RETIRO
     const resManana = await Envio.updateMany(
       {
@@ -628,7 +691,7 @@ export const iniciarViaje = async (req, res, next) => {
           { franja_horaria_retiro: '00:00-12:00' },
         ],
       },
-      { $set: { estadoId: 'EN_RETIRO' } }
+      { $set: { estadoId: 'EN_RETIRO', en_viaje_fecha: inicioDia } }
     );
 
     // Envíos RETIRADOS de hoy → EN_CAMINO
@@ -638,20 +701,20 @@ export const iniciarViaje = async (req, res, next) => {
         estadoId:     'RETIRADO',
         fecha_entrega: { $gte: inicioDia, $lte: finDia },
       },
-      { $set: { estadoId: 'EN_CAMINO' } }
+      { $set: { estadoId: 'EN_CAMINO', en_viaje_fecha: inicioDia } }
     );
 
     // Envíos DEMORADOS de cualquier día → reactivar para el nuevo viaje
     // DEMORADO_RETIRO → EN_RETIRO (aún no fueron retirados)
     const resDemoradosRetiro = await Envio.updateMany(
       { comisionistaId, estadoId: 'DEMORADO_RETIRO' },
-      { $set: { estadoId: 'EN_RETIRO' } }
+      { $set: { estadoId: 'EN_RETIRO', en_viaje_fecha: inicioDia } }
     );
 
     // DEMORADO_ENTREGA → EN_CAMINO (ya fueron retirados, falta entregar)
     const resDemoradosEntrega = await Envio.updateMany(
       { comisionistaId, estadoId: 'DEMORADO_ENTREGA' },
-      { $set: { estadoId: 'EN_CAMINO' } }
+      { $set: { estadoId: 'EN_CAMINO', en_viaje_fecha: inicioDia } }
     );
 
     return res.status(200).json({
@@ -690,7 +753,7 @@ export const lazyUpdateEstados = async (req, res, next) => {
     if (idsParaActivar.length > 0) {
       const result = await Envio.updateMany(
         { _id: { $in: idsParaActivar } },
-        { $set: { estadoId: 'EN_RETIRO' } }
+        { $set: { estadoId: 'EN_RETIRO', en_viaje_fecha: inicioDia } }
       );
       activados = result.modifiedCount;
     }
@@ -724,12 +787,13 @@ export const cancelarPorComisionista = async (req, res, next) => {
     }
 
     if (CON_RETORNO.includes(envio.estadoId)) {
-      await Envio.updateOne({ _id: id }, { $set: { estadoId: 'CANCELADO_RETORNO' } });
+      // Tabla de estados: CANCELADO; después "Marcar en devolución" → RUMBO ORIGEN → DEVUELTO
+      await Envio.updateOne({ _id: id }, { $set: { estadoId: 'CANCELADO', requiere_devolucion: true } });
       await EnvioXComisionista.findOneAndUpdate(
-        { envioId: id, comisionistaId }, { $set: { estado_id: 'CANCELADO_RETORNO' } }
+        { envioId: id, comisionistaId }, { $set: { estado_id: 'CANCELADO' } }
       );
       notifCanceladoPorComisionista({ userId: String(envio.usuarioId), envioId: String(envio._id), nroEnvio: envio.nro_envio });
-      return res.status(200).json({ message: 'Paquete marcado como en devolución (rumbo origen).' });
+      return res.status(200).json({ message: 'Envío cancelado. Marcalo "en devolución" cuando inicies el viaje para llevarlo al origen.' });
     }
 
     return res.status(400).json({ message: `No se puede cancelar en estado ${envio.estadoId}.` });
@@ -783,4 +847,73 @@ export const archivarEnvioComisionista = async (req, res, next) => {
     await envio.save();
     res.status(200).json({ message: 'Envío archivado.' });
   } catch (error) { next(error); }
+};
+
+
+/* ─── Devolución (tabla de estados) ──────────────────────────────────────────
+   CANCELADO (requiere_devolucion) → RUMBO ORIGEN (CANCELADO_RETORNO) → DEVUELTO */
+
+// PATCH /:id/marcar-en-devolucion — requiere el viaje iniciado
+export const marcarEnDevolucion = async (req, res, next) => {
+  try {
+    const { id }         = req.params;
+    const comisionistaId = req.userId;
+
+    const envio = await Envio.findById(id);
+    if (!envio) return res.status(404).json({ message: 'Envío no encontrado.' });
+    if (String(envio.comisionistaId) !== comisionistaId)
+      return res.status(403).json({ message: 'No tenés permiso.' });
+    if (envio.estadoId !== 'CANCELADO' || !envio.requiere_devolucion)
+      return res.status(400).json({ message: 'Solo se puede devolver un envío cancelado con el paquete ya retirado.' });
+
+    let viajeIniciado = false;
+    try {
+      const RUTA_BASE = process.env.IA_ROUTE_SERVICE_URL || 'http://localhost:3002';
+      const { data } = await axios.get(
+        `${RUTA_BASE}/api/rutas/activa/${comisionistaId}`,
+        { headers: { Authorization: req.headers.authorization } }
+      );
+      viajeIniciado = Boolean(data?._id && data?.viaje_iniciado === true);
+    } catch { viajeIniciado = false; }
+
+    if (!viajeIniciado)
+      return res.status(400).json({ message: 'Iniciá el viaje del día para poder llevar el paquete de vuelta al origen.' });
+
+    envio.estadoId       = 'CANCELADO_RETORNO';
+    envio.en_viaje_fecha = getDayRange().inicioDia;
+    await envio.save();
+    await EnvioXComisionista.findOneAndUpdate(
+      { envioId: id, comisionistaId }, { $set: { estado_id: 'CANCELADO_RETORNO' } }
+    );
+
+    return res.status(200).json({ message: 'Paquete rumbo al origen.', estado: 'CANCELADO_RETORNO' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// PATCH /:id/marcar-devuelto
+export const marcarDevuelto = async (req, res, next) => {
+  try {
+    const { id }         = req.params;
+    const comisionistaId = req.userId;
+
+    const envio = await Envio.findById(id);
+    if (!envio) return res.status(404).json({ message: 'Envío no encontrado.' });
+    if (String(envio.comisionistaId) !== comisionistaId)
+      return res.status(403).json({ message: 'No tenés permiso.' });
+    if (envio.estadoId !== 'CANCELADO_RETORNO')
+      return res.status(400).json({ message: 'Solo se puede marcar como devuelto un envío rumbo al origen.' });
+
+    envio.estadoId            = 'DEVUELTO';
+    envio.requiere_devolucion = false;
+    await envio.save();
+    await EnvioXComisionista.findOneAndUpdate(
+      { envioId: id, comisionistaId }, { $set: { estado_id: 'DEVUELTO', fecha_fin: getNow() } }
+    );
+
+    return res.status(200).json({ message: 'Paquete devuelto al origen.', estado: 'DEVUELTO' });
+  } catch (err) {
+    next(err);
+  }
 };

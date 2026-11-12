@@ -154,7 +154,7 @@ export default function EnviosDisponibles() {
     handleEliminar,
   } = useEnvioAcciones({ onSuccess: load, modo: "comisionista" });
 
-  useEffect(() => { load(); }, []); // eslint-disable-line
+  useEffect(() => { load(); }, []);
 
   useEffect(() => {
     function handleClickOutside(event) {

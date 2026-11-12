@@ -1,8 +1,23 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import heroImg from "../../assets/hero.svg";
 import { registerUser } from "../../services/authService";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Package, Truck, ArrowLeft } from "lucide-react";
+
+const ROLES = {
+  cliente: {
+    titulo: "Quiero hacer un envío",
+    descripcion: "Mandá paquetes a otras ciudades con comisionistas que ya viajan hacia allá.",
+    etiqueta: "Cliente",
+    Icon: Package,
+  },
+  comisionista: {
+    titulo: "Quiero ofrecer mis servicios",
+    descripcion: "Sumá ingresos llevando paquetes en los viajes que ya hacés como transportista.",
+    etiqueta: "Comisionista / transportista",
+    Icon: Truck,
+  },
+};
 
 function getApiErrorMessage(err, fallback = "Ocurrió un error.") {
   const data = err?.response?.data;
@@ -25,6 +40,7 @@ function unformatDNI(value) {
 
 export default function Register() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
@@ -34,7 +50,9 @@ export default function Register() {
   const [dni, setDni] = useState("");
   const [telefono, setTelefono] = useState("");
   const [fechaNacimiento, setFechaNacimiento] = useState("");
-  const [rol, setRol] = useState("cliente");
+  // Paso 1: elegir rol (se puede preseleccionar con /auth/register?rol=cliente|comisionista)
+  const rolInicial = searchParams.get("rol");
+  const [rol, setRol] = useState(ROLES[rolInicial] ? rolInicial : null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -110,7 +128,7 @@ export default function Register() {
                 "Cuenta creada correctamente. Iniciá sesión para configurar tu verificación TOTP.",
             },
           });
-        }, 1500);
+        }, 800);
 
         return;
       }
@@ -134,8 +152,9 @@ export default function Register() {
               </h1>
 
               <p className="mt-5 text-slate-700 max-w-md font-medium">
-                Completá tus datos. Después de crear tu cuenta, vas a iniciar sesión
-                para configurar tu código TOTP.
+                {rol
+                  ? "Completá tus datos. Después de crear tu cuenta, vas a iniciar sesión para configurar tu código TOTP."
+                  : "Contanos qué querés hacer en FlexiDrive para empezar."}
               </p>
 
               <div className="mt-8 hidden lg:flex justify-start">
@@ -161,7 +180,50 @@ export default function Register() {
                   </div>
                 ) : null}
 
+                {!rol ? (
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900">¿Qué querés hacer?</h2>
+                    <p className="mt-1 text-sm text-slate-600">Elegí una opción para continuar.</p>
+
+                    <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {Object.entries(ROLES).map(([key, { titulo, descripcion, Icon }]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setRol(key)}
+                          className="group text-left rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:border-blue-600 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 transition"
+                        >
+                          <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-700 group-hover:bg-blue-700 group-hover:text-white transition">
+                            <Icon size={24} />
+                          </span>
+                          <span className="mt-4 block font-semibold text-slate-900">{titulo}</span>
+                          <span className="mt-1 block text-sm text-slate-600">{descripcion}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="mt-6 text-center text-sm text-slate-700">
+                      ¿Ya tenés cuenta?{" "}
+                      <Link to="/auth/login" className="text-blue-700 font-medium hover:underline">
+                        Iniciá sesión
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
                 <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+                    <span className="text-sm text-slate-700">
+                      Te estás registrando como <strong className="text-blue-800">{ROLES[rol].etiqueta}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setRol(null)}
+                      className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline"
+                    >
+                      <ArrowLeft size={16} /> Cambiar
+                    </button>
+                  </div>
+
                   <div>
                     <label className="block text-sm text-slate-700 mb-2">Nombre</label>
                     <input
@@ -289,19 +351,6 @@ export default function Register() {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm text-slate-700 mb-2">Rol</label>
-                    <select
-                      value={rol}
-                      onChange={(e) => setRol(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 outline-none"
-                    >
-                      <option value="cliente">Cliente</option>
-                      <option value="comisionista">Comisionista</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  </div>
-
                   <div className="sm:col-span-2">
                     <button
                       type="submit"
@@ -322,6 +371,7 @@ export default function Register() {
                     </div>
                   </div>
                 </form>
+                )}
               </div>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, MapPin, Package, Clock, CheckCircle2,
   PackageCheck, AlertCircle, XCircle, Banknote, CreditCard, CheckCheck,
+  Undo2, Home,
 } from "lucide-react";
 import StatusBadge from "../../components/StatusBadge";
 import { toEstadoKey, estadoLabel } from "../../utils/estadoUtils";
@@ -14,6 +15,8 @@ import {
   aceptarEnvio,
   cancelarPorComisionista,
   confirmarPago,
+  marcarEnDevolucion,
+  marcarDevuelto,
 } from "../../services/shipmentServices";
 import { formatFechaEntrega } from "../../utils/fechas";
 import { useConfirm } from "../../components/ConfirmDialog";
@@ -22,8 +25,8 @@ import api from "../../services/api";
 const PASOS = [
   { estado: "PENDIENTE",  label: "Pendiente" },
   { estado: "ASIGNADO",   label: "Aceptado"  },
-  { estado: "RETIRADO",   label: "Retirado"  },
   { estado: "EN_RETIRO",  label: "En retiro" },
+  { estado: "RETIRADO",   label: "Retirado"  },
   { estado: "EN_CAMINO",  label: "En camino" },
   { estado: "ENTREGADO",  label: "Entregado" },
 ];
@@ -113,9 +116,12 @@ export default function TrackingEnvioComisionista() {
   const estadoId       = envio?.estadoId || "";
   const envioCancelado = estadoId === "CANCELADO";
   const puedeAceptar   = estadoId === "PENDIENTE";
-  const puedeCancelar  = ["PENDIENTE","ASIGNADO","EN_RETIRO","EN_CAMINO","DEMORADO_RETIRO","DEMORADO_ENTREGA"].includes(estadoId);
-  const puedeRetirar   = ["ASIGNADO","EN_RETIRO","DEMORADO_RETIRO"].includes(estadoId);
-  const puedeEntregar  = ["RETIRADO","EN_CAMINO","DEMORADO_ENTREGA"].includes(estadoId);
+  // Acciones según la tabla de estados
+  const puedeCancelar  = ["PENDIENTE","ASIGNADO","EN_RETIRO","RETIRADO","EN_CAMINO","DEMORADO_RETIRO","DEMORADO_ENTREGA"].includes(estadoId);
+  const puedeRetirar   = estadoId === "EN_RETIRO";
+  const puedeEntregar  = estadoId === "EN_CAMINO";
+  const puedeDevolver  = estadoId === "CANCELADO" && Boolean(envio?.requiere_devolucion);
+  const puedeMarcarDevuelto = estadoId === "CANCELADO_RETORNO";
   const paso           = pasoActual(estadoId);
 
   if (loading) {
@@ -158,6 +164,11 @@ export default function TrackingEnvioComisionista() {
         {envioCancelado && (
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
             Este envío fue cancelado.
+            {envio?.requiere_devolucion && (
+              <span className="block mt-1 font-normal">
+                El paquete ya estaba retirado: iniciá el viaje y marcalo <strong>en devolución</strong> para llevarlo al origen.
+              </span>
+            )}
           </div>
         )}
         <div className="flex items-center gap-0">
@@ -280,7 +291,7 @@ export default function TrackingEnvioComisionista() {
 
 
       {/* Acciones de estado */}
-      {(puedeAceptar || puedeCancelar || puedeRetirar || puedeEntregar) && (
+      {(puedeAceptar || puedeCancelar || puedeRetirar || puedeEntregar || puedeDevolver || puedeMarcarDevuelto) && (
         <div className="flex flex-wrap gap-3">
           {puedeAceptar && (
             <button type="button"
@@ -313,6 +324,30 @@ export default function TrackingEnvioComisionista() {
               className="flex items-center gap-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 text-sm font-bold disabled:opacity-50">
               <PackageCheck className="h-4 w-4" />
               {acting === "retirar" ? "Actualizando..." : "Marcar como retirado"}
+            </button>
+          )}
+          {puedeDevolver && (
+            <button type="button"
+              onClick={() => confirm("¿Llevar este paquete de vuelta al origen? Necesitás tener el viaje del día iniciado.", {
+                labelConfirm: "En devolución",
+                onConfirm: () => accion(() => marcarEnDevolucion(id), "devolver"),
+              })}
+              disabled={acting === "devolver"}
+              className="flex items-center gap-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white px-5 py-2.5 text-sm font-bold disabled:opacity-50">
+              <Undo2 className="h-4 w-4" />
+              {acting === "devolver" ? "Actualizando..." : "Marcar en devolución"}
+            </button>
+          )}
+          {puedeMarcarDevuelto && (
+            <button type="button"
+              onClick={() => confirm("¿Confirmar que el paquete fue devuelto al origen?", {
+                labelConfirm: "Devuelto",
+                onConfirm: () => accion(() => marcarDevuelto(id), "devuelto"),
+              })}
+              disabled={acting === "devuelto"}
+              className="flex items-center gap-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white px-5 py-2.5 text-sm font-bold disabled:opacity-50">
+              <Home className="h-4 w-4" />
+              {acting === "devuelto" ? "Actualizando..." : "Marcar como devuelto"}
             </button>
           )}
           {puedeEntregar && (

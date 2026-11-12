@@ -24,7 +24,8 @@ function createApi(baseURL) {
   instance.interceptors.request.use(
     (config) => {
       const token = localStorage.getItem("token");
-      if (token) {
+      // No pisar un Authorization explícito (ej: tempToken del flujo 2FA)
+      if (token && !config.headers.Authorization) {
         config.headers.Authorization = `Bearer ${token}`;
       }
       return config;

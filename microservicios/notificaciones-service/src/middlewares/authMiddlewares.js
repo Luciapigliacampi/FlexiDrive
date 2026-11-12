@@ -8,6 +8,7 @@ export const authMiddleware = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(header.split(' ')[1], process.env.JWT_SECRET);
+    if (decoded.step) throw new Error("Token temporal (2FA pendiente): no sirve como sesión");
     req.userId = String(decoded.userId || decoded.id || decoded._id);
     req.userRol = decoded.rol;
     next();

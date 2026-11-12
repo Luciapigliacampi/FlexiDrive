@@ -29,6 +29,7 @@ export default function VehiculoModal({ open, onClose, onSave, initial }) {
     if (!open) return;
 
     if (!initial) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resetear el formulario al abrir el modal
       setForm(empty());
     } else {
       setForm({

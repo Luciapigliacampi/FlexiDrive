@@ -52,7 +52,7 @@ export default function useNotificaciones() {
               return [msg.data, ...prev];
             });
           }
-        } catch {}
+        } catch { /* mensaje WS mal formado: se ignora */ }
       };
 
       ws.onerror = (e) => console.error('[WS] error:', e);

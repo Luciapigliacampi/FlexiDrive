@@ -1,7 +1,14 @@
 import { MongoClient } from "mongodb";
 
-const uri =
-  "mongodb+srv://flexidrive9098:pabKgmiueWxx57TH@cluster0.j8jsbvb.mongodb.net/?retryWrites=true&w=majority";
+// La URI se toma del .env (nunca escribir credenciales en el código). Ejecutar con:
+//   node --env-file=microservicios/auth-service/.env cloneStructure.js
+import dns from "node:dns";
+dns.setServers(["8.8.8.8", "1.1.1.1"]); // el DNS del router falla con mongodb+srv
+const uri = process.env.MONGODB_URI;
+if (!uri) {
+  console.error("❌ Falta MONGODB_URI. Ejecutá: node --env-file=microservicios/auth-service/.env cloneStructure.js");
+  process.exit(1);
+}
 
 const sourceDB = "flexidrive";
 const targetDB = "flexidrive_test";

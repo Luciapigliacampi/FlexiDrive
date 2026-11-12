@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 function decodeToken(token) {
   try {
@@ -46,6 +46,7 @@ export default function SeleccionRol() {
 
     // ✅ Este setStatus es el único setState que queda — React lo acepta
     // porque es la rama "sin redirección", no causa cascada
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- solo cuando no hay redirección posible
     setStatus("error");
   }, [navigate]);
 

@@ -645,6 +645,7 @@ function getFechaObj(envio) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+// eslint-disable-next-line no-unused-vars -- se usa en la sección "últimos envíos" (hoy comentada)
 function formatFecha(value) {
   if (!value) return "—";
   return value.toLocaleDateString("es-AR");

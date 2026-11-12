@@ -64,10 +64,21 @@ export const verifyTotp = async (req, res, next) => {
   }
 };
 
+// El userId sale del tempToken de setup (Authorization: Bearer ...), nunca del body,
+// para que nadie pueda activar/pisar el 2FA de otro usuario.
+const getUserIdFromSetupToken = (req) => {
+  const auth = req.headers.authorization || "";
+  const tempToken = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  if (!tempToken) throw new Error("Falta Authorization Bearer tempToken");
+  const decoded = verificarToken(tempToken);
+  if (decoded.step !== "setup") throw new Error("Token inválido para configurar 2FA.");
+  return String(decoded.userId);
+};
+
 export const enableTotp = async (req, res, next) => {
   try {
-    userIdSchema.parse(req.body);
-    const result = await enableTotpService(req.body.userId);
+    const userId = getUserIdFromSetupToken(req);
+    const result = await enableTotpService(userId);
     return res.status(200).json(result);
   } catch (err) {
     return next(err);
@@ -76,14 +87,16 @@ export const enableTotp = async (req, res, next) => {
 
 export const confirmTotp = async (req, res, next) => {
   try {
-    confirmTotpSchema.parse(req.body);
-    const result = await confirmTotpService(req.body);
+    const userId = getUserIdFromSetupToken(req);
+    const { codigoIngresado } = confirmTotpSchema.pick({ codigoIngresado: true }).parse(req.body);
+    const result = await confirmTotpService({ userId, codigoIngresado });
     return res.status(200).json(result);
   } catch (err) {
     return next(err);
   }
 };
 
+// Solo admin: resetear el 2FA de un usuario que perdió su app autenticadora.
 export const resetTotp = async (req, res, next) => {
   try {
     userIdSchema.parse(req.body);
@@ -750,10 +763,12 @@ export const deleteVehiculo = async (req, res, next) => {
   }
 };
 
+// Público (authMiddleware): solo el dueño. Interno (isInternal): sin req.userId → cualquiera.
 export const getDestinatarioById = async (req, res) => {
   try {
     const { id } = req.params;
-    const dest = await Destinatario.findById(id).select("apellido nombre dni telefono");
+    const filtro = req.userId ? { _id: id, userId: req.userId } : { _id: id };
+    const dest = await Destinatario.findOne(filtro).select("apellido nombre dni telefono");
     if (!dest) return res.status(404).json({ error: "Destinatario no encontrado." });
     res.status(200).json(dest);
   } catch (e) {

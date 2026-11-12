@@ -77,6 +77,7 @@ function buildParadas(envios, viajeIniciado = false) {
 
       case 'RETIRADO':
       case 'EN_CAMINO':
+      case 'DEMORADO_ENTREGA':
       case 'DEMORADO':
         if (envio.direccion_destino?.lat != null) {
           paradas.push({
@@ -511,6 +512,13 @@ export const completarParada = async (req, res) => {
         { distanciaKm: parada.distancia_km ?? null },
         { headers: { Authorization: token } }
       ).catch(e => console.warn('⚠️ No se pudo marcar entregado:', e.message));
+    } else if (tipo === 'RETORNO') {
+      // Parada de devolución completada → DEVUELTO
+      await axios.patch(
+        `${ENVIO_BASE}/api/envios/${envioId}/marcar-devuelto`,
+        {},
+        { headers: { Authorization: token } }
+      ).catch(e => console.warn('⚠️ No se pudo marcar devuelto:', e.message));
     }
 
     // ── Verificar si el viaje está realmente completo ─────────────────────
@@ -532,7 +540,8 @@ export const completarParada = async (req, res) => {
           { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY } }
         );
         // Si el envío recién "retirado" quedó en EN_CAMINO, aún falta entregarlo
-        if (['EN_CAMINO', 'RETIRADO'].includes(envioActual?.estadoId)) {
+        // RETIRADO con entrega otro día no es parte de este viaje: no lo bloquea
+        if (envioActual?.estadoId === 'EN_CAMINO') {
           hayEnviosPendientesDeEntrega = true;
         }
       } catch (e) {
@@ -662,7 +671,7 @@ export const getSeguimientoEnvio = async (req, res) => {
         if (gRes.data.status === 'OK') {
           polyline = gRes.data.routes[0].overview_polyline.points;
           await axios.patch(
-            `${ENVIO_BASE}/api/envios/${envioId}`,
+            `${ENVIO_BASE}/api/envios/interno/${envioId}`,
             { polyline_especifica: polyline },
             { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY } }
           ).catch(() => {});
@@ -674,8 +683,8 @@ export const getSeguimientoEnvio = async (req, res) => {
     if (envio.comisionistaId) {
       try {
         const { data: u } = await axios.get(
-          `${AUTH_BASE}/api/auth/${envio.comisionistaId}`,
-          { headers: { Authorization: token } }
+          `${AUTH_BASE}/api/auth/interno/usuarios/${envio.comisionistaId}`,
+          { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY } }
         );
         datosComisionista = {
           nombreCompleto: `${u.nombre} ${u.apellido}`,

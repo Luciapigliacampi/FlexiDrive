@@ -44,6 +44,7 @@ export default function ProtectedRoute({ allowedRoles }) {
   }
 
   // Token expirado (exp está en segundos)
+  // eslint-disable-next-line react-hooks/purity -- chequeo de expiración intencional en cada render
   if (decoded.exp && decoded.exp * 1000 < Date.now()) {
     localStorage.removeItem("token");
     localStorage.removeItem("rol");

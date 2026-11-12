@@ -12,6 +12,7 @@ export const authMiddleware = (req, res, next) => {
   try {
     // Verificamos con la JWT_SECRET que definas en el .env de este micro
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.step) throw new Error("Token temporal (2FA pendiente): no sirve como sesión");
     
     // Extraemos el ID y lo pasamos al req para que el controlador lo use
     req.userId = decoded.userId; 

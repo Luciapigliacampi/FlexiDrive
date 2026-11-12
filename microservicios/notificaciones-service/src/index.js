@@ -1,4 +1,7 @@
 //microservicios\notificaciones-service\src\index.js
+// DNS público: el DNS del router falla en las consultas SRV de mongodb+srv
+import dns from "node:dns";
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 import 'dotenv/config';
 import express from 'express';
 import http from 'http';
